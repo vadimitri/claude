@@ -1,0 +1,32 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><title>SPARK Stills</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><style>
+:root{--bg:#0b0b0b;--fg:#f2efe6;--mut:#8a877f;--line:#262626}
+@media (prefers-color-scheme:light){:root{--bg:#f2efe6;--fg:#141414;--mut:#6b675e;--line:#d8d3c6}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 ui-monospace,Menlo,monospace;padding:24px 16px}
+h1{font-size:28px;margin:0 0 4px}p{color:var(--mut);margin:0 0 16px;max-width:75ch}
+nav{position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:1;display:grid;gap:6px}
+nav div{display:flex;flex-wrap:wrap;gap:6px}
+button{font:inherit;background:none;color:var(--fg);border:1px solid var(--line);padding:5px 10px;cursor:pointer}
+button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
+h2{font-size:15px;margin:28px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--w,220px),1fr));gap:14px}
+figure{margin:0}img{width:100%;display:block}
+figcaption{margin-top:6px;font-size:12px;color:var(--mut);word-break:break-all}
+</style></head><body><h1>SPARK Stills</h1>
+<p>PNG mit Alpha in <code>stills/&lt;format&gt;/&lt;farbe&gt;/&lt;name&gt;__&lt;stil&gt;.png</code>.
+In Figma reinziehen; umfärben: farbiges Rechteck drüber, beide auswählen, PNG unten, <b>Use as mask</b>.</p>
+<nav id="nav"></nav><main id="main"></main><script>
+const G={"Spark": ["spark_mark", "spark_outline", "spark_shade", "spark_glow", "spark_grainy", "spark_echo", "spark_echo_corner", "spark_echo_rise", "spark_contour", "spark_contour_bold", "spark_spiro", "spark_burst", "spark_burst_rise", "spark_nest", "spark_twelve", "spark_duo", "spark_glitch", "spark_orbit", "spark_frame", "spark_of_sparks", "spark_pixel", "spark_pixel_fine", "spark_pixel_dissolve", "spark_pattern", "spark_pattern_dense", "spark_pattern_mixed", "spark_pattern_grow", "spark_pattern_wave", "spark_pattern_hole", "spark_scatter_1", "spark_scatter_2", "spark_scatter_3", "spark_constellation", "spark_graph"], "Kacheln, Raster, Verlaeufe": ["tiles_scatter", "tiles_scatter_fine", "tiles_scatter_micro", "tiles_ramp", "tiles_ramp_fine", "tiles_frame", "tiles_corner", "tiles_band", "tiles_center", "tiles_mosaic", "tiles_mosaic_ramp", "tiles_quadtree", "graph_grid", "graph_grid_fine", "dither_ramp", "dither_radial"]}, GRAY=["dither_radial", "dither_ramp", "spark_glow", "spark_grainy", "spark_shade", "tiles_mosaic", "tiles_mosaic_ramp"], THIN=["graph_grid_fine", "spark_spiro"], OPT={fmt:["poster_a3", "16x9", "9x16", "4x5", "1x1"],style:["dots", "fine", "grain", "halftone", "solid"],bg:["navy","white","black","paper"]};
+const BG={navy:["#1A3A6E","white"],white:["#fff","navy"],black:["#000","white"],paper:["#F2EFE6","navy"]};
+let st={fmt:"16x9",style:"dots",bg:"navy"};try{Object.assign(st,JSON.parse(localStorage.getItem("stills")||"{}"))}catch(e){}
+function draw(){
+ document.getElementById("nav").innerHTML=Object.entries(OPT).map(([k,vs])=>"<div>"+vs.map(v=>
+  `<button data-k="${k}" data-v="${v}" aria-pressed="${st[k]===v}">${v}</button>`).join("")+"</div>").join("");
+ const [bg,col]=BG[st.bg], w=st.fmt==="16x9"?"300px":"180px";
+ document.getElementById("main").innerHTML=Object.entries(G).map(([g,ns])=>`<h2>${g}</h2><div class="grid" style="--w:${w}">`+
+  ns.filter(n=>!(st.style==="solid"&&GRAY.includes(n))&&!(st.style==="halftone"&&THIN.includes(n))).map(n=>`<figure><img loading="lazy" style="background:${bg}"
+  src="stills/${st.fmt}/${col}/${n}__${st.style}.png" alt="${n}"><figcaption>${n}</figcaption></figure>`).join("")+"</div>").join("");
+}
+document.getElementById("nav").onclick=e=>{const b=e.target.dataset;if(!b.k)return;st[b.k]=b.v;
+ try{localStorage.setItem("stills",JSON.stringify(st))}catch(e){};draw()};draw();
+</script></body></html>
