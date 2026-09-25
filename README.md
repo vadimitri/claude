@@ -97,6 +97,23 @@ Farbe ändern: Layer auswählen, Fill ändern. Texte der Templates stehen oben i
 | `makernight_loop.py` | `loop/loop_full.wav` (mit Drums), `loop/loop_bed.wav` (nur Pad+Arp), je 16 s nahtlos + `_60s.wav/.m4a` |
 
 Texte: `COPY` in `makernight.py`. Farben: `PAL`. Nahtlos loopen nur die `.wav` (AAC hat Encoder-Lücken).
+
+### „Sparks make the night“ (`makernight_sparks.py`)
+
+8,5 s bei 120 BPM, Bild und Ton kommen aus einem Skript. Ein Funke schweißt den Titel: Pro Buchstabe fährt ein Kopf die Kontur ab, jeder startet auf einer 16tel. Bei 2,0 s kommt der Drop, dann das Datum. Ein angeschnittener Spark-Stern geht auf wie die Sonne. Am Ende zerfällt die Schrift in Funken, und der Funke am „M“ zündet neu. Bild und Ton loopen nahtlos.
+Stil: 4-px-Zellen, 6 Palettenstufen, scharfe Kanten, geditherte Füllung (Riso). Texte stehen in `COPY`, Layout pro Format in `LAYOUT`, Timing oben in der Timeline (Bild und Ton lesen dieselben Werte).
+
+| Aufruf | Ergebnis in `makernight/sparks/` |
+|---|---|
+| `makernight_sparks.py` | `sparks_16x9.mp4`, `sparks_9x16.mp4` (H.264 + AAC, -14 LUFS), `sparks.wav` |
+| `makernight_sparks.py 9x16` / `16x9 prores` | ein Format / zusätzlich ProRes 422 HQ |
+| `makernight_sparks.py preview` | Stills der Schlüsselmomente + `contact_*.png` |
+| `makernight_sparks.py audio` | nur `sparks.wav` |
+
+```sh
+uv run --with numpy --with pillow --with scipy --with scikit-image python makernight_sparks.py
+```
+Braucht Clash Display und Satoshi (Fontshare) in `~/Library/Fonts`.
 Wie und warum das so gebaut ist: Skill `spark-motion` (`~/.claude/skills/spark-motion/SKILL.md`).
 ```sh
 uv run --with numpy --with pillow --with scipy python makernight.py 16x9
