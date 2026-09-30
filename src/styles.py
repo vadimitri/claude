@@ -129,11 +129,14 @@ def tile(t, shape):
     return np.tile(t, (shape[0] // t.shape[0] + 1, shape[1] // t.shape[1] + 1))[:shape[0], :shape[1]]
 
 
-def dither(v, N, D, px, seed=0):
+def dither(v, N, D, px, seed=0, shift=(0, 0)):
+    """shift (Zellen y, x): Schwellenmuster verschieben. Wechselt es von Bild zu Bild, "kocht" das Korn wie
+    handgezeichnete Linien (Boil); bleibt es (0, 0), ist alles wie immer."""
     thr = {"blue": lambda s: tile(np.roll(BN, (seed * 37 % 128, seed * 71 % 128), (0, 1)), s),
            "bayer2": lambda s: tile(bayer(2), s), "bayer4": lambda s: tile(bayer(4), s),
            "lines": lambda s: np.broadcast_to(((np.arange(s[0]) % 4 + 0.5) / 4)[:, None], s),
            "white": lambda s: np.random.default_rng(7 + seed).random(s)}[D](v.shape)
+    thr = np.roll(thr, shift, (0, 1)) if any(shift) else thr
     x = np.clip(v, 0, 1) * N + 1e-4
     lo = np.floor(x)
     return up(np.clip(lo + (x - lo > thr), 0, N).astype(np.int8), px)
@@ -342,12 +345,12 @@ def render(st, fmt="16x9"):
     V = bg.copy()
     for _, _, v, _, _ in c.layers:
         V = np.where(np.isnan(v), V, v)
-    D, sd = st["D"], st.get("seed", 0)
-    idx_bg, idx = dither(bg, c.N, D, c.px, sd), dither(V, c.N, D, c.px, sd)
+    D, sd, sh = st["D"], st.get("seed", 0), tuple(st.get("dither_shift", (0, 0)))
+    idx_bg, idx = dither(bg, c.N, D, c.px, sd, sh), dither(V, c.N, D, c.px, sd, sh)
     frame = c.pal[idx_bg]
     layers = {"bg": np.dstack([c.pal[idx_bg], np.full((c.H, c.W), 255, np.float32)])}
     for name, a, _, flat, own in c.layers:
-        col = c.pal[flat] if flat is not None else c.pal[dither(V, c.N, own, c.px, sd)] if own else c.pal[idx]
+        col = c.pal[flat] if flat is not None else c.pal[dither(V, c.N, own, c.px, sd, sh)] if own else c.pal[idx]
         frame += a[..., None] * (col - frame)
         rgba = layers.get(name, np.zeros((c.H, c.W, 4), np.float32))
         rgba[..., :3] += a[..., None] * (col - rgba[..., :3])

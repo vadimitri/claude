@@ -8,7 +8,9 @@
 Alle Gestaltungswerte stehen kommentiert in kickoff_loop/loop.toml, hier steht nur Logik.
 Handbuch (Vision, Begriffe, Entscheidungen, Status, offene Fragen): kickoff_loop/CLAUDE.md.
 
-  uv run src/kickoff_loop.py preview        Vorschau-Video + Kontaktbogen + Checks  → kickoff_loop/previz/vNNN/
+  uv run src/kickoff_loop.py sheet          schnelle Runde (~15 s): Kontaktbogen + Plakat-Loop → previz/now/, oeffnet beides
+  uv run src/kickoff_loop.py boil           Test: Digitalteil ohne | mit Boil nebeneinander → previz/now/boil.mp4
+  uv run src/kickoff_loop.py preview [A|B]  Vorschau-Video + Kontaktbogen + Checks  → kickoff_loop/previz/vNNN/
   uv run src/kickoff_loop.py variants [N..] Detailvarianten der Frames N nebeneinander → kickoff_loop/previz/variants/
   uv run src/kickoff_loop.py frames         nur die Plakat-Frames rendern (fuellt den Cache)
   uv run src/kickoff_loop.py stars [S..]     Sterne-Bogen: jeder Stil an 3 Stellen der Bahn → previz/variants/stars.png
@@ -30,6 +32,7 @@ import glob
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import tomllib
 from multiprocessing import Pool
@@ -54,6 +57,8 @@ PREVIEW_CELL_PX = S.SIZES[PREVIEW][2] * S.BASE["R"]     # 1 * 4 = 4 px pro Zelle
 POSTER_ASPECT = S.SIZES[PREVIEW][0] / S.SIZES[PREVIEW][1]  # Breite / Hoehe (A3 = 1/sqrt 2)
 MODULE_CELLS = 2                                        # ein QR-Modul = 2 Zellen (so setzt es kickoff.layout)
 LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)   # Rec. 709: Anteil von R, G, B an der Helligkeit
+GRID_KEYS = ("bpm_carousel", "bpm_end", "sixteenth_s", "carousel_bars", "hits_s", "downbeats_s", "burst_s", "impact_s",
+             "end_s")   # was die Zeitachse aus dem Musik-Raster braucht (kickoff_loop_music.py schreibt es)
 STAR_CLEAR = 1.6    # Selbsttest: ab diesem Vielfachen des Sternradius liegt kein Stern und kaum Schein mehr (background)
 GLOW_LIGHT_E = 4    # QR-Gluehen "light": exp(-4) = 2 % am Ende von glow_cells, gleich wie gauss dort
 GLOW_SIDE_TOL = 0.6  # Selbsttest: gleicher Abstand, andere Seite der Platte, hoechstens so viele Stufen Unterschied
@@ -71,10 +76,13 @@ EASE = {"linear": lambda t: t,
 
 # ---------------------------------------------------------------- Konfiguration
 
-def load(path=CONFIG):
-    """loop.toml lesen und die Fehler abfangen, die sonst erst nach Minuten Rendern auffallen."""
+def load(path=CONFIG, music=None):
+    """loop.toml lesen und die Fehler abfangen, die sonst erst nach Minuten Rendern auffallen.
+    music = "A" | "B": Mashup-Variante statt der in [music] eingetragenen (zum Vergleichen, ohne die toml zu aendern)."""
     with open(path, "rb") as f:
         cfg = tomllib.load(f)
+    if music:
+        cfg["music"].update(file=f"ref/audio/mashup_{music}.wav", grid=f"ref/audio/mashup_{music}.json")
     n, col = cfg["loop"]["frames"], cfg["color"]
     bad = [p for p in col["stations"] if p not in P_CODES]
     assert not bad, f"[color].stations: unbekannte oder lila Codes {bad}. Erlaubt: {sorted(P_CODES)}"
@@ -102,14 +110,17 @@ def load(path=CONFIG):
     m = cfg["music"]
     grid = os.path.join(PROJECT, m["grid"])
     assert os.path.exists(os.path.join(PROJECT, m["file"])) and os.path.exists(grid), \
-        f"[music]: {m['file']} oder {m['grid']} fehlt (Song-Ausschnitt und Raster, siehe CLAUDE.md)"
-    m["grid"] = json.load(open(grid))
-    cfg["loop"]["bpm"] = m["grid"]["bpm"]
-    bars = sum(b for _, b in cfg["video"]["cadence"])
-    assert bars == m["switch_bar"], f"[video].cadence: {bars} Takte, [music].switch_bar will {m['switch_bar']}"
-    assert m["switch_bar"] + cfg["endcard"]["bars"] < len(m["grid"]["downbeats_s"]), "[endcard].bars: Song zu kurz"
-    bad = [per for per, _ in cfg["video"]["cadence"] if 16 % per]
-    assert not bad, f"[video].cadence: {bad} Wechsel pro Takt gehen nicht in 16tel auf (1, 2, 4, 8, 16)"
+        f"[music]: {m['file']} oder {m['grid']} fehlt: uv run src/kickoff_loop_music.py"
+    g = m["grid"] = json.load(open(grid))
+    miss = [k for k in GRID_KEYS if k not in g]
+    assert not miss, f"[music].grid: {m['grid']} ohne {miss} (altes Songraster? Mashup-Raster aus kickoff_loop_music.py)"
+    cfg["loop"]["bpm"], cfg["video"]["cadence"] = g["bpm_carousel"], g["carousel_bars"]
+    bad = [per for per, _ in g["carousel_bars"] if 16 % per]
+    assert not bad, f"carousel_bars: {bad} Wechsel pro Takt gehen nicht in 16tel auf (1, 2, 4, 8, 16)"
+    assert abs(g["impact_s"] - g["burst_s"] - cfg["endcard"]["burst_beats"] * 60 / g["bpm_carousel"]) < 2e-3, \
+        "[endcard].burst_beats passt nicht zur Luft im Mashup: uv run src/kickoff_loop_music.py neu bauen"
+    assert len(cfg["styles"]["cycle"]) * cfg["styles"]["hold_frames"] == n, \
+        f"[styles]: {len(cfg['styles']['cycle'])} Stile x hold {cfg['styles']['hold_frames']} != {n} Frames (Stile fielen weg)"
     return cfg
 
 
@@ -405,6 +416,7 @@ def _source_hash():
 def render_cached(st, fmt, tag):
     """Bild zu einem Stil-Dict, gecacht nach allem, was es bestimmt (Stil, Lage, Satzwerte, Palette, Quelltext)."""
     key = json.dumps([fmt, st["P"], S.PALS[st["P"]], st["S"], st["star"], st["rot"], st.get("nest_phase"), st["seed"],
+                      st.get("dither_shift"),
                       st["loop"], _source_hash()], sort_keys=True, default=str)
     path = os.path.join(CACHE, f"{tag}_{hashlib.sha1(key.encode()).hexdigest()[:12]}.png")
     if os.path.exists(path):
@@ -561,7 +573,7 @@ def stars(cfg, codes):
 
 # ---------------------------------------------------------------- Selbsttest
 
-SELFTEST_FRAMES = [8, 12, 26]   # Frame 9 (Verlauf, Stern am QR), 13 und 27 (QR frei: dort faellt ein verbeultes Gluehen auf)
+SELFTEST_FRAMES = [2, 6, 8]    # Frame 3 (Stern gross am Datum), 7 und 9 (QR frei: dort faellt ein verbeultes Gluehen auf)
 
 
 def selftest(cfg, i=8):
@@ -697,7 +709,7 @@ def print_files(cfg):
 def main():
     args = sys.argv[1:]
     cmd = args[0] if args else "preview"
-    cfg = load()
+    cfg = load(music=args[1] if cmd == "preview" and len(args) > 1 else None)
     if cmd == "frames":
         _, ok, leg = frames(cfg)
         print(f"{len(ok)} Plakate, QR lesbar: {sum(ok)}/{len(ok)}, Lesbarkeit: {' '.join(f'{x:.2f}' for x in leg)}")
@@ -710,6 +722,17 @@ def main():
         print(stars(cfg, args[1:] or cfg["styles"]["cycle"]))
     elif cmd == "variants":
         print(variants(cfg, [int(a) - 1 for a in args[1:]] or [8]))
+    elif cmd == "sheet":                                # schnelle Runde: Kontaktbogen + Plakat-Loop, kein Video
+        import kickoff_loop_video as V
+        posters, ok, leg = frames(cfg)
+        out = V.sheet(cfg, posters, ok, leg)
+        print(f"{out}  QR {sum(ok)}/{len(ok)}, Lesbarkeit min {min(leg):.2f}")
+        subprocess.run(["open", os.path.join(out, "contact.png"), os.path.join(out, "loop.mp4")])
+    elif cmd == "boil":                                 # Test: Digitalteil ohne | mit Boil nebeneinander
+        import kickoff_loop_video as V
+        out = V.boil_test(cfg)
+        print(out)
+        subprocess.run(["open", out])
     elif cmd == "preview":
         import kickoff_loop_video as V
         print(V.preview(cfg, *frames(cfg)))

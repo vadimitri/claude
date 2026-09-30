@@ -113,10 +113,6 @@ card_style = "S7"          # Hypno-Loop (Vadim 30.9.): XOR-Nest als Tunnel, Ster
 card_zoom_stars_per_s = 0.9    # so viele neue Sterne pro Sekunde (Tempo des Sogs). Jedes Pixel kippt dabei ~1x/s: kein Blitz
 card_spin_deg_per_s = 12   # langsame Drehung in der Bildebene (frontal, keine Kippung)
 card_fps = 24              # Vadim 30.9.: "Framerate der digitalen Version ganz nice" → fluessig
-boil_cells = 0             # Boil (Test, Vadim 1.10.): Stern springt auf boil_on-teln um bis zu so viele ganze Zellen, 0 = aus
-boil_rot_deg = 1.5         # dazu so viel Drehung (+-), frontal
-boil_on = 2                # neue Lage alle so viele Bilder: 2 = auf Zweiern (12/s bei 24 fps), wie Zeichentrick
-boil_dither = true         # das Bayer-Korn wandert mit (es "kocht"), im ganzen Bild; flaechige Stufen (QR-Platte) bleiben ruhig
 card_reveal_16ths = [0, 1, 2]   # Titel, Datum, QR setzen auf diesen 16teln nach dem Impact ein (Tempo der Endmusik)
 
 [music]
