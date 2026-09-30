@@ -33,6 +33,7 @@ In `previz/review/` liegt, was offen ist (alles andere in `review/alt/`):
      Ausbruch und Karussell-Ende gehören auf den **letzten Frame mit Stern**.
    - Stile nur auf Frames mit Stern verteilen; S2 (voller Körper) auf den letzten.
    - Leere Frames rendern einen winzigen S2 außerhalb (`OFF_STAR`), weil Labor-Stile am Stern messen.
+   - `test` ohne Argumente bricht bei 32 Frames ab (QR-Glühen: Standardframes 3/7/9 haben den Stern am QR). `SELFTEST_FRAMES` auf freie Frames der neuen Bahn setzen.
 3. **Lesbarkeit** der Riesenframes: min 0.91 (Gate 0.95), der Riesenstern liegt über SPARK/KICK-OFF. Über Bahn oder Satz lösen.
 4. **Zeitachse T16**: Das Raster kennt nur 16tel-Teiler (`load`: `16 % per`). 32tel-Triolen = 24 Wechsel pro Takt. Dann
    `preview` und der Blitz-Check bei 16/s (C1 wechselt jeden Frame die Farbe).
