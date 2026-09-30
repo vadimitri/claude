@@ -73,25 +73,19 @@ text_gradient_steps = 1.0
 # Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
 
 [qr]
-# JOIN US + QR als Comic-Caption-Box (Into the Spider-Verse): harte Karte in der hellsten Stufe, Rand und Schlagschatten
-# in der dunkelsten, alles in ganzen Zellen (kein Verlauf, kein Weichzeichnen, kein Gluehen). Die Karte umschliesst die
-# QR-Platte: Module dunkelste Stufe auf hellster, Ruhezone 3 Module rundum (kickoff.layout), Rand/Schatten immer ausserhalb.
-# Varianten nebeneinander: uv run src/kickoff_loop.py variants 1 9 27 → previz/variants/qr_box_sheet.png
-label = "inside"           # JOIN US: inside = in der Karte ueber dem QR | sticker = eigene Karte, versetzt ueber der
-                           # Oberkante (sticker_offset_cells, label_fill)
+# JOIN US + QR gluehen ein (Vadim zu v005: keine harte Caption-Box, zurueck zum Gluehen von v003, aber sauber).
+# Die QR-Platte (Module + Ruhezone quiet_cells) steht flaechig in der hellsten Stufe, drumherum laeuft das Licht ins Plakat
+# aus: rein geometrisch aus dem Abstand zur Platte (kein Rauschen, der v003-Hof war verbeult), im Bayer-Korn auf dem
+# Zellraster. JOIN US steht frei darueber, ohne Kasten/Rand/Hof, und kippt pro Buchstabe hell/dunkel je nach Untergrund.
+# Vadim 1.10.: R2 Licht (Ruhezone 1 Modul, Lichtabfall). Varianten: uv run src/kickoff_loop.py variants 1 9 27 → qr_sheet.png
+quiet_cells = 2            # Ruhezone um die Module (Zellen, 1 Modul = 2 Zellen). Vadim 1.10.: "nicht so viel Padding",
+                           # R2 gewaehlt. Das Gluehen drumherum ist auch hell und hilft dem Scanner; QR wird je Frame dekodiert
+glow_cells = 12            # Reichweite des Gluehens ab Plattenkante (Zellen), am Ende noch 2 % (gauss und light)
+glow_shape = "round"       # round = Ecken runden sich nach aussen | square = bleibt eckig (Schachbrett-Abstand, 8-Bit)
+glow_profile = "light"     # gauss = weich, flache Kuppe | light = Lichtabfall (steil an der Platte, langer Schweif) |
+                           # linear = gleichmaessig | steps = linear, auf Palettenstufen gerundet: Ringe ohne Korn
 label_cap_cells = 9        # Versalhoehe JOIN US, fest (waechst nicht mit dem Titel). 9 = so breit wie die QR-Module (59/58)
-label_pad_cells = 6        # Luft um JOIN US in seiner Karte; inside: nur oben (unten folgt direkt die Ruhezone).
-                           # 6 = Ruhezone des QR: ein Abstand rundum
-label_fill = "light"       # nur sticker: light = hellste Stufe, dunkle Schrift | dark = dunkelste Stufe, helle Schrift
-sticker_offset_cells = [-5, -6]  # nur sticker: linke obere Ecke des Etiketts gegen die der QR-Karte (x, y; links/oben negativ)
-outline_cells = 1          # Rand um jede Karte in der dunkelsten Stufe, 0 = kein Rand
-outline = "solid"          # solid | checker = Schachbrett aus hellster und dunkelster Stufe (1-Bit-Grau)
-shadow_cells = [3, 3]      # harter Schlagschatten (x, y) in Zellen, nach rechts unten positiv, [0, 0] = keiner
-shadow = "solid"           # solid = volle Flaeche | checker = Rasterpunkte (Halbton), dazwischen bleibt der Grund
-shadow_step = 3            # Palettenstufe des Schattens: 0 = dunkelste (klassisch) bis 5 = hellste. 3 = Farbversatz in der
-                           # satten Mittelstufe: sichtbar auf dunklem Grund (0 verschwindet dort, Befund 30.9.: Schattenkante
-                           # auf 32/32 Frames sichtbar statt 23/32), auf dem Stern trennt der dunkle Rand
-corner_cells = 0           # Ecken als Pixeltreppe mit diesem Radius, 0 = rechtwinklig
+label_gap_cells = 4        # Luft zwischen JOIN US und Plattenkante (Zellen)
 
 [video]
 size_px = [1080, 1920]     # Ausgabe Breite x Hoehe (9:16 fuer Reel/Story)
@@ -147,3 +141,27 @@ jitter_rot_deg = 0.0      # Restdrehung von Foto zu Foto
 flash_max_per_s = 3        # WCAG 2.3.1: hoechstens 3 Blitze pro Sekunde (Blitz = Paar gegenlaeufiger Helligkeitsspruenge)
 flash_min_delta = 0.10     # Helligkeitssprung (relative Luminanz 0..1), ab dem ein Wechsel zaehlt
 flash_max_area_frac = 0.25 # Flaechenanteil des Bildes, ab dem blitzende Pixel als Verstoss gelten
+
+[mashup]
+# Musik als Mashup (Uebergabe 30.9., Punkt 4), zwei Varianten zum Anhoeren. Bauen: uv run src/kickoff_loop_music.py
+#   → ref/audio/mashup_A.wav/.json, mashup_B.wav/.json (Zeitraster fuers Video), previz/music/*.m4a + report.txt
+# A: IGOR im Original ab dem Einstieg ([music].grid in_s: Drone, Drum-Einsatz bei +1.6 s, dann Beat) → Maker-Night-Drop
+# B: nur das IGOR-Brummen aus dem Intro (bis 24.04 s kein Schlagzeug), ein Tiefpass oeffnet sich → Maker-Night-Drop
+# Uebergang in beiden gleich, kein Crossfade: das Abgeschnittene endet hart [endcard].burst_beats vor dem Impact (so
+# lang wie der Ausbruch im Bild), in dieser "Luft" klingt nur sein Hall nach, auf der Eins setzt der Drop ein.
+maker_night_tune_cents = 53    # Maker Night wird so viel hoeher neu synthetisiert (IGOR bleibt unangetastet, kein
+                               # Resampling). IGOR-Brummen gemessen: D2-Cluster +48..+65 Cent, D3 +45..+55 Cent
+end_bars = 2                   # Endkarte nach dem Impact in Takten Maker Night (120 BPM); die Datei endet auf dem Taktstrich
+air_tail = 0.5                 # Pegel des Halls in der Luft vor dem Impact (0 = Stille, 1 = so laut wie das Material)
+air_reverb_s = 1.5             # Laenge dieses Halls
+fade_cut_s = 0.005             # Entknacken an jeder Schnittkante (5 ms hoert man nicht als Blende)
+a_pre_bars = 0                 # A: so viele reine Drone-Takte vor dem Einstieg zusaetzlich (Songintro, 0 = wie v005)
+a_carousel = [[8, 1], [16, 3]] # A: Karussell [Wechsel pro Takt, Takte] auf dem IGOR-Raster (81.61 BPM). Summe der
+                               # Takte = Impact auf Taktstrich 4 (Loop-Neustart des Songs): 3.5 Durchgaenge a 16 Frames
+a_drop_db = 1.0                # A: Drop so viel lauter als der letzte IGOR-Takt (LUFS-Differenz)
+b_drone_from_s = 2.0           # B: ab dieser Songsekunde wird das Brummen genommen (ab ~1 s eingeschwungen)
+b_carousel = [[8, 1], [16, 4]] # B: Karussell auf dem 120-BPM-Raster der Maker Night: 1 Takt Achtel-Anlauf, dann
+                               # 4 Durchgaenge a 16 Frames (1 Takt in 16teln = 2 s pro Durchgang)
+b_lp_hz = [120, 12000]         # B: Tiefpass auf dem Brummen, zu (Anfang) → offen (Ende des Karussells)
+b_lp_curve = 1.5               # B: Verlauf des Oeffnens, 1 = gleichmaessig (in Oktaven), > 1 = bleibt laenger dunkel
+b_drop_db = 6.0                # B: Drop so viel lauter als das offene Brummen am Ende (LUFS-Differenz)

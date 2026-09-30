@@ -1,0 +1,28 @@
+Musik-Mashup · uv run src/kickoff_loop_music.py · Stellschrauben loop.toml [mashup]
+
+Stimmung (staerkster Teilton, Cent gegen D, A4 = 440 Hz):
+  IGOR-Brummen (Intro 2-22 s): D2 76.18 Hz +64 c, D3 151.12 Hz +50 c (Cluster aus verstimmten Teiltoenen, D2 +48..+65 c, D3 +45..+55 c)
+  Maker Night neu synthetisiert mit +53 c: gemessene Verschiebung gegen den Nachbau bei 0 c +53 c (Log-Spektrum, Dm9, erste 4 s). Nachbau bei 0 c = loop_full.wav bis auf 2 LSB (geprueft 30.9.)
+
+Variante A: IGOR im Original ab song_in_s, Drop = Maker Night (neu gestimmt)
+  Karussell 1 Takt(e) 8tel + 3 Takt(e) 16tel bei 81.606 BPM = 3.5 Durchgaenge a 16 Frames (minus 0.5 Beat Ausbruch), Luft ab 11.396 s, Impact 11.764 s, Ende 15.764 s (2 Takte Maker Night, 120 BPM), 8 Kamera-Stoesse
+  Laenge 15.7639 s = end_s 15.7639 s: ok
+  Impact 11.7639 s, Drop-Anschlag +1.0 ms daneben: ok (Grenze +-10 ms)
+  Schnitt Anfang 0.000 s: max. Sample-Sprung 0.0161 = 0.06x des 99.9-%-Werts im ganzen Stueck (ok)
+  Schnitt Luft 11.396 s: max. Sample-Sprung 0.1903 = 0.75x des 99.9-%-Werts im ganzen Stueck (ok)
+  Schnitt Ende 15.764 s: max. Sample-Sprung 0.0073 = 0.03x des 99.9-%-Werts im ganzen Stueck (ok)
+  Drop-Einsatz: Sample-Sprung 0.1018, auf Beat 2 des Drops 0.4701: das ist der Kick-Anschlag selbst (ok, kein Schnitt-Knack)
+  Lautheit: ganz -12.9 LUFS, letzter Karussell-Takt -12.7, Drop -11.8 LUFS (Datei statisch auf -1 dBFS Spitze)
+  Hoerversion previz/music/mashup_A.m4a: -14.0 LUFS
+
+Variante B: IGOR-Brummen aus dem Intro mit Tiefpass-Aufbau, Drop = Maker Night
+  Karussell 1 Takt(e) 8tel + 4 Takt(e) 16tel bei 120.0 BPM = 4.5 Durchgaenge a 16 Frames (minus 0.5 Beat Ausbruch), Luft ab 9.750 s, Impact 10.000 s, Ende 14.000 s (2 Takte Maker Night, 120 BPM), 4 Kamera-Stoesse
+  Laenge 14.0000 s = end_s 14.0000 s: ok
+  Impact 10.0000 s, Drop-Anschlag +1.0 ms daneben: ok (Grenze +-10 ms)
+  Schnitt Anfang 0.000 s: max. Sample-Sprung 0.0014 = 0.00x des 99.9-%-Werts im ganzen Stueck (ok)
+  Schnitt Luft 9.750 s: max. Sample-Sprung 0.1963 = 0.54x des 99.9-%-Werts im ganzen Stueck (ok)
+  Schnitt Ende 14.000 s: max. Sample-Sprung 0.0146 = 0.04x des 99.9-%-Werts im ganzen Stueck (ok)
+  Drop-Einsatz: Sample-Sprung 0.2021, auf Beat 2 des Drops 0.9339: das ist der Kick-Anschlag selbst (ok, kein Schnitt-Knack)
+  Aufbau: Anteil 500-8000 Hz im letzten Karussell-Takt +26 dB gegen den ersten (ok)
+  Lautheit: ganz -9.5 LUFS, letzter Karussell-Takt -11.8, Drop -5.8 LUFS (Datei statisch auf -1 dBFS Spitze)
+  Hoerversion previz/music/mashup_B.m4a: -14.0 LUFS

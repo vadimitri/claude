@@ -11,7 +11,8 @@ Handbuch (Vision, Begriffe, Entscheidungen, Status, offene Fragen): kickoff_loop
   uv run src/kickoff_loop.py preview        Vorschau-Video + Kontaktbogen + Checks  → kickoff_loop/previz/vNNN/
   uv run src/kickoff_loop.py variants [N..] Detailvarianten der Frames N nebeneinander → kickoff_loop/previz/variants/
   uv run src/kickoff_loop.py frames         nur die Plakat-Frames rendern (fuellt den Cache)
-  uv run src/kickoff_loop.py test           Selbsttest am fertigen Bild
+  uv run src/kickoff_loop.py stars [S..]     Sterne-Bogen: jeder Stil an 3 Stellen der Bahn → previz/variants/stars.png
+  uv run src/kickoff_loop.py test [N..]     Selbsttest am fertigen Bild (Frames N, Standard 9 13 27)
   uv run src/kickoff_loop.py print          Druckdateien A3 300 dpi (PDF, verlustfrei) → kickoff_loop/print/
   uv run src/kickoff_loop.py resolve        Bausteine fuer den Schnitt (Platten, Digitalteil, Song, Zeitachse) → resolve/
 
@@ -36,7 +37,7 @@ from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import binary_dilation, generate_binary_structure, label
+from scipy.ndimage import binary_dilation, label
 
 import kickoff as K
 import styles as S
@@ -53,6 +54,11 @@ PREVIEW_CELL_PX = S.SIZES[PREVIEW][2] * S.BASE["R"]     # 1 * 4 = 4 px pro Zelle
 POSTER_ASPECT = S.SIZES[PREVIEW][0] / S.SIZES[PREVIEW][1]  # Breite / Hoehe (A3 = 1/sqrt 2)
 MODULE_CELLS = 2                                        # ein QR-Modul = 2 Zellen (so setzt es kickoff.layout)
 LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)   # Rec. 709: Anteil von R, G, B an der Helligkeit
+STAR_CLEAR = 1.6    # Selbsttest: ab diesem Vielfachen des Sternradius liegt kein Stern und kaum Schein mehr (background)
+GLOW_LIGHT_E = 4    # QR-Gluehen "light": exp(-4) = 2 % am Ende von glow_cells, gleich wie gauss dort
+GLOW_SIDE_TOL = 0.6  # Selbsttest: gleicher Abstand, andere Seite der Platte, hoechstens so viele Stufen Unterschied
+                    # (Hintergrundverlauf ueber die Plattenhoehe ~0.2 Stufen, Bayer-Rest pro Ring ~0.2)
+GLOW_MIN = 0.02     # QR-Gluehen: darunter unsichtbar im 6-stufigen Bayer-Korn (1/5 Stufe Abstand, 16 Schwellen: ~0.01)
 
 P_CODES = {code: val for code, val, _ in K.PAL}         # "P17" → "signal" (nur Kick-off-Colorways, kein Lila)
 S_CODES = dict(K.SPARKS)                                # "S7" → "nest", Labor-Sterne "S13" → "lab:S13"
@@ -81,13 +87,10 @@ def load(path=CONFIG):
     assert not lilac, f"[color].stations: Mischung wird lila auf Frame {lilac} (Rot direkt neben Blau?), Reihenfolge aendern"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
     q = cfg["qr"]
-    for key, ok in (("label", ("inside", "sticker")), ("label_fill", ("light", "dark")),
-                    ("outline", ("solid", "checker")), ("shadow", ("solid", "checker"))):
+    for key, ok in (("glow_shape", ("round", "square")), ("glow_profile", ("gauss", "light", "linear", "steps"))):
         assert q[key] in ok, f"[qr].{key}: {' | '.join(ok)}"
-    assert q["shadow_step"] in range(col["steps"]), f"[qr].shadow_step: Palettenstufe 0..{col['steps'] - 1}"
-    cells = [q[k] for k in ("label_cap_cells", "label_pad_cells", "outline_cells", "corner_cells")]
-    assert all(type(v) is int for v in cells + q["shadow_cells"] + q["sticker_offset_cells"]), \
-        "[qr]: alle *_cells in ganzen Zellen, die Box liegt exakt auf dem Pixelraster"
+    assert all(type(q[k]) is int for k in ("quiet_cells", "glow_cells", "label_cap_cells", "label_gap_cells")), \
+        "[qr]: alle *_cells in ganzen Zellen (Pixelraster)"
     sp = cfg["spark"]
     assert sp["source"] in ("orbit", "resolve"), "[spark].source: orbit | resolve"
     if sp["source"] == "resolve":
@@ -290,61 +293,55 @@ def flip_glyphs(c, mk, v):
     return np.where(share[lab] > 0.5, c.lvl(0), v)
 
 
-def qr_box(c, q):
-    """JOIN US + QR als Comic-Caption-Box (Into the Spider-Verse): Ebenen [(name, Maske, Wert)] in Malreihenfolge, alles
-    in ganzen Zellen und exakten Palettenstufen (kein Verlauf, kein Weichzeichnen, kein Dither-Auslauf).
+def qr_glow(c, q):
+    """JOIN US + QR, die Platte glueht ins Plakat ein (Vadim zu v005: keine harte Box, "reingeglueht" wie v003, aber
+    sauber). Ebenen [(name, Maske, Wert)] in Malreihenfolge.
 
-    Karte in der hellsten Stufe, Rand (outline) und harter Schlagschatten (shadow) in der dunkelsten; auf dunklem Grund
-    traegt die helle Flaeche, auf dem Stern trennt der dunkle Rand sie vom Stern. Die Karte umschliesst immer die ganze
-    QR-Platte (Module + 3 Module Ruhezone aus kickoff.layout), Rand und Schatten liegen also nie in der Ruhezone.
-    JOIN US hat eine feste Groesse in Zellen und waechst nicht mit dem Titel: eine harte Kante, die von Frame zu Frame
-    um eine Zelle springt, saehe nach Fehler aus.
-      inside   JOIN US in der Karte ueber dem QR, Abstand zu den Modulen = Ruhezone, darueber label_pad_cells
-      sticker  JOIN US auf eigener Karte (label_fill hell oder dunkel), versetzt ueber der oberen Kante; sie endet samt
-               Rand und Schatten ueber der Ruhezone"""
+    Die QR-Platte (Module + quiet_cells Ruhezone) steht flaechig in der hellsten Stufe, die Module in der dunkelsten.
+    Unten links an Rand und Satzkante wie in kickoff.layout; weniger Ruhezone = kleinere Platte, gleiche Ecke. Um die Platte laeuft die hellste Stufe ueber den Untergrund aus, rein geometrisch aus dem Abstand zur
+    Platte (kein Rauschen: der verbeulte v003-Hof kam aus halo_warp_cells), im Bayer-Korn des Plakats auf dem Zellraster.
+      glow_shape    round = Abstand zum Rechteck, die Ecken runden sich nach aussen | square = bleibt eckig (Chebyshev)
+      glow_profile  gauss = weich | light = Lichtabfall (exponentiell) | linear = gleichmaessig |
+                    steps = linear, auf Palettenstufen gerundet: Ringe ohne Korn
+    JOIN US steht frei ueber der Platte, ohne Kasten/Rand/Hof, und kippt pro Buchstabe hell/dunkel je nach Untergrund
+    (flip_glyphs, Regel wie beim Datum). Es hat eine feste Groesse in Zellen und waechst nicht mit dem Titel."""
     L, px = c.L, c.px
     lum = c.pal @ LUMA
     hi, lo = c.lvl(int(lum.argmax())), c.lvl(int(lum.argmin()))
-    n = L["qs"] // px                                             # Plattenkante in Zellen, inkl. Ruhezone
-    quiet = (n - len(L["q"]) * MODULE_CELLS) // 2                 # Ruhezone in Zellen
-    top, left = round((L["qbot"] - L["qs"]) / px), round(L["x0"] / px)
+    quiet = q["quiet_cells"]                                      # Ruhezone in Zellen (kickoff.layout: 3 Module = 6)
+    n = len(L["q"]) * MODULE_CELLS + 2 * quiet                    # Plattenkante in Zellen, inkl. Ruhezone
+    top, left = round(L["qbot"] / px) - n, round(L["x0"] / px)   # Platte unten links an Rand und Satzkante
+    plate = rect(c, top, left, top + n, left + n)
     mods = np.zeros((c.gh, c.gw), bool)
     mods[top + quiet:top + n - quiet, left + quiet:left + n - quiet] = S.up(L["q"], MODULE_CELLS)
 
+    dy = np.maximum(np.maximum(top - (c.yy + 0.5), c.yy + 0.5 - (top + n)), 0)     # Abstand Zellmitte → Platte
+    dx = np.maximum(np.maximum(left - (c.xx + 0.5), c.xx + 0.5 - (left + n)), 0)
+    d = np.hypot(dx, dy) if q["glow_shape"] == "round" else np.maximum(dx, dy)
+    w = q["glow_cells"]
+    g = {"gauss": lambda: np.exp(-(2 * d / w) ** 2),               # flache Kuppe, dann Abriss
+         "light": lambda: np.exp(-GLOW_LIGHT_E * d / w),            # Lichtabfall: steil an der Platte, langer Schweif
+         }.get(q["glow_profile"], lambda: np.clip(1 - d / w, 0, 1))()
+    base = under(c)
+    v = base + (hi - base) * g
+    if q["glow_profile"] == "steps":
+        v = np.round(v * c.N) / c.N
+    glow = (g > GLOW_MIN) & ~plate
+
     text = S.line_mask(K.COPY["cta"], "clash", q["label_cap_cells"] * px, top * px, left * px, px, (c.gh, c.gw))
     ys, xs = np.nonzero(text)
-    th, tw = ys.max() - ys.min() + 1, xs.max() - xs.min() + 1
-    pad, r, ink = q["label_pad_cells"], q["corner_cells"], lo
-    if q["label"] == "inside":                                    # Schrift sitzt direkt auf der Platte (Ruhezone darunter)
-        ty, tx = top - th, left + (n - tw) // 2
-        cards = [(rect(c, ty - pad, left, top + n, left + n, r), hi)]
-    else:
-        ox, oy = q["sticker_offset_cells"]
-        clear = q["outline_cells"] + max(q["shadow_cells"][1], 0)  # Rand + Schatten des Etiketts enden ueber der Platte
-        ty, tx = top - clear - pad - th, left + ox + pad
-        dark = q["label_fill"] == "dark"
-        ink = hi if dark else lo
-        cards = [(rect(c, ty - pad - oy, left, top + n, left + n, r), hi),
-                 (rect(c, ty - pad, tx - pad, ty + th + pad, tx + tw + pad, r), lo if dark else hi)]
+    ty = top - q["label_gap_cells"] - (ys.max() - ys.min() + 1)  # Oberkante: label_gap_cells ueber der Platte
+    tx = left + (n - (xs.max() - xs.min() + 1)) // 2              # waagerecht mittig ueber der Platte
     text = np.roll(text, (ty - ys.min(), tx - xs.min()), (0, 1))
-
-    grow = np.ones((3, 3), bool) if r == 0 else generate_binary_structure(2, 1)  # Treppe: Rand folgt diagonal, 1 Zelle
-    checker = (c.yy + c.xx) % 2 == 0                              # 1-Bit-Grau: jede zweite Zelle
-    out = []
-    for card, fill in cards:
-        rim = binary_dilation(card, grow, q["outline_cells"]) & ~card if q["outline_cells"] else card & False
-        body = card | rim
-        shadow = np.roll(body, q["shadow_cells"][::-1], (0, 1)) & ~body
-        out += [("qr", shadow & (checker | (q["shadow"] == "solid")), c.lvl(q["shadow_step"])),
-                ("qr", rim, np.where(checker | (q["outline"] == "solid"), lo, hi)),
-                ("qr", card, fill)]
-    return out + [("qr", mods, lo), ("cta", text, ink)]
+    return [("qr", glow, v), ("qr", plate, hi), ("qr", mods, lo), ("cta", text, None)]
 
 
 def qr_embed(c, q):
-    """JOIN US + QR auf das Plakat legen (Geometrie und Stufen: qr_box)."""
-    for name, mask, v in qr_box(c, q):
-        c.add(name, mask, v)
+    """JOIN US + QR auf das Plakat legen (Geometrie und Stufen: qr_glow). JOIN US zuletzt, damit flip_glyphs das
+    Gluehen als Untergrund sieht."""
+    lum = c.pal @ LUMA
+    for name, mask, v in qr_glow(c, q):
+        c.add(name, mask, flip_glyphs(c, mask, c.lvl(int(lum.argmax()))) if v is None else v)
 
 
 def text_lines(c):
@@ -456,20 +453,17 @@ def _variant_job(args):
     return name, img, K.check_qr(img, PREVIEW_CELL_PX)
 
 
-# Box um JOIN US + QR (qr_box). Jede Variante nennt alle Box-Schluessel, damit sie unabhaengig vom Stand der loop.toml
+# JOIN US + QR (qr_glow). Jede Variante nennt alle [qr]-Schluessel, damit sie unabhaengig vom Stand der loop.toml
 # gleich aussieht; die Variante, die loop.toml gerade setzt, ist auf den Boegen markiert.
-_CAPTION = {"qr.label": "inside", "qr.label_fill": "light", "qr.label_cap_cells": 9, "qr.label_pad_cells": 6,
-            "qr.sticker_offset_cells": [-5, -6], "qr.outline_cells": 1, "qr.outline": "solid", "qr.shadow_cells": [2, 2],
-            "qr.shadow": "solid", "qr.shadow_step": 0, "qr.corner_cells": 0}
-VARIANTS = [
-    ("A Caption", _CAPTION),
-    ("B Pixeltreppe", {**_CAPTION, "qr.corner_cells": 5, "qr.outline_cells": 0, "qr.shadow_cells": [0, 0]}),
-    ("C Rasterrand", {**_CAPTION, "qr.outline_cells": 2, "qr.outline": "checker", "qr.shadow_cells": [0, 0]}),
-    ("D Sticker", {**_CAPTION, "qr.label": "sticker", "qr.label_pad_cells": 3, "qr.sticker_offset_cells": [-4, -8]}),
-    ("D2 Etikett dunkel", {**_CAPTION, "qr.label": "sticker", "qr.label_fill": "dark", "qr.label_pad_cells": 3,
-                           "qr.sticker_offset_cells": [3, -8]}),
-    ("E1 Halbton-Schatten", {**_CAPTION, "qr.shadow_cells": [3, 3], "qr.shadow": "checker"}),
-    ("E2 Farbversatz", {**_CAPTION, "qr.shadow_cells": [3, 3], "qr.shadow_step": 3}),
+_GLOW = {"qr.quiet_cells": 6, "qr.glow_shape": "round", "qr.glow_profile": "light", "qr.glow_cells": 12,
+         "qr.label_cap_cells": 9, "qr.label_gap_cells": 4}
+VARIANTS = [   # Vadim zu G1-G6: "nicht so viel Padding" → Ruhezone 1 / 1.5 / 2 Module, je mit Licht (G3) und eng (G1)
+    ("R2 Licht", {**_GLOW, "qr.quiet_cells": 2}),
+    ("R3 Licht", {**_GLOW, "qr.quiet_cells": 3}),
+    ("R4 Licht", {**_GLOW, "qr.quiet_cells": 4}),
+    ("R2 eng", {**_GLOW, "qr.quiet_cells": 2, "qr.glow_profile": "gauss", "qr.glow_cells": 6}),
+    ("R3 eng", {**_GLOW, "qr.quiet_cells": 3, "qr.glow_profile": "gauss", "qr.glow_cells": 6}),
+    ("R6 Licht (bisher)", _GLOW),
 ]
 
 
@@ -498,7 +492,7 @@ def _sheet(cols, path):
 def variants(cfg, idx):
     """Frames idx in allen VARIANTS. Pro Frame ein Bogen previz/variants/frameNN.png: oben ganz (halbe Groesse), darunter
     der Titelblock in Vorschaugroesse (1 Zelle = 4 px) und das untere linke Viertel mit dem QR doppelt (1 Zelle = 8 px),
-    damit man Kanten zaehlen kann. Dazu qr_box_sheet.png: JOIN US + QR aller Varianten (Spalten) auf allen Frames
+    damit man Kanten zaehlen kann. Dazu qr_sheet.png: JOIN US + QR aller Varianten (Spalten) auf allen Frames
     (Zeilen), doppelt, mit QR-Befund, zum Auswaehlen auf einen Blick."""
     with Pool() as pool:
         res = pool.map(_variant_job, [(cfg, i, n, o) for i in idx for n, o in VARIANTS])
@@ -520,19 +514,64 @@ def variants(cfg, idx):
             grid[name].append((f"Frame {i + 1} {station_label(cfg, i)} {style_code(cfg, i)}  QR {'ok' if ok else 'NICHT lesbar'}",
                                x2(im.crop(qr_crop))))
         out.append(_sheet(cols, os.path.join(PROJECT, "previz", "variants", f"frame{i + 1:02d}.png")))
-    out.append(_sheet(list(grid.items()), os.path.join(PROJECT, "previz", "variants", "qr_box_sheet.png")))
+    out.append(_sheet(list(grid.items()), os.path.join(PROJECT, "previz", "variants", "qr_sheet.png")))
     return "\n".join(out)
 
 
+def _star_job(args):
+    cfg, i, code = args
+    st = poster_style(cfg, i)
+    st["S"] = S_CODES.get(code, "lab:" + code)
+    img = frame(cfg, i, style=st)
+    return code, i, img, legibility(st, img)
+
+
+def stars(cfg, codes):
+    """Sterne-Bogen: jeder Stil an denselben drei Stellen der Bahn (Frame 1 gross links angeschnitten, Mitte fern,
+    letzter Frame gross rechts), in der Farbe des jeweiligen Frames. Beschriftet mit Code, Name, Lesbarkeit.
+    Zyklus-Stile weiss, andere gelb. → previz/variants/stars.png
+    Befund 1.10.: die Labor-Stile S15 S16 S17 S19 S20 S28 ignorieren die Bahn (feste Lage oder seitenfuellend), S25
+    braucht eine Zweitpalette je Colorway: keine Kandidaten fuer den Loop."""
+    n = count(cfg)
+    at = [0, n // 2, n - 1]
+    with Pool() as pool:
+        res = pool.map(_star_job, [(cfg, i, c) for c in codes for i in at])
+    import lab_spark
+    names = {c: name for c, _, name, _ in lab_spark.CANDS} | {"S2": "Verlauf", "S7": "Nest", "S33": "Matrjoschka"}
+    h, w = res[0][2].shape[:2]
+    pw, ph, gap, cap, per_row = w // 4, h // 4, 12, 64, 4
+    cell_w = 3 * pw + 2 * 4 + gap * 2
+    rows = -(-len(codes) // per_row)
+    sheet = Image.new("RGB", (per_row * cell_w, rows * (ph + cap + gap)), (14, 14, 18))
+    d = ImageDraw.Draw(sheet)
+    font = S.font("DepartureMono-Regular.otf", 26)
+    cycle = cfg["styles"]["cycle"]
+    for k, code in enumerate(codes):
+        x0, y0 = (k % per_row) * cell_w, (k // per_row) * (ph + cap + gap)
+        part = [r for r in res if r[0] == code]
+        worst = min(r[3] for r in part)
+        tag = f"{code} {names.get(code, '')}"[:30] + ("" if worst >= K.TIER[0] else f"  L{worst:.2f}")
+        d.text((x0, y0 + 6), tag, font=font, fill=(230, 230, 230) if code in cycle else (255, 214, 90))
+        for j, (_, i, img, _) in enumerate(part):
+            sheet.paste(Image.fromarray(img).resize((pw, ph), Image.BOX), (x0 + j * (pw + 4), y0 + cap))
+    path = os.path.join(PROJECT, "previz", "variants", "stars.png")
+    sheet.save(path)
+    return path
+
+
 # ---------------------------------------------------------------- Selbsttest
+
+SELFTEST_FRAMES = [8, 12, 26]   # Frame 9 (Verlauf, Stern am QR), 13 und 27 (QR frei: dort faellt ein verbeultes Gluehen auf)
+
 
 def selftest(cfg, i=8):
     """Prueft am fertigen Bild (nicht am Code), was schiefgehen kann:
     Verlauf pro Zeile = oberste Pixelreihe nur hellste Stufe, unterste nur die Stufe darunter, dazwischen wird es von
     unten nach oben nie dunkler; Schrift auf dem Stern (gekippt) ist ausgenommen. QR lesbar. Titelblock steht in jedem Frame gleich.
     Farbreise: keine Lila-Mischung, jede Station exakt ihre Original-Palette. SPARK waagerecht zentriert.
-    QR-Box hart: jede Zelle, die qr_box belegt, hat im Bild genau ihre Palettenstufe und ist innen einfarbig (Raster,
-    kein Auslauf, kein Dither; der alte weiche Hof faellt hier durch), rundum >= 3 Module hellste Stufe als Ruhezone."""
+    QR: Platte flaechig in ihrer Stufe, rundum >= quiet_cells hellste Stufe als Ruhezone. Gluehen geometrisch: pro
+    Abstandsring zur Platte wird es nach aussen nie heller und ist auf allen vier Seiten gleich hell (der verbeulte
+    v003-Hof mit halo_warp_cells faellt hier durch, die harte Box von v005 auch: Ring 1 war dort der dunkle Rand)."""
     cfg = {**cfg, "type": {**cfg["type"], "text_gradient_steps": 1.0}}
     st = poster_style(cfg, i)
     img = frame(cfg, i, style=st)
@@ -554,21 +593,40 @@ def selftest(cfg, i=8):
         smooth = np.convolve(rows, np.ones(period) / period, "valid")
         assert np.all(np.diff(smooth) <= 0.05), f"{s}: Verlauf wird nach unten wieder heller {np.round(smooth, 2)}"
     assert K.check_qr(img, PREVIEW_CELL_PX), "QR nicht lesbar"
-    box = qr_box(c, st["loop"]["qr"])
-    want = np.full(level.shape, -1)
-    for _, m, v in box:
-        want[m] = np.rint(np.broadcast_to(v, m.shape)[m] * c.N)
-    got = want >= 0
-    bad = np.count_nonzero(level[got] != want[got])
-    assert not bad, f"QR-Box: {bad} Zellen nicht in ihrer Stufe (weicher Rand, Dither oder falsche Farbe)"
+    q = st["loop"]["qr"]
+    (_, glow, _), (_, plate, _), (_, mods, _), _ = qr_glow(c, q)
     p = PREVIEW_CELL_PX
     blocks = img[:c.gh * p, :c.gw * p].reshape(c.gh, p, c.gw, p, 3)
-    assert (blocks == blocks[:, :1, :, :1]).all((1, 3, 4))[got].all(), "QR-Box: Zellen nicht einfarbig (nicht auf dem Raster)"
-    ys, xs = np.nonzero(box[-2][1])                     # Module
-    q = 3 * MODULE_CELLS
-    zone = level[ys.min() - q:ys.max() + q + 1, xs.min() - q:xs.max() + q + 1].copy()
-    zone[q:-q, q:-q] = c.hi
-    assert (zone == c.hi).all(), "QR-Ruhezone: weniger als 3 Module hellste Stufe um die Module"
+    assert (blocks == blocks[:, :1, :, :1]).all((1, 3, 4))[plate | glow].all(), "QR: Zellen nicht einfarbig (nicht auf dem Raster)"
+    ys, xs = np.nonzero(mods)
+    k = q["quiet_cells"]
+    zone = level[ys.min() - k:ys.max() + k + 1, xs.min() - k:xs.max() + k + 1].copy()
+    zone[k:-k, k:-k] = c.hi
+    assert (zone == c.hi).all(), f"QR-Ruhezone: weniger als {k} Zellen hellste Stufe um die Module"
+    ys, xs = np.nonzero(plate)
+    y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+    cx, cy, R, rot = c.L["star"]
+    text = binary_dilation(qr_glow(c, q)[-1][1], iterations=2)
+    free = glow & (S.star_d(c, cx, cy, R, rot)[0] > STAR_CLEAR) & ~text   # ohne Stern + Schein, ohne JOIN US
+    sides = {"oben": np.s_[y0 - q["glow_cells"]:y0, x0:x1], "unten": np.s_[y1:y1 + q["glow_cells"], x0:x1],
+             "links": np.s_[y0:y1, x0 - q["glow_cells"]:x0], "rechts": np.s_[y0:y1, x1:x1 + q["glow_cells"]]}
+    ring = np.maximum(np.maximum(y0 - c.yy, c.yy - y1 + 1), np.maximum(x0 - c.xx, c.xx - x1 + 1)).astype(int)
+    profs = {}
+    for name, sl in sides.items():
+        f, r, lv = free[sl], ring[sl], level[sl]
+        prof = np.array([lv[f & (r == d)].mean() if (f & (r == d)).sum() >= 8 else np.nan
+                         for d in range(1, q["glow_cells"] + 1)])
+        if np.isnan(prof).sum() > len(prof) // 2:                      # Seite liegt am Bildrand oder im Stern
+            continue
+        ok = prof[~np.isnan(prof)]
+        assert ok[0] >= c.hi - 1, f"QR-Gluehen {name}: direkt an der Platte nicht hell ({ok[0]:.2f}), harter Rand?"
+        per = len(S.bayer(4))                                           # Bayer 4x4: ueber 4 Ringe mitteln
+        smooth = np.convolve(ok, np.ones(per) / per, "valid")
+        assert np.all(np.diff(smooth) <= 0.1), f"QR-Gluehen {name}: wird nach aussen wieder heller {np.round(ok, 2)}"
+        profs[name] = prof
+    assert len(profs) >= 2, f"QR-Gluehen: nur {list(profs)} frei von Stern/Schrift, anderen Frame testen"
+    spread = np.nanmax(np.nanmax(list(profs.values()), 0) - np.nanmin(list(profs.values()), 0))
+    assert spread <= GLOW_SIDE_TOL, f"QR-Gluehen: Seiten ungleich hell (bis {spread:.2f} Stufen), verbeult?"
     last = S.Ctx(poster_style(cfg, count(cfg) - 1), PREVIEW)
     same = [np.array_equal(a, b) for a, b in zip(masks, (m for name, group in text_lines(last).items()
                                                        for m in line_masks(last, group, centered=name == "title")))]
@@ -578,7 +636,7 @@ def selftest(cfg, i=8):
         got = np.array([[int(h[j:j + 2], 16) for j in (1, 3, 5)] for h in palette_hex(cfg, k * per)])
         assert np.abs(got - station(p, cfg["color"]["steps"])).max() <= 1, f"Station {p} weicht vom Original ab"
     assert is_lilac(["#A877A6"]) and not is_lilac(palette_hex(cfg, 0)), "Lila-Test erkennt Flieder nicht"
-    return f"Selbsttest ok (Frame {i + 1}: Verlauf pro Zeile, QR, QR-Box + Ruhezone; Titel fix, Stationen, Lila-Test)"
+    return f"Selbsttest ok (Frame {i + 1}: Verlauf pro Zeile, QR, Ruhezone, Gluehen geometrisch; Titel fix, Stationen, Lila-Test)"
 
 
 # ---------------------------------------------------------------- Befehle
@@ -644,9 +702,12 @@ def main():
         _, ok, leg = frames(cfg)
         print(f"{len(ok)} Plakate, QR lesbar: {sum(ok)}/{len(ok)}, Lesbarkeit: {' '.join(f'{x:.2f}' for x in leg)}")
     elif cmd == "test":
-        print(selftest(cfg))
+        for i in [int(a) - 1 for a in args[1:]] or SELFTEST_FRAMES:
+            print(selftest(cfg, i))
     elif cmd == "print":
         print(print_files(cfg))
+    elif cmd == "stars":                                # Sterne aussuchen: Zyklus oder die genannten Codes
+        print(stars(cfg, args[1:] or cfg["styles"]["cycle"]))
     elif cmd == "variants":
         print(variants(cfg, [int(a) - 1 for a in args[1:]] or [8]))
     elif cmd == "preview":

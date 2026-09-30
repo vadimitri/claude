@@ -15,6 +15,7 @@ editor/public/fonts/
 kickoff_loop/_cache/
 kickoff_loop/previz/**/*.mp4
 kickoff_loop/previz/**/*.wav
+kickoff_loop/previz/**/*.m4a
 kickoff_loop/previz/**/*.png
 kickoff_loop/previz/index.html
 kickoff_loop/photos/
@@ -25,3 +26,4 @@ kickoff_loop/resolve/*
 kickoff_loop/ref/audio/*
 !kickoff_loop/ref/audio/igor_beats.json
 !kickoff_loop/ref/audio/igor_analysis.png
+!kickoff_loop/ref/audio/mashup_*.json
