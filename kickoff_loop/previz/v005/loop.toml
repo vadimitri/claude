@@ -1,0 +1,148 @@
+# SPARK Kick-off Loop · alle Stellschrauben an einem Ort. Begriffe: kickoff_loop/CLAUDE.md, Abschnitt "Begriffe".
+# Der Code (src/kickoff_loop*.py) enthaelt keine Gestaltungswerte, nur Logik. Was hier fehlt, ist Systemkonstante
+# und steht in src/styles.py (Paletten, Dither, Pixelraster) oder src/kickoff.py (Satz: Raender, Schriftgroessen).
+#
+# Einheiten stehen im Namen: _s Sekunden · _deg Grad · _frac Bruchteil 0..1 · _px Pixel · _cells Zellen des Pixelrasters
+# (1 Zelle = 1 "8-Bit-Pixel", auf dem A3-Druck 12 px = 1 mm, in der Vorschau 4 px).
+# Plakatgeometrie: x/y = Bruchteil von Plakatbreite/-hoehe, Groessen = Bruchteil der kurzen Plakatseite.
+# Nach jeder Aenderung:  uv run src/kickoff_loop.py preview   → kickoff_loop/previz/vNNN/ (alte Versionen bleiben liegen)
+
+[loop]
+# Tempo kommt aus dem Song ([music].grid, IGOR'S THEME: 81.61 BPM, 16tel = 0.184 s = 5.4 Plakate pro Sekunde).
+frames = 48          # Frames im Loop = Plakate. 48 in 16teln = genau 3 Takte = 8.8 s pro Umlauf (Vadim 30.9.: mehr Frames)
+key_every = 2        # jedes 2. Frame ist ein Aushang (Nummern 1, 3, 5 …: haengt auf dem Campus, muss allein tragen).
+                     # Die anderen sind Zwischenframes: nur fuers Video gedruckt, einmal aufgehaengt, fotografiert.
+
+[color]
+# Farbreise: Colorway-Stationen, gleichmaessig verteilt (bei 32 Frames und 8 Stationen auf Frame 1, 5, 9 … 29,
+# alles Aushaenge). Dazwischen werden die Nachbarn Stufe fuer Stufe in OKLab gemischt: zwei benachbarte Frames
+# unterscheiden sich nur wenig, ueber den Loop wandert die Farbe einmal im Kreis und kommt wieder an.
+# Reihenfolge geprueft (30.9.): keine Mischung wird lila/fliederfarben (Rot direkt neben Blau wuerde es, z. B. P18 → P17).
+# Nur dunkle Gruende: eine Papier-Colorway (P16 P21–P24) mittendrin wuerde auf dem Weg grau.
+stations = ["P11", "P13", "P10", "P19", "P18", "P14", "P20", "P15"]
+steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P6 P9 P26) werden gedoppelt, nicht gemischt
+
+[styles]
+# Stern-Stile (Codes wie in styles/index.html), jeder haelt hold_frames Frames, dann der naechste; die Liste laeuft reihum.
+# hold_frames = 2: Aushang und folgender Zwischenframe teilen sich den Stil.
+# 12 verschiedene Stile, alle frontal und silhouettentreu (Sechsstern liest gross angeschnitten und klein, Bogen 30.9.).
+# Raus: S14 S24 S40 S31-S31f (brechen Silhouette oder Lesbarkeit: S18 0.56, S31 0.84, S31f 0.89), S13 (Kindsterne im
+# Titel), S36 (Vadim 30.9.: "schmilzt"). 48 Frames = 24 Plaetze = genau 2 Runden. Letzter Frame voller Koerper (S2):
+# er wird im Ausbruch bildfuellend, Ringe/Schalen flackern dort (Blitz-Check v004: 40 % statt 24 % der Flaeche).
+cycle = ["S31g",  # Lampe: der Stern als Lichtquelle, Bahnen aus den Spitzen (Gegenlicht, Vadims Favorit)  F1-2
+         "S26",   # Glutstern, voller Koerper. F3 liegt gross am Datum: S45 0.93, S46 0.94, S26 haelt A     F3-4
+         "S45",   # Facette: Kristall im Cel-Shading, Schatten als Ben-Day-Punktraster aus Bayer 4x4         F5-6
+         "S46",   # Stufen: Matrjoschka als Stufenpyramide im Streiflicht                                    F7-8
+         "S23",   # Anschnitt: tiefes XOR-Nest
+         "S33",   # Matrjoschka: Schalen, die ins Korn laufen
+         "S7",    # Nest: das Original
+         "S18d",  # Moire im Stern: zwei Hoehenlinien-Sterne per XOR, harter Rand
+         "S19d",  # Nest-Rosette
+         "S44",   # Relief: geschliffene Sternpyramide, Licht + Glanz im Korn
+         "S47",   # Praegung: das Nest als Hochdruck, Lichtkante + Schatten an jeder Platte
+         "S2"]    # Verlauf, voller Koerper: F23-24 und F47-48 (Ausbruch ins Digitale)
+hold_frames = 2
+seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
+
+[spark]
+# Bumerang: der Stern kreist einmal um den Betrachter. Frame 1: er kommt hinten links (am linken Ohr vorbei) ins Bild,
+# fliegt in die Tiefe (wird klein), kehrt um, kommt auf einen zu (wird gross) und verlaesst das Bild rechts.
+# Zwischen dem letzten und dem ersten Frame fliegt er hinter dem Betrachter herum (unsichtbar): der Sprung von rechts
+# nach links IST der Neustart des Karussells. Gerechnet als Kreisbahn im Raum mit Zentralprojektion.
+# v004 (Vadim 30.9.: "kleinere Sparks", Bewegung "cool", aber der Stern bleibt IMMER frontal, keine Kippung):
+# fern jetzt Radius 0.20 statt 0.54 (die kleinen Frames sind Fotoframes: gedruckt fuers Video, nicht zum Aushaengen).
+source = "orbit"           # orbit = Bahn wird hier gerechnet (Werte unten) | resolve = Vadims Keyframes aus Resolve
+                           # (Projekt SPARK_Kickoff_Loop, Timeline Stern-Bahn; uv run src/kickoff_loop_resolve.py pull)
+vanish = [0.50, 0.50]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
+height = 0.28              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild
+near = 0.0                 # Abstand Bahnmitte → Betrachter (Bahnradius = 1). Kleiner = er kommt naeher ran
+depth = 1.0                # Tiefe der Bahn (Ellipse), groesser = fliegt weiter weg
+lens = 0.15                # Brennweite (kurze Plakatseite pro Einheit Abstand)
+size = 1.35                # Sterngroesse in Bahneinheiten. Ergebnis: Radius 0.20 (fern) bis 0.92 (nah)
+sweep_deg = [-78, 73]      # sichtbarer Bogen (0 = geradeaus, fern). Der Rest passiert hinter dem Kopf
+far_rush_frac = 0.7        # fern schneller, nah verweilen: 0 = gleichmaessig, 0.7 = nah halbes Tempo, fern 1.7-fach
+rot_start_deg = 0          # Drehung im ersten Frame
+spin_deg = 600             # Eigendrehung pro Umlauf (12.5° pro Frame bei 48: unter 30°, sonst liest das Auge die 6-zackige
+                           # Form rueckwaerts drehend). Vielfache von 60° schliessen nahtlos
+
+[type]
+# Verlauf in den Buchstaben, pro Zeile von der Grundlinie (dunkler) bis zur Versalhoehe (hellste Stufe), in Palettenstufen.
+text_gradient_steps = 1.0
+# Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert. Titelblock steht in jedem
+# Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
+
+[qr]
+# JOIN US + QR als Comic-Caption-Box (Into the Spider-Verse): harte Karte in der hellsten Stufe, Rand und Schlagschatten
+# in der dunkelsten, alles in ganzen Zellen (kein Verlauf, kein Weichzeichnen, kein Gluehen). Die Karte umschliesst die
+# QR-Platte: Module dunkelste Stufe auf hellster, Ruhezone 3 Module rundum (kickoff.layout), Rand/Schatten immer ausserhalb.
+# Varianten nebeneinander: uv run src/kickoff_loop.py variants 1 9 27 → previz/variants/qr_box_sheet.png
+label = "inside"           # JOIN US: inside = in der Karte ueber dem QR | sticker = eigene Karte, versetzt ueber der
+                           # Oberkante (sticker_offset_cells, label_fill)
+label_cap_cells = 9        # Versalhoehe JOIN US, fest (waechst nicht mit dem Titel). 9 = so breit wie die QR-Module (59/58)
+label_pad_cells = 6        # Luft um JOIN US in seiner Karte; inside: nur oben (unten folgt direkt die Ruhezone).
+                           # 6 = Ruhezone des QR: ein Abstand rundum
+label_fill = "light"       # nur sticker: light = hellste Stufe, dunkle Schrift | dark = dunkelste Stufe, helle Schrift
+sticker_offset_cells = [-5, -6]  # nur sticker: linke obere Ecke des Etiketts gegen die der QR-Karte (x, y; links/oben negativ)
+outline_cells = 1          # Rand um jede Karte in der dunkelsten Stufe, 0 = kein Rand
+outline = "solid"          # solid | checker = Schachbrett aus hellster und dunkelster Stufe (1-Bit-Grau)
+shadow_cells = [3, 3]      # harter Schlagschatten (x, y) in Zellen, nach rechts unten positiv, [0, 0] = keiner
+shadow = "solid"           # solid = volle Flaeche | checker = Rasterpunkte (Halbton), dazwischen bleibt der Grund
+shadow_step = 3            # Palettenstufe des Schattens: 0 = dunkelste (klassisch) bis 5 = hellste. 3 = Farbversatz in der
+                           # satten Mittelstufe: sichtbar auf dunklem Grund (0 verschwindet dort, Befund 30.9.: Schattenkante
+                           # auf 32/32 Frames sichtbar statt 23/32), auf dem Stern trennt der dunkle Rand
+corner_cells = 0           # Ecken als Pixeltreppe mit diesem Radius, 0 = rechtwinklig
+
+[video]
+size_px = [1080, 1920]     # Ausgabe Breite x Hoehe (9:16 fuer Reel/Story)
+timeline_fps = 24          # Resolve-Timeline
+start_poster_frac = 0.38   # Plakathoehe / Bildhoehe am Anfang: Umgebung (Campus) gut sichtbar
+surround_luma = 0.22       # Grading: Umgebung jedes Fotos auf diese mittlere Helligkeit (0..1) ziehen. Sonst blitzt bei
+                           # 8 fps jeder Ortswechsel ueber das ganze Bild. Dunkler = Plakat leuchtet mehr, weniger Blitz
+end_cell_px = 4            # Zoom-Ende: 1 Plakatzelle = 4 Ausgabepixel (R3) → pixelgenauer Wechsel ins Digitale
+# Das Karussell: [Plakatwechsel pro Takt, Anzahl Takte] je Abschnitt ab Videoanfang, nacheinander. 16 = 16tel, 8 = Achtel.
+# Die Takte zusammen = [music].switch_bar (bis zum Hit). Takt 1 des Songs ist nur Drone, die Drums setzen bei +1.6 s ein:
+# erst Achtel (2.7 Plakate/s, ruhig), ab Takt 2 16tel (5.4/s). Der Ausbruch ([endcard].burst_beats) schneidet das Ende ab,
+# das Karussell endet trotzdem immer auf dem letzten Frame; auf welchem Frame es anfaengt, ergibt sich daraus.
+cadence = [[8, 1], [16, 3]]
+zoom_stepped = false       # true = Kamera springt nur mit den Plakaten (reines Stop-Motion), false = faehrt fluessig
+roll_deg = -4.0            # Kamera rollt gleichmaessig von hier auf 0° (waagerecht am Zoom-Ende). Mehr Bewegung, kein Wackeln
+punch_frac = 0.05          # Stoss nach vorn auf jedem Drum-Hit ([music].grid hits_s): Massstab +5 %, klingt ab
+punch_decay_beats = 0.25   # Abklingzeit des Stosses (Beats). Kurz = zackig, auf dem Schlag
+
+[endcard]
+# Digitalteil: ab hier rendert der Rechner in 24 fps weiter (haengt nicht, nur im Video). Der Wechsel der Bildrate IST
+# der Uebergang (Spider-Verse: Stop-Motion auf Achteln → fluessig). Drei Abschnitte, Zeiten in Beats des Songs:
+#   Ausbruch  der Stern bricht aus dem Papier, fliegt auf einen zu, bis er das Bild fuellt
+#   Impact    ein paar Bilder Negativ (Palette umgedreht), genau auf dem Hit
+#   Endkarte  9:16-Satz, der Stern dreht weiter, Titel/Datum/QR setzen auf 16teln nacheinander ein
+bars = 2                   # Laenge des Digitalteils in Takten ab dem Hit (Video endet auf einem Taktstrich)
+burst_beats = 0.5          # Ausbruch: so viele Beats vom letzten Plakat bis der Stern das Bild fuellt (endet auf dem Hit)
+burst_star = [0.50, 0.46, 1.6]  # Ziel des Ausbruchs: x, y (Bruchteil des 9:16-Bilds), Radius (Bruchteil der Bildbreite)
+impact_frames = 2          # Negativ-Bilder auf dem Hit (24 fps). 1 Blitz, WCAG erlaubt 3 pro Sekunde
+card_star = [0.50, 0.66, 0.62]  # Mitte und aeusserster Stern des Tunnels: x, y, Radius (wie oben)
+card_style = "S7"          # Hypno-Loop (Vadim 30.9.): XOR-Nest als Tunnel, Sterne wachsen stetig aus der Mitte nach aussen
+card_zoom_stars_per_s = 0.9    # so viele neue Sterne pro Sekunde (Tempo des Sogs). Jedes Pixel kippt dabei ~1x/s: kein Blitz
+card_spin_deg_per_s = 12   # langsame Drehung in der Bildebene (frontal, keine Kippung)
+card_fps = 24              # Vadim 30.9.: "Framerate der digitalen Version ganz nice" → fluessig
+card_reveal_16ths = [0, 1, 2]   # Titel, Datum, QR setzen auf diesen 16teln nach dem Impact ein
+
+[music]
+# Der Song selbst (Vadim 30.9.: "IGOR's Theme komplett uebernehmen, ab Sekunde 22, mit dem Beat"). Vermessen in
+# ref/audio/igor_beats.json (Raster auf 16tel genau, Fehler ~19 ms), Pruefbild ref/audio/igor_analysis.png.
+# Einstieg 22.435 s = Taktstrich (Start des Drum-Loops); 22.0 s laege zwischen zwei 16teln.
+file = "ref/audio/igor_from22.wav"   # Ausschnitt ab dem Einstieg, 48 kHz, unveraendert (-9.2 LUFS, Mux gleicht auf -14 an)
+grid = "ref/audio/igor_beats.json"   # bpm, Taktstriche, Hits (Zeiten ab dem Einstieg)
+switch_bar = 4             # Hit = Taktstrich Nr. 4 ab Einstieg (11.76 s): Loop-Neustart des Songs mit Bass-Boom,
+                           # staerkste Eins im Fenster. Dort landet der Impact, davor 4 Takte Karussell
+fade_out_s = 0.05          # nur gegen den Knack am Schnitt; das Video endet auf einem Taktstrich
+
+[simulation]
+# Nur fuer die Vorschau, solange es keine Fotos gibt: erfundene Waende statt Campus + Restfehler der Entzerrung.
+jitter_px = 0              # Versatz des Plakats von Foto zu Foto nach dem Entzerren (Pixel im Endbild)
+jitter_rot_deg = 0.0      # Restdrehung von Foto zu Foto
+
+[checks]
+# Gates: Verstoesse stehen im report.txt der Version, die Vorschau wird trotzdem gebaut.
+flash_max_per_s = 3        # WCAG 2.3.1: hoechstens 3 Blitze pro Sekunde (Blitz = Paar gegenlaeufiger Helligkeitsspruenge)
+flash_min_delta = 0.10     # Helligkeitssprung (relative Luminanz 0..1), ab dem ein Wechsel zaehlt
+flash_max_area_frac = 0.25 # Flaechenanteil des Bildes, ab dem blitzende Pixel als Verstoss gelten

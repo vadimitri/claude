@@ -1,7 +1,43 @@
 # Kick-off Loop · SPARK Kick-off 14.10., 17:00
 
-Session-Start: diese Datei, dann `previz/index.html` (neueste Version oben) und `loop.toml`.
-Regeln fürs ganze Pack (Ordner, Code, Git): `../CLAUDE.md`. Designsystem (Codes P/S/K, Dither, Taste): Skill `spark-motion`.
+Session-Start: diese Datei (zuerst **Übergabe** direkt hierunter), dann `previz/index.html` (neueste Version oben) und
+`loop.toml`. Regeln fürs ganze Pack (Ordner, Code, Git): `../CLAUDE.md`. Designsystem: Skill `spark-motion`.
+
+## Übergabe 30.9. spät (Vadim zu v005) — hier weitermachen
+
+Vadim: „an sich schon ganz cool, sonst ist der Look gut". Offen, in dieser Reihenfolge, **zügig iterieren** (Standbilder
+und Kontaktbögen in ~20 s statt Video in 2 min; Video erst, wenn die Standbilder abgenommen sind):
+
+1. **QR zurück zum Glühen, aber gut gemacht.** Keine harte Caption-Box (v005). Vadim fand den v003-Ansatz am besten
+   („reingeglüht"), nur schlecht umgesetzt (verbeulter Glühklecks, zu großer Hof). Ziel: heller Grund **eng am QR**
+   (knapp die 3 Module Ruhezone, kein großer Rahmen), der sauber in das Plakat ausglüht — gleichmäßig, geometrisch,
+   auf dem Zellraster/Bayer, nicht verbeult (`halo_warp_cells` war der „Dreijährige"). **JOIN US ohne jeden Kasten/Rand/Hof**:
+   steht frei und kippt nur hell/dunkel je nach Untergrund (Regel wie beim Datum: `flip_glyphs`, pro Buchstabe).
+   Code: `qr_box`/`qr_embed` in `src/kickoff_loop.py`; der alte Hof (`soft_field`) steht in Commit e1bd6e1.
+   Vorgehen: 4–6 Varianten als Bogen (`variants 1 9 27`), Vadim wählt, dann Standard setzen.
+2. **Sterne aussuchen.** Bogen aller Stile im Zyklus + Kandidaten an denselben Frames (groß angeschnitten, fern,
+   groß rechts), beschriftet mit Code → Vadim wählt, welche bleiben. Stand: 12 im Zyklus (siehe Entscheidungen);
+   Bögen des Stil-Agenten: `~/.claude/jobs/0be940a0/tmp/pack/kickoff_loop/previz/variants/frontal.png` (evtl. weg,
+   dann neu rendern).
+3. **Mehr Frames.** 48 sind Vadim noch zu wenig; gedruckt wird dann viel A4 an vielen Orten (Plätze sind kein Problem).
+   Vorschlag: **64** = 4 Takte in 16teln = genau das Karussell bis zum Impact (jeder Frame genau einmal im Video; dafür
+   `cadence = [[16, 4]]`), oder 96 (6 Takte, Karussell zeigt dann 2/3). 8 Stationen × 8 bzw. 12 Frames, `key_every` 2
+   bleibt. Nach der Änderung Lesbarkeit aller Frames prüfen (die Bahn wird feiner abgetastet).
+4. **Endloop (Hypno) verbessern**, schnell iterieren: Streifen aus 8–12 Standbildern (`main_card.py`-Muster: Stichproben
+   von `V._digital_job`), Stellschrauben `[endcard] card_*`. Kein Kippen, keine Achsdrehung, 24 fps.
+5. Danach: Vorschau-Video, `print`, Resolve-Bausteine (`resolve`), Reel-Timeline in Resolve.
+
+**Resolve, wie es gedacht ist** (Vadim fragte nach dem Plan):
+- Resolve ist **Editor und Schnitt**, Python bleibt **Renderer** der Plakate (nur Python hält Pixelraster, Bayer-Dither,
+  Palette, XOR-Satz exakt; Resolve würde beim Skalieren weichzeichnen).
+- **Stern-Editor**: Projekt `SPARK_Kickoff_Loop`, Timeline `Stern-Bahn`, 1 Timeline-Frame = 1 Plakat-Frame. Der Stern
+  liegt als Fusion-Comp über dem Layout (Titel/QR als Hilfsebene); Vadim setzt Position/Größe/Drehung als Keyframes.
+  `uv run src/kickoff_loop_resolve.py pull` liest die Werte pro Frame aus (Fusion `GetInput`) → `star_path.json` →
+  `[spark].source = "resolve"` → Frames/Druck/Video. Per API gehen Keyframes nur über Fusion (Edit-Inspector-Keyframes
+  sind per Skript weder setz- noch lesbar, `resolve/RECIPE.md`). Stand des Editors: `resolve/EDITOR.md` (Resolve-Agent).
+- **Schnitt**: `uv run src/kickoff_loop.py resolve` legt Platten (`plates/NN.png`, später echte Fotos unter gleichem
+  Namen = Relink), Digitalteil (ProRes), Song-Ausschnitt und `timeline.json` (Schnittpunkte, Kamera je Frame, Marker)
+  ab; daraus wird die Reel-Timeline gebaut (Kamera als Fusion-Transform-Keyframes oder als fertiger `camera.mov`).
 
 ## Vision (Vadim, 30.9. abends, Stand v005)
 
@@ -13,7 +49,8 @@ Regeln fürs ganze Pack (Ordner, Code, Git): `../CLAUDE.md`. Designsystem (Codes
   Die Bahn soll Vadim in **Resolve per Keyframes** selbst setzen können; Python zieht sie heraus und rendert die Plakate.
 - **Farbreise**: benachbarte Frames unterscheiden sich farblich nur wenig; über den Loop wandert die Farbe einmal im Kreis.
 - **Titelblock steht**: SPARK + KICK-OFF + Datum in jedem Frame exakt gleich (kein Wachsen, nichts verrutscht).
-- **QR als Caption-Box** (Spider-Verse): harte Karte, 1 Zelle Rand, Farbversatz-Schatten. Kein Hof, kein Glühen.
+- **QR glüht ein**: heller Grund eng am QR, sauber ausglühend (v005 hatte eine harte Box, verworfen). JOIN US ohne Rand,
+  kippt hell/dunkel je nach Untergrund.
 - **12 verschiedene Sternstile** im Zyklus (Stil wechselt alle 2 Frames), S36 „Schmelze" raus.
 - **Video**: Song = **IGOR'S THEME im Original ab 22.435 s**, alles auf dessen Raster (81.61 BPM). Kamera zoomt vom ersten
   Frame an gleichmäßig, rollt leicht, stößt auf jedem Drum-Hit nach vorn. Takt 1 (nur Drone) Plakate auf Achteln, ab den
@@ -99,7 +136,8 @@ Der Synth-Nachbau (v003, `kickoff_loop_audio.py`) ist gelöscht, steht in Commit
 | 30.9. | Bahn: fern Radius 0.20 (vorher 0.54), `far_rush_frac` 0.7, `height` 0.33 | Vadim: „kleinere Sparks"; mit 0.22 lag Frame 3 mit Spitze im Datum (0.94), mit 0.33 alle 48 ≥ 0.96 |
 | 30.9. | **48 Frames** (24 Aushänge + 24 Fotoframes) | Vadim: „mehr Frames"; 48 = 3 Takte in 16teln, 6 Frames pro Station |
 | 30.9. | **Titel fix** (Titelwachstum + simulierter Foto-Versatz raus) | Vadim: „die Titel bewegen sich ganz komisch, verschieben sich"; Selbsttest vergleicht die Satzmasken von Frame 9 und 48 |
-| 30.9. | **Caption-Box E2** (harte Karte, Rand 1 Zelle, Schatten [3, 3] in Stufe 3) statt Hof | Vadim zum Hof: „als hätte es ein Dreijähriger gemalt"; Schatten in Stufe 0 verschwand auf dunklem Grund (sichtbar 23/32 statt 32/32) |
+| 30.9. | ~~Caption-Box E2~~ (harte Karte, Rand 1 Zelle, Schatten [3, 3]) — **verworfen** | Vadim zu v005: „ich will keinen harten QR-Code", zurück zum Glühen, eng am QR, JOIN US ohne Rand (siehe Übergabe) |
+| 30.9. | v003-Hof verworfen, weil verbeult (`halo_warp_cells`) und zu groß | Vadim: „als hätte es ein Dreijähriger gemalt"; die Idee Glühen selbst mag er |
 | 30.9. | Stil-Zyklus: S31g S26 S45 S46 S23 S33 S7 S18d S19d S44 S47 S2 | 12 verschiedene, alle frontal silhouettentreu. Raus: S36 (Vadim), S13/S14/S24/S40/S31–S31f (Silhouette/Lesbarkeit, z. B. S31 0.84). S26 auf F3 (S45 0.93, S46 0.94 dort) |
 | 30.9. | Letzter Frame voller Körper (S2) | er wird im Ausbruch bildfüllend; mit Ringen (S33) Blitz-Check 40 % der Fläche, mit S2 16 % (Grenze 25 %) |
 | 30.9. | **Song im Original** ab 22.435 s statt Synth-Nachbau | Vadim: „IGOR-Song komplett übernehmen ab Sekunde 22, mit dem Beat". 22.0 s liegt zwischen zwei 16teln, 22.435 = Taktstrich (Start Drum-Loop). Raster 81.61 BPM, Fehler 19 ms RMS |
@@ -135,6 +173,7 @@ Der Synth-Nachbau (v003, `kickoff_loop_audio.py`) ist gelöscht, steht in Commit
 
 ## Offen, in dieser Reihenfolge
 
+0. Zuerst die Punkte aus **Übergabe** oben (QR-Glühen, Sterne aussuchen, mehr Frames, Hypno-Endloop).
 1. Vadim: Bahn im Stern-Editor prüfen/ändern → `pull` → `[spark].source = "resolve"` → `preview`. Ort
    (`kickoff.COPY["where"]`) für die Endkarte fehlt noch.
 2. `print` laufen lassen, **Testdruck** von 2–3 Extremen (großer Stern angeschnitten, ferner Stern, S45 Ben-Day-Raster).
