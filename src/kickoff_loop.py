@@ -21,7 +21,7 @@ Handbuch (Vision, Begriffe, Entscheidungen, Status, offene Fragen): kickoff_loop
 
 Aufbau dieser Datei (von oben nach unten):
   Konfiguration   load()                    loop.toml lesen und pruefen
-  Farbe           palette()                 Farbreise: Frame-Nummer → gemischte Palette (OKLab)
+  Farbe           palette()                 Farbreise: Plakat-Nummer → Welt → gemischte Palette (OKLab)
   Geometrie       star_at()                 Frame-Nummer → Lage des Sterns auf der Bumerang-Bahn
   Plakatsatz      layout(), type_layers()   Satz des Loop-Plakats, QR glueht ein (qr_glow; ersetzt kickoff.type_layers)
   Rendern         frame(), frames()         ein Plakat / alle Plakate als Bild, mit Cache und QR-Check
@@ -85,15 +85,28 @@ def load(path=CONFIG, music=None):
     if music:
         cfg["music"].update(file=f"ref/audio/mashup_{music}.wav", grid=f"ref/audio/mashup_{music}.json")
     n, col = cfg["loop"]["frames"], cfg["color"]
-    bad = [p for p in col["stations"] if p not in P_CODES]
-    assert not bad, f"[color].stations: unbekannte oder lila Codes {bad}. Erlaubt: {sorted(P_CODES)}"
+    assert ("stations" in col) != ("worlds" in col), "[color]: entweder stations (eine Welt) oder worlds, nicht beides"
+    if "stations" in col:                                  # eine Welt ueber den ganzen Loop (Stand bis 1.10.)
+        col.update(worlds=[col["stations"]], world_frames=n)
+    assert "world_frames" in col, "[color].worlds braucht world_frames (Frames pro Welt)"
+    wf, key = col["world_frames"], cfg["loop"]["key_every"]
+    for w, st in enumerate(col["worlds"]):
+        where = f"[color] Welt {w + 1} {st}"
+        bad = [p for p in st if p not in P_CODES]
+        assert st and not bad, f"{where}: unbekannte oder lila Codes {bad}. Erlaubt: {sorted(P_CODES)}"
+        assert wf % len(st) == 0, f"{where}: {wf} Frames pro Welt nicht durch {len(st)} Stationen teilbar"
+        assert (wf // len(st)) % key == 0, (f"{where}: jede Station soll auf einem Aushang liegen, Abstand {wf // len(st)}"
+                                            f" Frames ist kein Vielfaches von key_every {key}")
+        mixed = {is_paper(p) for p in st}
+        assert len(mixed) == 1, (f"{where}: Papier ({[p for p in st if is_paper(p)]}) und dunkle Gruende in einer Welt "
+                                 "werden auf dem Weg grau (Grund und Tinte gleich hell). Papier in eine eigene Welt")
+    assert posters(cfg) % n == 0, (f"[color]: {len(col['worlds'])} Welten x {wf} Frames = {posters(cfg)} Plakate, kein "
+                                   f"Vielfaches von [loop].frames {n}: Bahn und Stile sprangen am Neustart")
+    lilac = [f"{i + 1} ({station_label(cfg, i)})" for i in range(posters(cfg)) if is_lilac(palette_hex(cfg, i))]
+    assert not lilac, (f"[color]: lila auf Plakat {', '.join(lilac)}. Mischung: Rot direkt neben Blau? Reihenfolge "
+                       "aendern. Reine Station (P6): Grund dithert Schwarz + #FF55FF zu Lila, nicht verwendbar")
     bad = [s for s in cfg["styles"]["cycle"] if s not in S_CODES]
     assert not bad, f"[styles].cycle: unbekannte Codes {bad}. Erlaubt: {sorted(S_CODES)}"
-    assert n % len(col["stations"]) == 0, "[loop].frames muss durch die Anzahl [color].stations teilbar sein"
-    assert (n // len(col["stations"])) % cfg["loop"]["key_every"] == 0, \
-        "[color].stations: jede Station soll auf einem Aushang liegen (Abstand = Vielfaches von key_every)"
-    lilac = [i + 1 for i in range(n) if is_lilac(palette_hex(cfg, i))]
-    assert not lilac, f"[color].stations: Mischung wird lila auf Frame {lilac} (Rot direkt neben Blau?), Reihenfolge aendern"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
     q = cfg["qr"]
     for key, ok in (("glow_shape", ("round", "square")), ("glow_profile", ("gauss", "light", "linear", "steps"))):
@@ -126,7 +139,13 @@ def load(path=CONFIG, music=None):
 
 
 def count(cfg):
+    """Frames eines Umlaufs: Periode von Bahn und Stilen ([loop].frames)."""
     return cfg["loop"]["frames"]
+
+
+def posters(cfg):
+    """Anzahl Plakate: Welten x Frames pro Welt. Eine Welt (stations): so viele wie count(cfg)."""
+    return len(cfg["color"]["worlds"]) * cfg["color"]["world_frames"]
 
 
 def is_key(cfg, i):
@@ -153,6 +172,12 @@ def from_oklab(lab):
     return np.round(np.where(lin <= 0.0031308, lin * 12.92, 1.055 * lin ** (1 / 2.4) - 0.055) * 255)
 
 
+def is_paper(p):
+    """Papier-Colorway: der Grund (Stufe 0) ist heller als die Tinte (letzte Stufe), z. B. P16 P21-P24."""
+    pal = S.hexpal(P_CODES[p]) @ LUMA
+    return bool(pal[0] > pal[-1])
+
+
 def station(p, steps):
     """Palette einer Station auf `steps` Stufen: kuerzere Paletten (CGA, 4 Stufen) werden gedoppelt, nicht gemischt,
     damit die reine Station genau so aussieht wie ihr Original."""
@@ -160,13 +185,26 @@ def station(p, steps):
     return pal[np.round(np.arange(steps) * (len(pal) - 1) / (steps - 1)).astype(int)]
 
 
-def palette_hex(cfg, i):
-    """Palette von Frame i als Hex-Liste (dunkel → hell): zwischen zwei Stationen Stufe fuer Stufe linear in OKLab
-    gemischt. OKLab statt RGB, weil gleiche Schritte dort gleich gross aussehen (kein Grau-Loch in der Mitte)."""
+def color_pos(cfg, i):
+    """Wo Plakat i in der Farbreise liegt: (Welt w, ihre Stationen, Station k, Schritt t, Schritte pro Station per).
+    t = 0: reine Station k, sonst Mischung von k nach k+1 zu t/per.
+
+    Welten (Spider-Verse, Uebergabe 2): die Plakate laufen Welt fuer Welt durch, je world_frames Frames. Jede Welt ist
+    eine in sich geschlossene Farbreise (die letzte Station mischt zurueck in die erste), zwischen den Welten wird hart
+    gewechselt. Deshalb darf eine Welt Papier sein und die naechste dunkel: gemischt wuerde das grau."""
     col = cfg["color"]
-    st = col["stations"]
-    per = count(cfg) // len(st)
-    k, t = divmod(i, per)
+    w, j = divmod(i, col["world_frames"])
+    st = col["worlds"][w]
+    per = col["world_frames"] // len(st)
+    k, t = divmod(j, per)
+    return w, st, k, t, per
+
+
+def palette_hex(cfg, i):
+    """Palette von Plakat i als Hex-Liste (Stufe 0 = Grund): zwischen zwei Stationen seiner Welt Stufe fuer Stufe linear
+    in OKLab gemischt. OKLab statt RGB, weil gleiche Schritte dort gleich gross aussehen (kein Grau-Loch in der Mitte)."""
+    col = cfg["color"]
+    _, st, k, t, per = color_pos(cfg, i)
     a = to_oklab(station(st[k], col["steps"]))
     b = to_oklab(station(st[(k + 1) % len(st)], col["steps"]))
     rgb = from_oklab(a + (b - a) * t / per)
@@ -175,7 +213,9 @@ def palette_hex(cfg, i):
 
 def is_lilac(hexes):
     """Strenger als styles.lila (250-300°, s > 0.3): Mischungen streifen sonst Flieder (240-320°, s > 0.2), das liest
-    sich auch als Lila. Lila gehoert der Maker Night."""
+    sich auch als Lila. Lila gehoert der Maker Night. load prueft damit jedes Plakat, auch reine Stationen: P6 (CGA,
+    #FF55FF bei 300°) laesst styles.lila durch, im Loop dithert sein Grund aber Schwarz + Magenta zu Lila (Bogen C3,
+    1.10.). Hier faellt es heraus."""
     for h in hexes:
         hh, s, v = colorsys.rgb_to_hsv(*[int(h[j:j + 2], 16) / 255 for j in (1, 3, 5)])
         if 240 <= hh * 360 < 320 and s > 0.2 and v > 0.2:
@@ -192,11 +232,11 @@ def palette(cfg, i):
 
 
 def station_label(cfg, i):
-    """Fuer Bogen und Report: "P11" auf einer Station, "P11>P13 50%" dazwischen."""
-    st = cfg["color"]["stations"]
-    per = count(cfg) // len(st)
-    k, t = divmod(i, per)
-    return st[k] if t == 0 else f"{st[k]}>{st[(k + 1) % len(st)]} {round(100 * t / per)}%"
+    """Fuer Bogen und Report: "P11" auf einer Station, "P11>P13 50%" dazwischen. Bei mehreren Welten davor die Welt:
+    "W2 P11>P13 50%"."""
+    w, st, k, t, per = color_pos(cfg, i)
+    world = f"W{w + 1} " if len(cfg["color"]["worlds"]) > 1 else ""
+    return world + (st[k] if t == 0 else f"{st[k]}>{st[(k + 1) % len(st)]} {round(100 * t / per)}%")
 
 
 # ---------------------------------------------------------------- Geometrie
@@ -234,8 +274,9 @@ def style_code(cfg, i):
 
 def poster_style(cfg, i):
     """Stil-Dict fuer styles.render: Palette aus der Farbreise, Stern-Stil aus dem Zyklus, Lage von der Bahn,
-    Satz aus diesem Modul."""
-    x, y, radius, rot = star_at(cfg, i)
+    Satz aus diesem Modul. Plakat i (ueber alle Welten) liegt auf Bahnframe i mod [loop].frames: jede Welt ist ein
+    ganzer Umlauf bzw. ein Stueck davon."""
+    x, y, radius, rot = star_at(cfg, i % count(cfg))
     st = K.style(palette(cfg, i), S_CODES[style_code(cfg, i)], "riese", star=(x, y, radius), rot=rot,
                  seed=cfg["styles"]["seed"])
     st.update(layout=layout, type_fn=type_layers,
@@ -350,10 +391,11 @@ def qr_glow(c, q):
 
 def qr_embed(c, q):
     """JOIN US + QR auf das Plakat legen (Geometrie und Stufen: qr_glow). JOIN US zuletzt, damit flip_glyphs das
-    Gluehen als Untergrund sieht."""
-    lum = c.pal @ LUMA
+    Gluehen als Untergrund sieht. JOIN US steht in der Tintenstufe (letzte Stufe: auf dunklem Grund die hellste, auf
+    Papier die dunkelste) und kippt auf Hohem in den Grund. Frueher stand hier die hellste Stufe: auf Papier ist das
+    der Grund selbst, JOIN US verschwand im Gluehen (das dort ebenfalls zum Grund hin laeuft)."""
     for name, mask, v in qr_glow(c, q):
-        c.add(name, mask, flip_glyphs(c, mask, c.lvl(int(lum.argmax()))) if v is None else v)
+        c.add(name, mask, flip_glyphs(c, mask, c.lvl(c.N)) if v is None else v)
 
 
 def text_lines(c):
@@ -450,7 +492,7 @@ def _frame_job(args):
 def frames(cfg):
     """Alle Plakate (Vorschaugroesse), je Plakat QR lesbar ja/nein und Lesbarkeit 0..1. Parallel, gecacht in _cache/."""
     with Pool() as pool:
-        out = pool.map(_frame_job, [(cfg, i) for i in range(count(cfg))])
+        out = pool.map(_frame_job, [(cfg, i) for i in range(posters(cfg))])
     return [list(x) for x in zip(*out)]
 
 
@@ -644,10 +686,12 @@ def selftest(cfg, i=8):
     same = [np.array_equal(a, b) for a, b in zip(masks, (m for name, group in text_lines(last).items()
                                                        for m in line_masks(last, group, centered=name == "title")))]
     assert all(same), "Titel/Datum stehen nicht in jedem Frame an derselben Stelle"
-    per = count(cfg) // len(cfg["color"]["stations"])
-    for k, p in enumerate(cfg["color"]["stations"]):
-        got = np.array([[int(h[j:j + 2], 16) for j in (1, 3, 5)] for h in palette_hex(cfg, k * per)])
-        assert np.abs(got - station(p, cfg["color"]["steps"])).max() <= 1, f"Station {p} weicht vom Original ab"
+    for k in range(posters(cfg)):
+        w, st, j, t, _ = color_pos(cfg, k)
+        if t == 0:
+            got = np.array([[int(h[q:q + 2], 16) for q in (1, 3, 5)] for h in palette_hex(cfg, k)])
+            assert np.abs(got - station(st[j], cfg["color"]["steps"])).max() <= 1, \
+                f"Welt {w + 1}, Station {st[j]} (Plakat {k + 1}) weicht vom Original ab"
     assert is_lilac(["#A877A6"]) and not is_lilac(palette_hex(cfg, 0)), "Lila-Test erkennt Flieder nicht"
     return f"Selbsttest ok (Frame {i + 1}: Verlauf pro Zeile, QR, Ruhezone, Gluehen geometrisch; Titel fix, Stationen, Lila-Test)"
 
@@ -689,7 +733,7 @@ def print_files(cfg):
     import img2pdf
     out = os.path.join(PROJECT, "print")
     os.makedirs(out, exist_ok=True)
-    n = count(cfg)
+    n = posters(cfg)
     with Pool() as pool:
         res = pool.map(_print_job, [(cfg, i) for i in range(n)])
     bad = [i + 1 for i, (_, ok) in enumerate(res) if not ok]
@@ -718,6 +762,8 @@ def main():
     elif cmd == "test":
         for i in [int(a) - 1 for a in args[1:]] or SELFTEST_FRAMES:
             print(selftest(cfg, i))
+        import kickoff_loop_video as V
+        print(V.flash_selftest(cfg))
     elif cmd == "print":
         print(print_files(cfg))
     elif cmd == "stars":                                # Sterne aussuchen: Zyklus oder die genannten Codes
