@@ -1,0 +1,301 @@
+{
+ "source": "kickoff_loop/ref/audio/igors_theme.mp3",
+ "decoded": "ffmpeg mp3 -> 48 kHz; Songzeit = Sample-Index/48000 der dekodierten Datei",
+ "bpm": 81.606,
+ "bpm_spread_windows": [
+  81.592,
+  81.617
+ ],
+ "meter": "4/4",
+ "in_s": 22.43508,
+ "in_note": "Taktstrich = Start des 4-Takt-Drum-Loops und des 8-Takt-Abschnitts A; 22.0 s liegt 0.435 s davor (zwischen zwei 16teln). Raster auf Anschlag (50 % Anstieg) gelegt.",
+ "beat_s": 0.735243,
+ "bar_s": 2.940972,
+ "sixteenth_s": 0.183811,
+ "grid_rms_ms": {
+  "sixteenth_all_onsets_22_62s": 18.9,
+  "sixteenth_all_onsets_24_190s": 20.6,
+  "strong_onsets_24_60s": 17.5
+ },
+ "beats_s": [
+  0.0,
+  0.7352,
+  1.4705,
+  2.2057,
+  2.941,
+  3.6762,
+  4.4115,
+  5.1467,
+  5.8819,
+  6.6172,
+  7.3524,
+  8.0877,
+  8.8229,
+  9.5582,
+  10.2934,
+  11.0286,
+  11.7639,
+  12.4991,
+  13.2344,
+  13.9696,
+  14.7049,
+  15.4401,
+  16.1753,
+  16.9106,
+  17.6458,
+  18.3811,
+  19.1163,
+  19.8516,
+  20.5868,
+  21.322,
+  22.0573,
+  22.7925,
+  23.5278,
+  24.263,
+  24.9983,
+  25.7335,
+  26.4687,
+  27.204,
+  27.9392,
+  28.6745,
+  29.4097,
+  30.145,
+  30.8802,
+  31.6154,
+  32.3507,
+  33.0859,
+  33.8212,
+  34.5564,
+  35.2917,
+  36.0269,
+  36.7621,
+  37.4974,
+  38.2326,
+  38.9679,
+  39.7031
+ ],
+ "downbeats_s": [
+  0.0,
+  2.941,
+  5.8819,
+  8.8229,
+  11.7639,
+  14.7049,
+  17.6458,
+  20.5868,
+  23.5278,
+  26.4687,
+  29.4097,
+  32.3507,
+  35.2917,
+  38.2326
+ ],
+ "sections": [
+  {
+   "start_s": 0.0,
+   "song_s": 22.435,
+   "label": "A1: Drone + Drum-Loop Takt 1 = Loop-Start (Takt 1 erste Haelfte nur Drone, Drums ab +1.58 s)"
+  },
+  {
+   "start_s": 2.941,
+   "song_s": 25.376,
+   "label": "A1 Takt 2: erster voller Drum-Takt (Drop)"
+  },
+  {
+   "start_s": 11.7639,
+   "song_s": 34.199,
+   "label": "A2: Loop-Wiederholung (Phrase 2), Bass-Boom auf der Eins"
+  },
+  {
+   "start_s": 19.8516,
+   "song_s": 42.287,
+   "label": "Stopp: 1 Beat Stille (-27 dB)"
+  },
+  {
+   "start_s": 20.5868,
+   "song_s": 43.022,
+   "label": "A2 Takt 8: Hit nach dem Stopp (staerkster Onset 15-60 s)"
+  },
+  {
+   "start_s": 23.5278,
+   "song_s": 45.963,
+   "label": "B: Sub/808 +5 dB, tonale Mitten +11 dB, breiter (Stereo-Seite +6 dB), Pegel +4 dB"
+  },
+  {
+   "start_s": 35.2917,
+   "song_s": 57.727,
+   "label": "B Phrase 2"
+  },
+  {
+   "start_s": 47.0555,
+   "song_s": 69.491,
+   "label": "Uebergang (Pegel faellt), ab +50.0 s wieder A-Teil"
+  }
+ ],
+ "hits_s": [
+  1.601,
+  2.36,
+  2.932,
+  4.031,
+  5.345,
+  5.921,
+  8.832,
+  9.931,
+  11.41,
+  14.123,
+  14.695,
+  15.793,
+  17.108,
+  17.684,
+  18.403,
+  18.94,
+  20.391,
+  20.591,
+  21.693,
+  23.172
+ ],
+ "hits_detail": [
+  {
+   "t_s": 1.601,
+   "song_s": 24.037,
+   "onset": 2.43,
+   "pos": "1.3.2 (-0.29 16tel neben Raster)",
+   "note": "Drum-Einsatz (Boom, Sub +17 dB), nicht auf dem 16tel-Raster"
+  },
+  {
+   "t_s": 2.36,
+   "song_s": 24.795,
+   "onset": 7.08,
+   "pos": "1.4.2"
+  },
+  {
+   "t_s": 2.932,
+   "song_s": 25.367,
+   "onset": 5.42,
+   "pos": "2.1.1"
+  },
+  {
+   "t_s": 4.031,
+   "song_s": 26.466,
+   "onset": 5.19,
+   "pos": "2.2.3"
+  },
+  {
+   "t_s": 5.345,
+   "song_s": 27.78,
+   "onset": 5.49,
+   "pos": "2.4.2"
+  },
+  {
+   "t_s": 5.921,
+   "song_s": 28.356,
+   "onset": 5.03,
+   "pos": "3.1.1"
+  },
+  {
+   "t_s": 8.832,
+   "song_s": 31.267,
+   "onset": 5.23,
+   "pos": "4.1.1"
+  },
+  {
+   "t_s": 9.931,
+   "song_s": 32.366,
+   "onset": 5.29,
+   "pos": "4.2.3"
+  },
+  {
+   "t_s": 11.41,
+   "song_s": 33.845,
+   "onset": 5.71,
+   "pos": "4.4.3"
+  },
+  {
+   "t_s": 14.123,
+   "song_s": 36.558,
+   "onset": 6.62,
+   "pos": "5.4.2"
+  },
+  {
+   "t_s": 14.695,
+   "song_s": 37.13,
+   "onset": 5.18,
+   "pos": "6.1.1"
+  },
+  {
+   "t_s": 15.793,
+   "song_s": 38.228,
+   "onset": 5.54,
+   "pos": "6.2.3"
+  },
+  {
+   "t_s": 17.108,
+   "song_s": 39.543,
+   "onset": 6.49,
+   "pos": "6.4.2"
+  },
+  {
+   "t_s": 17.684,
+   "song_s": 40.119,
+   "onset": 6.36,
+   "pos": "7.1.1"
+  },
+  {
+   "t_s": 18.403,
+   "song_s": 40.838,
+   "onset": 5.34,
+   "pos": "7.2.1"
+  },
+  {
+   "t_s": 18.94,
+   "song_s": 41.375,
+   "onset": 5.46,
+   "pos": "7.2.4"
+  },
+  {
+   "t_s": 20.391,
+   "song_s": 42.826,
+   "onset": 8.38,
+   "pos": "7.4.4"
+  },
+  {
+   "t_s": 20.591,
+   "song_s": 43.026,
+   "onset": 10.55,
+   "pos": "8.1.1"
+  },
+  {
+   "t_s": 21.693,
+   "song_s": 44.129,
+   "onset": 5.48,
+   "pos": "8.2.3"
+  },
+  {
+   "t_s": 23.172,
+   "song_s": 45.607,
+   "onset": 6.44,
+   "pos": "8.4.3"
+  }
+ ],
+ "candidates": [
+  {
+   "length_s": 11.764,
+   "switch_s": 8.823,
+   "notes": "4 Takte = 1 Loop-Durchlauf, endet auf Phrasengrenze (Loop-Neustart 34.2 s). Wechsel auf Takt 4 (Onset 5.2). Davor 48 16tel / 24 Achtel (Drum-Einsatz bei 1.58 s liegt im Stop-Motion-Teil). Endkarte 1 Takt = 2.94 s."
+  },
+  {
+   "length_s": 14.705,
+   "switch_s": 11.764,
+   "notes": "5 Takte, endet auf Taktstrich 6 (37.15 s). Wechsel auf Loop-Neustart/Phrase 2 (34.21 s): Bass-Boom auf der Eins, Sub +15 dB, Beat-RMS +6.7 dB = staerkste Eins im Fenster. Davor 64 16tel / 32 Achtel (4 Takte). Endkarte 2.94 s; Akzent 'Crack' bei 14.12 s (Onset 6.6) in der Endkarte."
+  },
+  {
+   "length_s": 11.764,
+   "switch_s": 2.941,
+   "notes": "Drop = Wechsel: Stop-Motion nur 1 Takt (16 16tel / 8 Achtel) ueber Drone + Drum-Einsatz, Wechsel auf die erste volle Drum-Eins (25.38 s), dann 3 Takte Digitalteil/Endkarte. Musikalisch der groesste Moment ab 22 s, aber umgekehrte Proportion."
+  }
+ ],
+ "alt_in": {
+  "in_s": 34.199,
+  "note": "Gegenvorschlag, falls 22 s nicht fest ist: ab Loop-Neustart 34.2 s -> 3 Takte Stop-Motion (48 16tel), Stopp-Stille direkt davor, Wechsel auf den staerksten Hit (8.82 s), B-Drop bei 11.76 s; Laenge 11.76 oder 14.71 s."
+ }
+}

@@ -26,7 +26,6 @@ from scipy.ndimage import gaussian_filter
 
 import kickoff as K
 import kickoff_loop as KL
-import kickoff_loop_audio as A
 import styles as S
 
 VALLEY_UP_DEG = 30                   # Sternprofil: Spitzen bei 30° + 60°k, bei Drehung 30 (mod 60) zeigt ein Tal nach oben
@@ -36,24 +35,37 @@ FLASH_ANALYSIS_PX = (68, 120)        # Blitz-Check auf 1/16: ein Block = 16 px =
 # ---------------------------------------------------------------- Zeitachse und Kamera
 
 class Timeline:
-    """Die Zeitachse in Timeline-Frames, aus [video].cadence und [loop].bpm.
+    """Die Zeitachse in Timeline-Frames, aus dem Songraster ([music].grid) und [video].cadence.
 
-    changes   Plakatwechsel als (Frame, Plakat-Index), Plakate laufen reihum weiter (auch ueber Loop-Grenzen).
-              Der letzte Wechsel zeigt immer das letzte Plakat des Loops, der erste ergibt sich rueckwaerts.
-    zoom_end  Ende des Karussells = Ende des Zooms = Wechsel ins Digitale
-    total     Ende des Digitalteils"""
+    Video-Sekunde 0 = Einstieg in den Song (Taktstrich). Plakatwechsel liegen auf 16teln/Achteln des Songs; bei
+    81.6 BPM ist ein 16tel 4.41 Timeline-Frames lang, gerundet wird jeder Wechsel fuer sich (kein Wegdriften).
+    hit       Timeline-Frame des Impacts = Taktstrich [music].switch_bar
+    zoom_end  Ende des Karussells = Beginn des Ausbruchs (burst_beats vor dem Hit)
+    changes   Plakatwechsel als (Frame, Plakat-Index); der letzte zeigt immer das letzte Plakat des Loops
+    punches   Frames der Drum-Hits im Karussell (Kamera-Stoss)
+    bars      Frames aller Taktstriche bis zum Ende (Marker fuer Resolve)
+    total     Ende = Taktstrich switch_bar + [endcard].bars"""
 
     def __init__(self, cfg):
-        v, n = cfg["video"], KL.count(cfg)
-        self.bar = int(KL.frames_per_bar(cfg))
-        steps = [self.bar // per for per, bars in v["cadence"] for _ in range(per * bars)]
-        first = -len(steps) % n
-        self.changes, t = [], 0
-        for j, dur in enumerate(steps):
-            self.changes.append((t, (first + j) % n))
-            t += dur
-        self.zoom_end = t
-        self.total = t + round(cfg["endcard"]["seconds"] * v["timeline_fps"])
+        v, m, n = cfg["video"], cfg["music"], KL.count(cfg)
+        g, fps = m["grid"], v["timeline_fps"]
+        six = g["sixteenth_s"]
+        bar = 16 * six
+        hit_s = g["downbeats_s"][m["switch_bar"]]
+        end_s = hit_s - cfg["endcard"]["burst_beats"] * 4 * six
+        times, t = [], 0.0
+        for per, bars in v["cadence"]:
+            for _ in range(per * bars):
+                times.append(t)
+                t += bar / per
+        times = [x for x in times if x < end_s - 1e-6]
+        first = -len(times) % n
+        self.changes = [(round(x * fps), (first + j) % n) for j, x in enumerate(times)]
+        self.hit = round(hit_s * fps)
+        self.zoom_end = round(end_s * fps)
+        self.total = round(g["downbeats_s"][m["switch_bar"] + cfg["endcard"]["bars"]] * fps)
+        self.punches = [round(h * fps) for h in g["hits_s"] if h < end_s]
+        self.bars = [round(d * fps) for d in g["downbeats_s"] if d * fps <= self.total]
         self._starts = [f for f, _ in self.changes]
 
     def poster_at(self, t):
@@ -73,13 +85,19 @@ def scales(cfg, poster_h):
 
 
 def camera(cfg, tl, t, poster_h):
-    """Massstab im Timeline-Frame t (nur fuer die Foto-Phase). Exponentiell interpoliert, ohne Kurve: jeder Frame
-    vergroessert um denselben Faktor, ab dem ersten Frame, nie schneller (Vadim 30.9.: "kontinuierlich zoomen").
-    Der letzte Karussell-Frame erreicht genau den Endmassstab."""
+    """Kamera im Timeline-Frame t (nur Foto-Phase): (Massstab, Rollwinkel in Grad).
+
+    Grundfahrt exponentiell ohne Kurve (jeder Frame vergroessert um denselben Faktor, Vadim 30.9.: "kontinuierlich"),
+    der letzte Karussell-Frame erreicht genau den Endmassstab. Dazu, damit das Bild lebt (Vadim 30.9.: "zu wenig
+    Bewegung"): ein gleichmaessiges Rollen (roll_deg, endet waagerecht, der Wechsel ins Digitale bleibt pixelgenau) und
+    auf jedem Schlag aus tl.punches ein kurzer Stoss nach vorn, der mit punch_decay_beats abklingt."""
+    v = cfg["video"]
     s0, s1 = scales(cfg, poster_h)
-    if cfg["video"]["zoom_stepped"]:
-        t = tl.change_before(t)                           # Kamera springt nur, wenn das Plakat wechselt
-    return s0 * (s1 / s0) ** np.clip(t / max(tl.zoom_end - 1, 1), 0, 1)
+    tz = tl.change_before(t) if v["zoom_stepped"] else t      # Kamera springt nur, wenn das Plakat wechselt
+    u = np.clip(tz / max(tl.zoom_end - 1, 1), 0, 1)
+    fps, b = v["timeline_fps"], beat_s(cfg)
+    kick = sum(np.exp(-(t - p) / fps / (v["punch_decay_beats"] * b)) for p in tl.punches if p <= t < tl.zoom_end - 1)
+    return s0 * (s1 / s0) ** u * (1 + v["punch_frac"] * kick), v["roll_deg"] * (1 - u)
 
 
 # ---------------------------------------------------------------- Platten (Fotos bzw. Simulation)
@@ -156,13 +174,19 @@ def photo_plate(cfg, poster, k):
     return simulated_plate(cfg, poster, k)
 
 
-def shoot(plate, s, size):
-    """Kameraausschnitt: Plattenmitte, Massstab s (Plattenpixel → Ausgabepixel), auf size skaliert.
-    Bei s = 1 und ganzzahliger Lage ist das eine 1:1-Kopie, deshalb ist das Zoom-Ende pixelgenau."""
+def shoot(plate, s, size, roll=0.0):
+    """Kameraausschnitt: Plattenmitte, Massstab s (Plattenpixel → Ausgabepixel), um roll Grad gedreht.
+    Bei s = 1, roll = 0 und ganzzahliger Lage ist das eine 1:1-Kopie, deshalb ist das Zoom-Ende pixelgenau."""
     W, H = size
+    if not roll:
+        cx, cy = plate.width / 2, plate.height / 2
+        box = (cx - W / 2 / s, cy - H / 2 / s, cx + W / 2 / s, cy + H / 2 / s)
+        return plate.resize(size, Image.LANCZOS, box=box)
+    a = np.radians(roll)
+    c, sn = np.cos(a) / s, np.sin(a) / s                     # Ausgabepixel → Plattenpixel (Drehung um die Bildmitte)
     cx, cy = plate.width / 2, plate.height / 2
-    box = (cx - W / 2 / s, cy - H / 2 / s, cx + W / 2 / s, cy + H / 2 / s)
-    return plate.resize(size, Image.LANCZOS, box=box)
+    data = (c, sn, cx - c * W / 2 - sn * H / 2, -sn, c, cy + sn * W / 2 - c * H / 2)
+    return plate.transform(size, Image.AFFINE, data, Image.BICUBIC)
 
 
 def digital_offset(cfg):
@@ -173,47 +197,88 @@ def digital_offset(cfg):
     return round((W - pw) / 2 / px) * px, round((H - ph) / 2 / px) * px
 
 
-def digital_style(cfg, dt):
-    """Stil-Dict des Digitalteils, dt Sekunden nach dem Wechsel. Palette, Stern-Stil und Satz vom letzten Plakat.
+def beat_s(cfg):
+    return 60 / cfg["loop"]["bpm"]
 
-    Der Bumerang kehrt heim: der Stern kommt vom rechten Rand (wo ihn das letzte Plakat zeigt) zurueck, fliegt auf den
-    Betrachter zu und landet riesig (star_end). Lage linear, Groesse logarithmisch (gleichmaessig empfundenes Wachsen),
-    beides mit ease-out (kommt schnell, landet weich); Drehung laeuft mit aus, mindestens spin_end_deg und so weit, dass
-    ein Tal zwischen zwei Spitzen nach oben zeigt (Titel und Datum stehen dann im Dunkeln, nicht auf einer Spitze). Gleichzeitig gleitet der Satz vom Plakat
-    im Bild in den eigenen 9:16-Satz (ease-in-out): Titel nach oben, QR nach unten."""
+
+def digital_phase(cfg, dt):
+    """Abschnitt des Digitalteils dt Sekunden nach dem Wechsel: ("burst" | "impact" | "card", Zeit im Abschnitt)."""
+    e, b = cfg["endcard"], beat_s(cfg)
+    fly = e["burst_beats"] * b
+    hit = e["impact_frames"] / cfg["video"]["timeline_fps"]
+    if dt < fly:
+        return "burst", dt
+    if dt < fly + hit:
+        return "impact", dt - fly
+    return "card", dt - fly - hit
+
+
+def digital_style(cfg, dt):
+    """Stil-Dict des Digitalteils, dt Sekunden nach dem Wechsel ins Digitale. Drei Abschnitte (Spider-Verse-Prinzip:
+    der Bildrhythmus selbst ist der Uebergang, Stop-Motion auf Achteln → Rechner auf 24 fps):
+
+    burst   Der Stern bricht aus dem Papier: er fliegt aus seiner Lage im letzten Plakat auf die Kamera zu, bis er das
+            Bild fuellt (burst_star). Perspektivisch: 1/Radius laeuft linear (gleichmaessige Annaeherung wirkt wie
+            Beschleunigung), die Lage folgt dem Radius. Er dreht weiter, frontal. Der Satz
+            bleibt, wo er auf dem Plakat stand, und kippt auf dem Stern in die Grundfarbe (XOR).
+    impact  impact_frames Bilder: das letzte burst-Bild in Negativ (Palette umgedreht, siehe digital_frames).
+    card    Endkarte im 9:16-Satz: der Stern dreht langsam weiter (card_*), gerendert auf Zweiern (card_fps).
+            Titel, Datum und QR setzen nacheinander auf 16teln ein (card_reveal_16ths), nichts steht still."""
     e, n = cfg["endcard"], KL.count(cfg)
     W, H = cfg["video"]["size_px"]
     pw, ph = S.SIZES[KL.PREVIEW][:2]
     ox, oy = digital_offset(cfg)
-    x, y, r, rot, _ = KL.star_at(cfg, n - 1)
-    a = np.array([ox + x * pw, oy + y * ph, np.log(r * pw)])
-    ex, ey, er = e["star_end"]
-    b = np.array([ex * W, ey * H, np.log(er * W)])
-    u = float(np.clip(dt / e["fly_s"], 0, 1))
-    fly = 1 - (1 - u) ** 3
-    sx, sy, lr = a + (b - a) * fly
-    spin = e["spin_end_deg"] + (VALLEY_UP_DEG - rot - e["spin_end_deg"]) % 60       # aufrunden bis ein Tal oben steht
+    x, y, r, rot = KL.star_at(cfg, n - 1)
+    per_s = cfg["video"]["cadence"][-1][0] / (4 * beat_s(cfg))                     # Plakatwechsel/s am Karussell-Ende
+    spin = cfg["spark"]["spin_deg"] / n * per_s                                    # Grad pro Sekunde wie im Karussell
+    phase, t = digital_phase(cfg, dt)
     st = KL.poster_style(cfg, n - 1)
-    star = (float(sx), float(sy), float(np.exp(lr)), rot + spin * fly)
-    st["loop"] = {**st["loop"], "digital": dict(u=u * u * (3 - 2 * u), offset=(ox, oy), star=star)}
+    if phase in ("burst", "impact"):
+        fly = e["burst_beats"] * beat_s(cfg)
+        u = min(t / fly, 1) if phase == "burst" else 1.0
+        x0, y0, r0 = ox + x * pw, oy + y * ph, r * pw
+        x1, y1, r1 = e["burst_star"][0] * W, e["burst_star"][1] * H, e["burst_star"][2] * W
+        R = 1 / (1 / r0 + u * (1 / r1 - 1 / r0))                                  # gleichmaessige Annaeherung
+        f = (R - r0) / (r1 - r0)
+        star = (x0 + (x1 - x0) * f, y0 + (y1 - y0) * f, R, rot + spin * min(dt, fly))
+        st["loop"] = {**st["loop"], "digital": dict(u=0.0, offset=(ox, oy), star=star, show=None)}
+    else:
+        tq = np.floor(t * e["card_fps"]) / e["card_fps"]                           # auf Zweiern
+        cx, cy, cr = e["card_star"]
+        star = (cx * W, cy * H, cr * W, rot + spin * e["burst_beats"] * beat_s(cfg) + e["card_spin_deg_per_s"] * tq)
+        six = beat_s(cfg) / 4
+        show = [name for name, at in zip(("title", "date", "qr"), e["card_reveal_16ths"]) if t + 1e-6 >= at * six]
+        st["loop"] = {**st["loop"], "digital": dict(u=1.0, offset=(ox, oy), star=star, show=show)}
     st["star"] = (star[0] / W, star[1] / H, star[2] / W)
     return st
 
 
+def invert(img, P):
+    """Negativ auf der Palette: jede Stufe k wird zu N - k (Impact-Frame). Farben ausserhalb der Palette (Zweitlicht)
+    gehen auf die naechste Stufe."""
+    pal = S.hexpal(P).astype(np.int32)
+    idx = ((img[..., None, :].astype(np.int32) - pal) ** 2).sum(-1).argmin(-1)
+    return pal[::-1][idx].astype(np.uint8)
+
+
 def _digital_job(args):
     cfg, dt = args
-    return KL.render_cached(digital_style(cfg, dt), "9x16", "end")
+    st = digital_style(cfg, dt)
+    img = KL.render_cached(st, "9x16", "end")
+    return invert(img, st["P"]) if digital_phase(cfg, dt)[0] == "impact" else img
 
 
 def digital_frames(cfg, tl):
-    """Alle Bilder des Digitalteils (24 fps). Nach dem Anflug steht das Bild: nur einmal rendern."""
+    """Alle Bilder des Digitalteils (24 fps). Gleiche Stile (Zweier der Endkarte) nur einmal rendern."""
     fps = cfg["video"]["timeline_fps"]
-    fly = round(cfg["endcard"]["fly_s"] * fps)
-    dts = [min(k, fly) / fps for k in range(tl.total - tl.zoom_end)]
-    uniq = sorted(set(dts))
+    dts = [k / fps for k in range(tl.total - tl.zoom_end)]
+    key = lambda d: repr(digital_style(cfg, d)["loop"]["digital"]) + digital_phase(cfg, d)[0]    # noqa: E731
+    uniq = {}
+    for d in dts:
+        uniq.setdefault(key(d), d)
     with Pool() as pool:
-        imgs = dict(zip(uniq, pool.map(_digital_job, [(cfg, d) for d in uniq])))
-    return [Image.fromarray(imgs[d]) for d in dts]
+        imgs = dict(zip(uniq, pool.map(_digital_job, [(cfg, d) for d in uniq.values()])))
+    return [Image.fromarray(imgs[key(d)]) for d in dts]
 
 
 # ---------------------------------------------------------------- Pruefungen
@@ -261,6 +326,15 @@ def next_version():
     return path
 
 
+def song(cfg, tl, path):
+    """Song-Ausschnitt genau so lang wie das Video (endet auf einem Taktstrich), kurzer Fade gegen den Knack."""
+    m = cfg["music"]
+    dur = tl.total / cfg["video"]["timeline_fps"]
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", os.path.join(KL.PROJECT, m["file"]), "-t", f"{dur:.6f}",
+                    "-af", f"afade=t=out:st={dur - m['fade_out_s']:.6f}:d={m['fade_out_s']}", "-c:a", "pcm_s24le",
+                    path], check=True)
+
+
 def ffmpeg_writer(path, size, fps, audio=None):
     """Roh-RGB auf stdin → H.264. Mit Ton: AAC, auf -14 LUFS normalisiert (Reel/Story)."""
     W, H = size
@@ -306,7 +380,7 @@ def preview(cfg, posters, qr_ok, legib):
     tl = Timeline(cfg)
     size = tuple(cfg["video"]["size_px"])
     tfps, bpm = cfg["video"]["timeline_fps"], cfg["loop"]["bpm"]
-    bar_s = tl.bar / tfps
+    bar_s = 16 * cfg["music"]["grid"]["sixteenth_s"]
 
     # 1. Plakat-Loop allein im schnellsten Karusselltempo, 3 Durchlaeufe (man soll den Neustart sehen)
     h, w = posters[0].shape[:2]
@@ -321,14 +395,19 @@ def preview(cfg, posters, qr_ok, legib):
     plates = [photo_plate(cfg, img, k) for k, img in enumerate(posters)]
     digital = digital_frames(cfg, tl)
     wav = os.path.join(out, "music.wav")
-    A.music(cfg, tl, wav)
+    song(cfg, tl, wav)
     ff = ffmpeg_writer(os.path.join(out, "preview.mp4"), size, tfps, wav)
-    fly = round(cfg["endcard"]["fly_s"] * tfps)
-    marks = {0: "Start", tl.zoom_end // 2: "Zoom Mitte", tl.zoom_end - 1: "Zoom Ende", tl.zoom_end: "Digital",
-             tl.zoom_end + fly // 3: "Anflug", tl.zoom_end + fly: "Endkarte"}
+    fly = round(cfg["endcard"]["burst_beats"] * beat_s(cfg) * tfps)
+    card = fly + cfg["endcard"]["impact_frames"]
+    marks = {0: "Start", tl.zoom_end // 2: "Zoom Mitte", tl.zoom_end - 1: "Zoom Ende", tl.zoom_end + fly // 2: "Ausbruch",
+             tl.zoom_end + fly: "Impact", tl.zoom_end + card + 2: "Endkarte", tl.total - 1: "Ende"}
     stills, lum = [], []
     for t in range(tl.total):
-        img = shoot(plates[tl.poster_at(t)], camera(cfg, tl, t, h), size) if t < tl.zoom_end else digital[t - tl.zoom_end]
+        if t < tl.zoom_end:
+            sc, roll = camera(cfg, tl, t, h)
+            img = shoot(plates[tl.poster_at(t)], sc, size, roll)
+        else:
+            img = digital[t - tl.zoom_end]
         ff.stdin.write(np.asarray(img).tobytes())
         lum.append(luminance(img))
         if t in marks:
@@ -338,7 +417,7 @@ def preview(cfg, posters, qr_ok, legib):
 
     # 3. Pruefungen, Kontaktbogen, Report
     flash = flash_check(np.array(lum), cfg)
-    end_leg = KL.legibility(digital_style(cfg, cfg["endcard"]["fly_s"]), np.asarray(digital[-1]), "9x16")
+    end_leg = KL.legibility(digital_style(cfg, (tl.total - tl.zoom_end - 1) / tfps), np.asarray(digital[-1]), "9x16")
     contact_sheet(cfg, posters, qr_ok, legib, stills, os.path.join(out, "contact.png"))
     ground = [float(KL.LUMA @ (np.array([int(c[j:j + 2], 16) for j in (1, 3, 5)]) / 255))
               for c in (KL.palette_hex(cfg, i)[0] for i in range(n))]
@@ -369,14 +448,69 @@ def preview(cfg, posters, qr_ok, legib):
              f"{flash['worst_at_s']:.1f} s: {flash['worst_area'] * 100:.0f} % der Flaeche ueber "
              f"{cfg['checks']['flash_max_per_s']} Blitze/s (Grenze {cfg['checks']['flash_max_area_frac'] * 100:.0f} %),"
              f" max. {flash['max_flashes_per_s']} Blitze/s an einer Stelle",
-             "", "Frame  Aushang  Farbe               S     Titel  Grund  Lesbarkeit"]
+             "", "Frame  Aushang  Farbe               S     Radius Grund  Lesbarkeit"]
     lines += [f"{i + 1:02d}     {'ja' if KL.is_key(cfg, i) else '  '}       {KL.station_label(cfg, i):<19} "
-              f"{KL.style_code(cfg, i):<5} {KL.title_scale(cfg, i):.3f}  {g:.2f}   {x:.2f} {tier(x)}"
+              f"{KL.style_code(cfg, i):<5} {KL.star_at(cfg, i)[2]:.2f}   {g:.2f}   {x:.2f} {tier(x)}"
               for i, (g, x) in enumerate(zip(ground, legib))]
     report = "\n".join(lines) + "\n"
     open(os.path.join(out, "report.txt"), "w", encoding="utf-8").write(report)
     gallery()
     return report + out
+
+
+def export(cfg, posters):
+    """Bausteine fuer den Schnitt in Resolve → kickoff_loop/resolve/ (Dateinamen bleiben gleich, Resolve verlinkt neu):
+
+    plates/NN.png   Platte je Plakat (Foto bzw. Simulation), Plakat mittig, 4 px pro Zelle. Echte Fotos ersetzen sie.
+    digital.mov     Digitalteil (Ausbruch, Impact, Endkarte), 1080x1920, 24 fps, ProRes 422 HQ, pixelgenau
+    camera.mov      die ganze Foto-Phase mit Kamera, wie in der Vorschau gerechnet (Referenz / Rueckfall)
+    song.wav        Song-Ausschnitt, genau so lang wie das Video
+    timeline.json   Schnittpunkte (Timeline-Frames), Kamera je Frame, Marker (Takte, Hits, Wechsel)
+    Die Kamera steht als Massstab relativ zu "Platte fuellt das Bild" (Fusion-Transform Size) und Rollwinkel."""
+    import json
+    out = os.path.join(KL.PROJECT, "resolve")
+    os.makedirs(os.path.join(out, "plates"), exist_ok=True)
+    tl = Timeline(cfg)
+    size = tuple(cfg["video"]["size_px"])
+    tfps = cfg["video"]["timeline_fps"]
+    h = posters[0].shape[0]
+    plates = [photo_plate(cfg, img, k) for k, img in enumerate(posters)]
+    for k, pl in enumerate(plates):
+        pl.save(os.path.join(out, "plates", f"{k + 1:02d}.png"))
+    fit = min(size[0] / plates[0].width, size[1] / plates[0].height)       # Massstab "Platte passt ins Bild"
+
+    def prores(path):
+        return subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s",
+                                 f"{size[0]}x{size[1]}", "-r", str(tfps), "-i", "-", "-c:v", "prores_ks", "-profile:v",
+                                 "3", "-pix_fmt", "yuv422p10le", path], stdin=subprocess.PIPE)
+    ff = prores(os.path.join(out, "digital.mov"))
+    for img in digital_frames(cfg, tl):
+        ff.stdin.write(np.asarray(img).tobytes())
+    ff.stdin.close()
+    ff.wait()
+    cam, ff = [], prores(os.path.join(out, "camera.mov"))
+    for t in range(tl.zoom_end):
+        sc, roll = camera(cfg, tl, t, h)
+        cam.append([round(sc / fit, 5), round(float(roll), 4)])
+        ff.stdin.write(np.asarray(shoot(plates[tl.poster_at(t)], sc, size, roll)).tobytes())
+    ff.stdin.close()
+    ff.wait()
+    song(cfg, tl, os.path.join(out, "song.wav"))
+    info = dict(fps=tfps, size=size, plate_size=[plates[0].width, plates[0].height], total=tl.total,
+                zoom_end=tl.zoom_end, hit=tl.hit,
+                changes=[dict(frame=f, dur=(tl.changes[j + 1][0] if j + 1 < len(tl.changes) else tl.zoom_end) - f,
+                              plate=f"plates/{k + 1:02d}.png") for j, (f, k) in enumerate(tl.changes)],
+                camera=dict(unit="Size relativ zu 'Platte passt ins Bild', Rollwinkel in Grad (positiv = Bildinhalt dreht im "
+                                 "Uhrzeigersinn, also Fusion-Transform Angle = minus Wert)", per_frame=cam),
+                digital=dict(file="digital.mov", start=tl.zoom_end, dur=tl.total - tl.zoom_end),
+                markers=[dict(frame=f, color="Red", name=f"Takt {i + 1}") for i, f in enumerate(tl.bars)]
+                + [dict(frame=f, color="Sky", name="Hit") for f in tl.punches]
+                + [dict(frame=tl.zoom_end, color="Yellow", name="Ausbruch"), dict(frame=tl.hit, color="Yellow",
+                                                                                  name="Impact (Bass-Boom)")],
+                song=dict(file="song.wav", source=cfg["music"]["grid"]["source"],
+                          in_s=cfg["music"]["grid"]["in_s"], bpm=cfg["loop"]["bpm"]))
+    json.dump(info, open(os.path.join(out, "timeline.json"), "w"), indent=1)
+    return f"Resolve-Bausteine in {out}: {len(plates)} Platten, {len(tl.changes)} Wechsel, {tl.total} Frames"
 
 
 def gallery():

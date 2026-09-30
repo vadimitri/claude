@@ -19,5 +19,9 @@ kickoff_loop/previz/**/*.png
 kickoff_loop/previz/index.html
 kickoff_loop/photos/
 kickoff_loop/print/
-kickoff_loop/resolve/
-kickoff_loop/ref/audio/
+kickoff_loop/resolve/*
+!kickoff_loop/resolve/*.md
+!kickoff_loop/resolve/*.py
+kickoff_loop/ref/audio/*
+!kickoff_loop/ref/audio/igor_beats.json
+!kickoff_loop/ref/audio/igor_analysis.png

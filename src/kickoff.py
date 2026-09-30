@@ -76,7 +76,7 @@ def layout(c):
     sc = 0.026 * short
     meta = m + snap(sc)
     cap = ((W - 2 * m) / px // width_per_cap(COPY["title"])) * px
-    cap = snap(cap * c.st.get("title_scale", 1.0))                             # Kick-off-Loop: Titelblock waechst pro Frame
+    cap = snap(cap)
     tb = [meta + snap(0.36 * cap) + cap]
     capd = snap(0.30 * cap)
     sub = [s for s in (COPY["what"], COPY["when"], COPY["where"]) if s]
@@ -181,8 +181,6 @@ def spark(c):
         cx, cy, R, _ = c.L["star"]
         g.K = (cx / g.m, cy / g.m, R / g.m)
         g.rot = c.st.get("rot")
-        dx, dy = S.tilt(c.st, g.X - g.K[0], g.Y - g.K[1])        # Kippung der Sternscheibe (styles.tilt) um ihre Mitte
-        g.X, g.Y = g.K[0] + dx, g.K[1] + dy
     elif code[4:] in OWN_K:
         fx_, fy, fr = OWN_K[code[4:]]
         g.K = (fx_ * c.W / g.m, fy * c.H / g.m, fr)

@@ -215,22 +215,8 @@ class Ctx:
         self.layers.append((name, up(mask.astype(np.float32), self.px), np.where(mask, v, np.nan), flat, D))
 
 
-def tilt(st, dx, dy):
-    """Stern als flache Scheibe im Raum: st["tilt"] = (achse_deg, k). Die Scheibe dreht sich um eine Achse im Winkel
-    achse_deg (0 = waagerecht), quer dazu erscheint sie um k verkuerzt (1 = frontal, 0 = hochkant, negativ = Rueckseite,
-    gespiegelt). Gerechnet wird rueckwaerts (Bildpunkt → Scheibenpunkt), vor dem Dithern auf dem Zellraster: jede
-    Sternform kippt mit, und das Pixelraster bleibt eins. Ohne "tilt" unveraendert."""
-    t = st.get("tilt")
-    if not t:
-        return dx, dy
-    a, k = np.radians(t[0]), t[1]
-    ca, sa = np.cos(a), np.sin(a)
-    u, v = ca * dx + sa * dy, (-sa * dx + ca * dy) / k           # in Achsenkoordinaten, quer zur Achse entzerrt
-    return ca * u - sa * v, sa * u + ca * v
-
-
 def star_d(c, cx, cy, R, rot):
-    dx, dy = tilt(c.st, c.cx - cx, c.cy - cy)
+    dx, dy = c.cx - cx, c.cy - cy
     rr = np.hypot(dx, dy)
     return rr / (star_r(dx, dy, rot) * R), rr
 

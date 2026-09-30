@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["numpy", "pillow", "scipy", "qrcode", "scikit-image", "opencv-python-headless"]
+# dependencies = ["numpy", "pillow", "scipy", "qrcode", "scikit-image", "opencv-python-headless", "img2pdf"]
 # ///
 """SPARK Kick-off Loop: die Plakatserie ist ein Stop-Motion-Loop. Jedes Plakat = ein Frame.
 
@@ -12,6 +12,8 @@ Handbuch (Vision, Begriffe, Entscheidungen, Status, offene Fragen): kickoff_loop
   uv run src/kickoff_loop.py variants [N]   Detailvarianten von Frame N nebeneinander → kickoff_loop/previz/variants/
   uv run src/kickoff_loop.py frames         nur die Plakat-Frames rendern (fuellt den Cache)
   uv run src/kickoff_loop.py test           Selbsttest am fertigen Bild
+  uv run src/kickoff_loop.py print          Druckdateien A3 300 dpi (PDF, verlustfrei) → kickoff_loop/print/
+  uv run src/kickoff_loop.py resolve        Bausteine fuer den Schnitt (Platten, Digitalteil, Song, Zeitachse) → resolve/
 
 Aufbau dieser Datei (von oben nach unten):
   Konfiguration   load()                    loop.toml lesen und pruefen
@@ -20,7 +22,7 @@ Aufbau dieser Datei (von oben nach unten):
   Plakatsatz      layout(), type_layers()   Satz des Loop-Plakats, QR mit weichem Hof (ersetzt kickoff.type_layers)
   Rendern         frame(), frames()         ein Plakat / alle Plakate als Bild, mit Cache und QR-Check
   Varianten       variants()                Details zum Abstimmen nebeneinander
-Video, Endkarte, Blitz-Check stehen in kickoff_loop_video.py, die Musik in kickoff_loop_audio.py.
+Video, Endkarte, Musik (Song-Ausschnitt), Blitz-Check stehen in kickoff_loop_video.py.
 """
 import colorsys
 import glob
@@ -79,16 +81,18 @@ def load(path=CONFIG):
     assert not lilac, f"[color].stations: Mischung wird lila auf Frame {lilac} (Rot direkt neben Blau?), Reihenfolge aendern"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
     assert cfg["qr"]["halo_dither"] in ("blue", "bayer4"), "[qr].halo_dither: blue | bayer4"
-    bar = frames_per_bar(cfg)
-    assert bar == int(bar), "[loop].bpm und [video].timeline_fps: ein Takt muss ganze Timeline-Frames lang sein"
-    bad = [per for per, _ in cfg["video"]["cadence"] if int(bar) % per]
-    assert not bad, f"[video].cadence: {bad} Wechsel pro Takt passen nicht auf {int(bar)} Timeline-Frames pro Takt"
+    m = cfg["music"]
+    grid = os.path.join(PROJECT, m["grid"])
+    assert os.path.exists(os.path.join(PROJECT, m["file"])) and os.path.exists(grid), \
+        f"[music]: {m['file']} oder {m['grid']} fehlt (Song-Ausschnitt und Raster, siehe CLAUDE.md)"
+    m["grid"] = json.load(open(grid))
+    cfg["loop"]["bpm"] = m["grid"]["bpm"]
+    bars = sum(b for _, b in cfg["video"]["cadence"])
+    assert bars == m["switch_bar"], f"[video].cadence: {bars} Takte, [music].switch_bar will {m['switch_bar']}"
+    assert m["switch_bar"] + cfg["endcard"]["bars"] < len(m["grid"]["downbeats_s"]), "[endcard].bars: Song zu kurz"
+    bad = [per for per, _ in cfg["video"]["cadence"] if 16 % per]
+    assert not bad, f"[video].cadence: {bad} Wechsel pro Takt gehen nicht in 16tel auf (1, 2, 4, 8, 16)"
     return cfg
-
-
-def frames_per_bar(cfg):
-    """Timeline-Frames pro 4/4-Takt (bei 120 BPM und 24 fps: 48)."""
-    return cfg["video"]["timeline_fps"] * 60 / cfg["loop"]["bpm"] * 4
 
 
 def count(cfg):
@@ -168,15 +172,13 @@ def station_label(cfg, i):
 # ---------------------------------------------------------------- Geometrie
 
 def orbit(cfg, phase):
-    """Stern auf der Bumerang-Bahn bei `phase` (Frames, darf gebrochen sein): (x, y, Radius, Drehung, Kippung).
+    """Stern auf der Bumerang-Bahn bei `phase` (Frames, darf gebrochen sein): (x, y, Radius, Drehung).
 
     Kreisbahn um den Betrachter, im Raum gerechnet: Winkel th laeuft ueber den sichtbaren Bogen (sweep_deg) gleichmaessig,
     Abstand z = near + depth*cos(th), Zentralprojektion auf das Plakat (x ~ sin(th)/z, Groesse ~ 1/z). Nahe am Betrachter
     ist er gross, tief und schnell, fern klein und nahe am Fluchtpunkt. Die Frame-Mitten liegen bei (i + 0.5)/n, damit
-    der Schritt ueber den Neustart (hinter dem Kopf) so gross ist wie jeder andere.
-    Der Stern ist eine flache Scheibe (styles.tilt): sie dreht sich in sich (spin_deg) und ueberschlaegt sich dabei
-    tumble_turns mal um eine Achse, die selbst wandert (axis_*). Die Verkuerzung k = cos(Ueberschlag) laesst den Stern
-    schmal werden, kippen und mit der Rueckseite wiederkommen: so liest sich die flache Form als Koerper im Raum."""
+    der Schritt ueber den Neustart (hinter dem Kopf) so gross ist wie jeder andere. Der Stern bleibt immer frontal
+    (Vadim 30.9.: keine Kippung), er dreht sich nur in der Bildebene (spin_deg)."""
     sp, n = cfg["spark"], count(cfg)
     a, b = sp["sweep_deg"]
     f = (phase + 0.5) / n
@@ -185,21 +187,11 @@ def orbit(cfg, phase):
     z = sp["near"] + sp["depth"] * np.cos(th)
     x = sp["vanish"][0] + sp["lens"] * np.sin(th) / z
     y = sp["vanish"][1] + sp["lens"] * POSTER_ASPECT * sp["height"] / z
-    k = np.cos(np.radians(sp["tumble_start_deg"] + 360 * sp["tumble_turns"] * f))
-    k = np.copysign(max(abs(k), sp["thin_min_frac"]), k)
-    axis = sp["axis_start_deg"] + sp["axis_turn_deg"] * f
-    return (float(x), float(y), float(sp["lens"] * sp["size"] / z), float(sp["rot_start_deg"] + sp["spin_deg"] * phase / n),
-            (float(axis), float(k)))
+    return float(x), float(y), float(sp["lens"] * sp["size"] / z), float(sp["rot_start_deg"] + sp["spin_deg"] * phase / n)
 
 
 def star_at(cfg, i):
     return orbit(cfg, i)
-
-
-def title_scale(cfg, i):
-    """Titelblock waechst linear von title_scale_start (Frame 1) auf 1.0 (Frame N = Standardsatz)."""
-    s0 = cfg["type"]["title_scale_start"]
-    return s0 + (1 - s0) * i / max(count(cfg) - 1, 1)
 
 
 def style_code(cfg, i):
@@ -210,9 +202,9 @@ def style_code(cfg, i):
 def poster_style(cfg, i):
     """Stil-Dict fuer styles.render: Palette aus der Farbreise, Stern-Stil aus dem Zyklus, Lage von der Bahn,
     Satz aus diesem Modul."""
-    x, y, radius, rot, tilt = star_at(cfg, i)
-    st = K.style(palette(cfg, i), S_CODES[style_code(cfg, i)], "riese", star=(x, y, radius), rot=rot, tilt=tilt,
-                 seed=cfg["styles"]["seed"], title_scale=title_scale(cfg, i))
+    x, y, radius, rot = star_at(cfg, i)
+    st = K.style(palette(cfg, i), S_CODES[style_code(cfg, i)], "riese", star=(x, y, radius), rot=rot,
+                 seed=cfg["styles"]["seed"])
     st.update(layout=layout, type_fn=type_layers,
               loop=dict(i=i, n=count(cfg), type=cfg["type"], qr=cfg["qr"], digital=None))
     return st
@@ -347,15 +339,19 @@ def line_masks(c, lines, centered=False):
 
 
 def type_layers(c):
-    """Satz des Loop-Plakats. Raster und Groessen aus kickoff.layout (Titelblock skaliert mit title_scale);
+    """Satz des Loop-Plakats. Raster und Groessen aus kickoff.layout;
     neu gegenueber kickoff.type_layers: Verlauf pro Zeile, SPARK waagerecht zentriert, keine Kopfzeile, QR ohne Karte."""
     L, px, lp = c.L, c.px, c.st["loop"]
     shape = (c.gh, c.gw)
     n0 = len(c.layers)
-    qr_embed(c, lp["qr"])
+    show = (lp["digital"] or {}).get("show")                       # Endkarte: Elemente setzen nacheinander ein
+    if show is None or "qr" in show:
+        qr_embed(c, lp["qr"])
 
     steps = lp["type"]["text_gradient_steps"]
     for name, lines in text_lines(c).items():
+        if show is not None and name not in show:
+            continue
         mk = np.zeros(shape, bool)
         v = np.zeros(shape, np.float32)
         for (s, b, cap), m in zip(lines, line_masks(c, lines, centered=name == "title")):
@@ -365,7 +361,8 @@ def type_layers(c):
         c.add(name, mk, np.where(c.star_m, c.lvl(0), v) if name == "title" else flip_glyphs(c, mk, v))
         K._EXTRA[name] = mk
 
-    K._EXTRA["type"] = np.maximum.reduce([a for _, a, *_ in c.layers[n0:]]) > 0   # fuer das Zweitlicht in kickoff.frame_of
+    K._EXTRA["type"] = (np.maximum.reduce([a for _, a, *_ in c.layers[n0:]]) > 0 if len(c.layers) > n0
+                        else np.zeros((c.H, c.W), bool))            # fuer das Zweitlicht in kickoff.frame_of
 
 
 # ---------------------------------------------------------------- Rendern
@@ -380,8 +377,8 @@ def _source_hash():
 
 def render_cached(st, fmt, tag):
     """Bild zu einem Stil-Dict, gecacht nach allem, was es bestimmt (Stil, Lage, Satzwerte, Palette, Quelltext)."""
-    key = json.dumps([fmt, st["P"], S.PALS[st["P"]], st["S"], st["star"], st["rot"], st.get("tilt"), st["seed"],
-                      st.get("title_scale"), st["loop"], _source_hash()], sort_keys=True, default=str)
+    key = json.dumps([fmt, st["P"], S.PALS[st["P"]], st["S"], st["star"], st["rot"], st["seed"],
+                      st["loop"], _source_hash()], sort_keys=True, default=str)
     path = os.path.join(CACHE, f"{tag}_{hashlib.sha1(key.encode()).hexdigest()[:12]}.png")
     if os.path.exists(path):
         return np.asarray(Image.open(path).convert("RGB"))
@@ -472,7 +469,7 @@ def variants(cfg, i):
 def selftest(cfg, i=8):
     """Prueft am fertigen Bild (nicht am Code), was schiefgehen kann:
     Verlauf pro Zeile = oberste Pixelreihe nur hellste Stufe, unterste nur die Stufe darunter, dazwischen wird es von
-    unten nach oben nie dunkler; Schrift auf dem Stern (gekippt) ist ausgenommen. QR lesbar. Titel waechst nie rueckwaerts.
+    unten nach oben nie dunkler; Schrift auf dem Stern (gekippt) ist ausgenommen. QR lesbar. Titelblock steht in jedem Frame gleich.
     Farbreise: keine Lila-Mischung, jede Station exakt ihre Original-Palette. SPARK waagerecht zentriert."""
     cfg = {**cfg, "type": {**cfg["type"], "text_gradient_steps": 1.0}}
     st = poster_style(cfg, i)
@@ -495,16 +492,72 @@ def selftest(cfg, i=8):
         smooth = np.convolve(rows, np.ones(period) / period, "valid")
         assert np.all(np.diff(smooth) <= 0.05), f"{s}: Verlauf wird nach unten wieder heller {np.round(smooth, 2)}"
     assert K.check_qr(img, PREVIEW_CELL_PX), "QR nicht lesbar"
-    assert all(np.diff([title_scale(cfg, k) for k in range(count(cfg))]) > 0), "Titel waechst nicht monoton"
+    last = S.Ctx(poster_style(cfg, count(cfg) - 1), PREVIEW)
+    same = [np.array_equal(a, b) for a, b in zip(masks, (m for name, group in text_lines(last).items()
+                                                       for m in line_masks(last, group, centered=name == "title")))]
+    assert all(same), "Titel/Datum stehen nicht in jedem Frame an derselben Stelle"
     per = count(cfg) // len(cfg["color"]["stations"])
     for k, p in enumerate(cfg["color"]["stations"]):
         got = np.array([[int(h[j:j + 2], 16) for j in (1, 3, 5)] for h in palette_hex(cfg, k * per)])
         assert np.abs(got - station(p, cfg["color"]["steps"])).max() <= 1, f"Station {p} weicht vom Original ab"
     assert is_lilac(["#A877A6"]) and not is_lilac(palette_hex(cfg, 0)), "Lila-Test erkennt Flieder nicht"
-    return f"Selbsttest ok (Frame {i + 1}: Verlauf pro Zeile, QR; Titelwachstum, Stationen, Lila-Test)"
+    return f"Selbsttest ok (Frame {i + 1}: Verlauf pro Zeile, QR; Titel fix, Stationen, Lila-Test)"
 
 
 # ---------------------------------------------------------------- Befehle
+
+# ---------------------------------------------------------------- Druck
+
+PRINT = "a3"
+PRINT_CELL_PX = S.SIZES[PRINT][2] * S.BASE["R"]                 # 3 * 4 = 12 px pro Zelle = 1 mm bei 300 dpi
+PRINT_DPI = 300                                                 # 3504 x 4956 px = 296.7 x 419.6 mm (A3: 297 x 420)
+BACK_LINES = ("BITTE NICHT", "ABHÄNGEN")                     # Rueckseite jedes Aushangs (Vadim 30.9.)
+BACK_WIDTH_FRAC = 0.8                                           # laengste Zeile / Seitenbreite
+
+
+def _print_job(args):
+    cfg, i = args
+    img = frame(cfg, i, PRINT)
+    return img, K.check_qr(img, PRINT_CELL_PX)
+
+
+def back_page():
+    """Rueckseite: schwarze Schrift auf Weiss (spart Toner, scheint nicht durch), zwei Zeilen mittig."""
+    W, H = S.SIZES[PRINT][:2]
+    name, var = S.FONTSPEC["clash"][:2]
+    f0 = S.font(name, 100, var)
+    wide = max(f0.getlength(t) for t in BACK_LINES)
+    f = S.font(name, round(100 * BACK_WIDTH_FRAC * W / wide), var)
+    im = Image.new("L", (W, H), 255)
+    ImageDraw.Draw(im).multiline_text((W / 2, H / 2), "\n".join(BACK_LINES), font=f, fill=0, anchor="mm", align="center",
+                                     spacing=round(0.3 * f.size))       # Luft fuer die Umlaut-Punkte
+    return im
+
+
+def print_files(cfg):
+    """Druckdateien A3 hoch, 300 dpi, 12 px pro Zelle → kickoff_loop/print/. Aushaenge als aushang_NN.pdf mit
+    Rueckseite (Duplex), Zwischenframes als foto_NN.pdf (einseitig, nur fuers Video). PDF per img2pdf: das PNG geht
+    unveraendert hinein (kein JPEG, das Bayer-Korn bleibt exakt). Jeder QR wird in Druckaufloesung dekodiert."""
+    import img2pdf
+    out = os.path.join(PROJECT, "print")
+    os.makedirs(out, exist_ok=True)
+    n = count(cfg)
+    with Pool() as pool:
+        res = pool.map(_print_job, [(cfg, i) for i in range(n)])
+    bad = [i + 1 for i, (_, ok) in enumerate(res) if not ok]
+    back = os.path.join(out, "_rueckseite.png")
+    back_page().save(back, dpi=(PRINT_DPI, PRINT_DPI))
+    for i, (img, _) in enumerate(res):
+        png = os.path.join(out, f"{i + 1:02d}.png")
+        S.save(img, png, PRINT_DPI)
+        pages = [png, back] if is_key(cfg, i) else [png]
+        name = f"{'aushang' if is_key(cfg, i) else 'foto'}_{i + 1:02d}.pdf"
+        with open(os.path.join(out, name), "wb") as fh:
+            fh.write(img2pdf.convert(pages, layout_fun=img2pdf.get_fixed_dpi_layout_fun((PRINT_DPI, PRINT_DPI))))
+    keys = sum(is_key(cfg, i) for i in range(n))
+    return (f"{n} Druckdateien in {out}: {keys} Aushaenge (mit Rueckseite), {n - keys} Fotoframes; "
+            f"QR lesbar {n - len(bad)}/{n}" + (f"  ! NICHT lesbar: {bad}" if bad else ""))
+
 
 def main():
     args = sys.argv[1:]
@@ -515,11 +568,16 @@ def main():
         print(f"{len(ok)} Plakate, QR lesbar: {sum(ok)}/{len(ok)}, Lesbarkeit: {' '.join(f'{x:.2f}' for x in leg)}")
     elif cmd == "test":
         print(selftest(cfg))
+    elif cmd == "print":
+        print(print_files(cfg))
     elif cmd == "variants":
         print(variants(cfg, int(args[1]) - 1 if len(args) > 1 else 8))
     elif cmd == "preview":
         import kickoff_loop_video as V
         print(V.preview(cfg, *frames(cfg)))
+    elif cmd == "resolve":                              # Bausteine fuer Resolve → kickoff_loop/resolve/
+        import kickoff_loop_video as V
+        print(V.export(cfg, frames(cfg)[0]))
     elif cmd == "gallery":                              # index.html neu, z. B. nach dem Loeschen einer Version
         import kickoff_loop_video as V
         V.gallery()

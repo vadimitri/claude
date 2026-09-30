@@ -9,7 +9,7 @@
 
 [loop]
 # Tempo kommt aus dem Song ([music].grid, IGOR'S THEME: 81.61 BPM, 16tel = 0.184 s = 5.4 Plakate pro Sekunde).
-frames = 48          # Frames im Loop = Plakate. 48 in 16teln = genau 3 Takte = 8.8 s pro Umlauf (Vadim 30.9.: mehr Frames)
+frames = 32          # Frames im Loop = Plakate. 32 in 16teln = genau 2 Takte = 5.9 s pro Umlauf.
 key_every = 2        # jedes 2. Frame ist ein Aushang (Nummern 1, 3, 5 …: haengt auf dem Campus, muss allein tragen).
                      # Die anderen sind Zwischenframes: nur fuers Video gedruckt, einmal aufgehaengt, fotografiert.
 
@@ -27,7 +27,7 @@ steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P
 # hold_frames = 2: Aushang und folgender Zwischenframe teilen sich den Stil, der Stil springt mit 4 statt 8 fps.
 # Nur Stile mit stabiler Silhouette: S2 S7 S33 S19d S23 S26 S36. S14 S24 S40 S31–S31d brechen sie, S13 streut
 # Kindsterne ueber den Titel (v003-Test: Lesbarkeit 0.85). 7 Stile teilen 32 nicht: die zweite Runde mischt anders.
-cycle = ["S7", "S19d", "S33", "S2", "S23", "S26"]   # S36 raus (Vadim 30.9.: "schmilzt, sieht scheisse aus")
+cycle = ["S7", "S2", "S19d", "S33", "S23", "S26"]   # S36 raus (Vadim 30.9.: "schmilzt, sieht scheisse aus")
 hold_frames = 2
 seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
 
@@ -36,8 +36,9 @@ seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakate
 # fliegt in die Tiefe (wird klein), kehrt um, kommt auf einen zu (wird gross) und verlaesst das Bild rechts.
 # Zwischen dem letzten und dem ersten Frame fliegt er hinter dem Betrachter herum (unsichtbar): der Sprung von rechts
 # nach links IST der Neustart des Karussells. Gerechnet als Kreisbahn im Raum mit Zentralprojektion.
-# v004 (Vadim 30.9.: "kleinere Sparks", Bewegung "cool", aber der Stern bleibt IMMER frontal, keine Kippung):
-# fern jetzt Radius 0.20 statt 0.54 (die kleinen Frames sind Fotoframes: gedruckt fuers Video, nicht zum Aushaengen).
+# v004 (Vadim 30.9.: "richtiger Bumerang, man soll die Rotation sehen, dreidimensionaler", "kleinere Sparks"):
+# fern jetzt Radius 0.20 statt 0.54 (die kleinen Frames sind Fotoframes: gedruckt fuers Video, nicht zum Aushaengen),
+# und der Stern ist eine flache Scheibe, die sich im Flug ueberschlaegt (styles.tilt).
 vanish = [0.50, 0.50]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
 height = 0.22              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild
 near = 0.0                 # Abstand Bahnmitte → Betrachter (Bahnradius = 1). Kleiner = er kommt naeher ran
@@ -47,14 +48,23 @@ size = 1.35                # Sterngroesse in Bahneinheiten. Ergebnis: Radius 0.2
 sweep_deg = [-78, 73]      # sichtbarer Bogen (0 = geradeaus, fern). Der Rest passiert hinter dem Kopf
 far_rush_frac = 0.7        # fern schneller, nah verweilen: 0 = gleichmaessig, 0.7 = nah halbes Tempo, fern 1.7-fach
 rot_start_deg = 0          # Drehung im ersten Frame
-spin_deg = 600             # Eigendrehung pro Umlauf (12.5° pro Frame bei 48: unter 30°, sonst liest das Auge die 6-zackige
+spin_deg = 600             # Eigendrehung pro Umlauf (18.75° pro Frame: unter 30°, sonst liest das Auge die 6-zackige
                            # Form rueckwaerts drehend). Vielfache von 60° schliessen nahtlos
+tumble_turns = 1           # Ueberschlaege der Scheibe pro Umlauf: 1 = einmal ganz herum (Vorderseite → hochkant →
+                           # Rueckseite → hochkant → Vorderseite), hochkant bei 1/4 und 3/4 des Loops
+tumble_start_deg = 0       # 0 = Frame 1 frontal
+thin_min_frac = 0.12       # hochkant nie duenner als dieser Bruchteil (ganz hochkant waere eine Linie)
+axis_start_deg = -35       # Kippachse am Anfang (0 = waagerecht, Stern klappt nach oben/unten)
+axis_turn_deg = 180        # so weit dreht die Achse ueber den Loop: der Stern geht schraeg weg und kommt hochkant
+                           # zurueck. Vielfache von 180° schliessen nahtlos
 
 [type]
 # Verlauf in den Buchstaben, pro Zeile von der Grundlinie (dunkler) bis zur Versalhoehe (hellste Stufe), in Palettenstufen.
 text_gradient_steps = 1.0
-# Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert. Titelblock steht in jedem
-# Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
+# Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert und waechst um seine Mitte.
+# Titelblock (SPARK, KICK-OFF, Datum) waechst von Frame 1 bis Frame N linear auf 1.0 = Standardsatz, dann Sprung zurueck.
+# Das Karussell endet immer auf Frame N: der Titel steht vor dem Digitalteil genau im Standardsatz.
+title_scale_start = 0.86
 
 [qr]
 # JOIN US und QR stehen, wie sie sind: dunkelste Stufe auf der hellsten, 3 Module Ruhezone, JOIN US mittig darueber.
@@ -87,12 +97,14 @@ punch_decay_beats = 0.25   # Abklingzeit des Stosses (Beats). Kurz = zackig, auf
 # der Uebergang (Spider-Verse: Stop-Motion auf Achteln → fluessig). Drei Abschnitte, Zeiten in Beats des Songs:
 #   Ausbruch  der Stern bricht aus dem Papier, fliegt auf einen zu, bis er das Bild fuellt
 #   Impact    ein paar Bilder Negativ (Palette umgedreht), genau auf dem Hit
-#   Endkarte  9:16-Satz, der Stern dreht weiter, Titel/Datum/QR setzen auf 16teln nacheinander ein
+#   Endkarte  9:16-Satz, der Stern taumelt weiter, Titel/Datum/QR setzen auf 16teln nacheinander ein
 bars = 2                   # Laenge des Digitalteils in Takten ab dem Hit (Video endet auf einem Taktstrich)
 burst_beats = 0.5          # Ausbruch: so viele Beats vom letzten Plakat bis der Stern das Bild fuellt (endet auf dem Hit)
 burst_star = [0.50, 0.46, 1.6]  # Ziel des Ausbruchs: x, y (Bruchteil des 9:16-Bilds), Radius (Bruchteil der Bildbreite)
 impact_frames = 2          # Negativ-Bilder auf dem Hit (24 fps). 1 Blitz, WCAG erlaubt 3 pro Sekunde
 card_star = [0.58, 0.64, 0.80]  # Stern der Endkarte: x, y, Radius (wie oben)
+card_axis_deg = -20        # Kippachse der Endkarte
+card_tumble_turns_per_s = 0.18  # langsames Weitertaumeln (Umdrehungen pro Sekunde)
 card_spin_deg_per_s = 30   # Eigendrehung auf der Endkarte
 card_fps = 12              # Endkarte auf Zweiern (12 von 24 fps): gezeichnet, nicht "Video"
 card_reveal_16ths = [0, 1, 2]   # Titel, Datum, QR setzen auf diesen 16teln nach dem Impact ein
@@ -109,8 +121,8 @@ fade_out_s = 0.05          # nur gegen den Knack am Schnitt; das Video endet auf
 
 [simulation]
 # Nur fuer die Vorschau, solange es keine Fotos gibt: erfundene Waende statt Campus + Restfehler der Entzerrung.
-jitter_px = 0              # Versatz des Plakats von Foto zu Foto nach dem Entzerren (Pixel im Endbild)
-jitter_rot_deg = 0.0      # Restdrehung von Foto zu Foto
+jitter_px = 5              # Versatz des Plakats von Foto zu Foto nach dem Entzerren (Pixel im Endbild)
+jitter_rot_deg = 0.35      # Restdrehung von Foto zu Foto
 
 [checks]
 # Gates: Verstoesse stehen im report.txt der Version, die Vorschau wird trotzdem gebaut.
