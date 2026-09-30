@@ -1217,6 +1217,149 @@ def c_wunderkerze(g):
     return _paint(g, t, fill, np.clip(v, 0, 1))
 
 
+# ---------------------------------------------------------------- Licht-Serie (S44 ff.): der Stern als Koerper im Licht
+# Fuer den Kick-off-Loop (30.9.): Hoehenrelief auf dem Stern, festes Licht von oben (leicht links vorn), Bayer 4x4.
+# Der Stern steht immer frontal (Vadim 30.9.: keine 3D-Kippung); er dreht sich aber in sich (spin_deg), das feste Licht
+# wandert dabei ueber Firste und Flaechen: so liest sich der flache Stern als Koerper, ohne die Silhouette zu verlassen
+# (Relief und Schatten liegen nur innen, aussen nur ein leiser Schein).
+LIGHT = np.array([-0.25, -0.60, 0.76]) / np.linalg.norm([-0.25, -0.60, 0.76])   # x rechts, y unten, z zum Betrachter
+# (fast von oben: der Stern kommt links ins Bild und geht rechts raus, beide Seiten brauchen Licht auf den Spitzen)
+VIEW = np.array([0.0, 0.0, 1.0])
+TIP_DEG, INNER_R = 30, 0.45                     # Logo-Profil (makernight_sparks.PROF): Spitzen bei rot+30+60k, Kerben r=0.45
+PLACE = ((1.20, 0.52, 0.48), (0.56, 0.80, 0.48))   # Lab-Platzierung (quer, hoch); im Loop setzt kickoff.spark g.K
+
+
+def _local(g, rot0=14):
+    """Hauptplatzierung + Sternkoordinaten in Sternradien."""
+    x0, y0, R = g.pos(g.at(*PLACE))
+    rot = g.ro(rot0)
+    return x0, y0, R, rot, (g.X - x0) / R, (g.Y - y0) / R
+
+
+def _shade(h, x, y, amp, e=2e-3):
+    """Lambert + Glanz eines Hoehenfelds h(x, y) (Sternradien). amp = Reliefhoehe: groesser = steilere Flanken."""
+    h0 = h(x, y)
+    nx, ny = -amp * (h(x + e, y) - h0) / e, -amp * (h(x, y + e) - h0) / e
+    nn = np.sqrt(nx * nx + ny * ny + 1)
+    lam = (nx * LIGHT[0] + ny * LIGHT[1] + LIGHT[2]) / nn
+    H = (LIGHT + VIEW) / np.linalg.norm(LIGHT + VIEW)
+    spec = np.clip((nx * H[0] + ny * H[1] + H[2]) / nn, 0, 1) ** 24
+    return np.clip(lam, 0, 1), spec
+
+
+def _facets(x, y, rot, amp):
+    """Kristall: jede Spitze ein First, jede Kerbe ein Tal, 12 ebene Flaechen (Sektoren zu 30 Grad). Pro Pixel die
+    (nicht normierte) Normale seiner Flaeche: Ebene durch Mitte (Hoehe amp), Spitze und Kerbe (Hoehe 0)."""
+    th = (np.degrees(np.arctan2(y, x)) - rot - TIP_DEG) % 360
+    j = np.floor(th / 30).astype(int)                                       # Sektor 0..11, gerade = Spitze -> Kerbe
+    tip = np.radians(rot + TIP_DEG + 60 * ((j + 1) // 2))
+    kerbe = np.radians(rot + TIP_DEG + 30 + 60 * (j // 2))
+    tx, ty = np.cos(tip), np.sin(tip)
+    ix, iy = INNER_R * np.cos(kerbe), INNER_R * np.sin(kerbe)
+    det = tx * iy - ty * ix                                                 # m mit m.T = 1, m.I = 1 -> h = amp (1 - m.p)
+    mx, my = (iy - ty) / det, (tx - ix) / det
+    return amp * mx, amp * my
+
+
+def c_relief(g):
+    """S44 Relief: der Stern als geschliffene Pyramide (Firste zu den Spitzen), im Streiflicht von oben;
+    Lambert + Glanz im Bayer-Korn. Dreht sich der Stern, wandert das Licht ueber die Firste."""
+    x0, y0, R, rot, x, y = _local(g)
+    d = sd(x, y, rot)
+    lam, spec = _shade(lambda a, b: 1 - sd(a, b, rot), x, y, 0.45)
+    v = np.where(d < 1, 0.40 + 0.60 * lam + 0.45 * spec, bg(g) + 0.10 * glow(d, 0.3))   # 0.40 = Umgebungslicht
+    g.lit = (d < 1) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_facette(g):
+    """S45 Facette: derselbe Kristall als Cel-Shading. Jede der 12 Flaechen ein flacher Ton; Licht = exakte Stufen
+    (flaechig), Schatten = Zwischenwert, den Bayer 4x4 zu einem regelmaessigen Punktraster macht (Ben-Day auf dem
+    Pixelraster)."""
+    x0, y0, R, rot, x, y = _local(g)
+    d = sd(x, y, rot)
+    mx, my = _facets(x, y, rot, 0.9)
+    lam = (mx * LIGHT[0] + my * LIGHT[1] + LIGHT[2]) / np.sqrt(mx * mx + my * my + 1)
+    N = g.N
+    tone = np.select([lam > 0.80, lam > 0.55, lam > 0.30],                        # 4 Toene: 2 flach, 2 als Punktraster
+                     [1.0, (N - 1) / N, (N - 2 + 0.5) / N], (N - 3 + 0.25) / N)
+    v = np.where(d < 1, tone, bg(g) + 0.10 * glow(d, 0.3))
+    g.lit = (d < 1) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_stufen(g):
+    """S46 Stufen: die Matrjoschka-Schalen (S33) als Stufenpyramide gebaut, im Streiflicht. Jede Stufe eine flache
+    Terrasse (exakte Stufe, heller nach oben), die Kante zum Licht leuchtet, zur anderen Seite faellt ein Schlagschatten
+    auf die Stufe darunter (im Punktraster)."""
+    x0, y0, R, rot, x, y = _local(g)
+    d = sd(x, y, rot)
+    T, rise = 5, 0.05                           # Stufen; Stufenhoehe in Sternradien (bestimmt die Schattenlaenge)
+    step = lambda a, b: np.ceil(np.clip(1 - sd(a, b, rot), 1e-6, 1) * T)   # noqa: E731  Terrasse 1 (aussen) .. T
+    k0 = step(x, y)
+    lh = np.hypot(LIGHT[0], LIGHT[1])
+    ux, uy, tan = LIGHT[0] / lh, LIGHT[1] / lh, LIGHT[2] / lh   # Richtung zum Licht, Steigung des Lichtstrahls
+    shadow = np.zeros(d.shape, bool)
+    for s in np.linspace(0.005, 0.10, 10):                  # liegt eine hoehere Stufe zwischen Pixel und Licht?
+        shadow |= (step(x + s * ux, y + s * uy) - k0) * rise > s * tan
+    lip = (step(x + 0.025 * ux, y + 0.025 * uy) < k0) & ~shadow   # Stufenkante, die zum Licht schaut
+    N = g.N
+    top = np.round(N - 2 + (k0 - 1) / (T - 1) * 2) / N          # Terrassen: exakte Stufen N-2 (aussen) .. N (Gipfel)
+    v = np.where(shadow, top - 1.25 / N, top)                   # Schatten: eine Stufe tiefer + Punktraster
+    v = np.where(lip, 1.0, v)
+    v = np.where(d < 1, v, bg(g) + 0.10 * glow(d, 0.3))
+    g.lit = (d < 1) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_praegung(g):
+    """S47 Praegung: das XOR-Nest (S7) als Hochdruck. Die leuchtenden Flaechen sind erhabene Platten, das Licht von
+    oben setzt an jede Plattenkante eine Lichtkante (zum Licht) und einen Schatten (vom Licht weg). Aussenring = Platte:
+    die Silhouette bleibt der volle Stern."""
+    x0, y0, R, rot, x, y = _local(g)
+    d = sd(x, y, rot)
+    par = np.zeros(d.shape, bool)
+    for k in range(6):                                           # wie styles.spark "nest": 6 Sterne, 0.74, +30 Grad
+        par ^= sd(x, y, rot + 30 * k) < 0.74 ** k
+    h = gaussian_filter(par.astype(np.float32), 0.8)
+    lh = np.hypot(LIGHT[0], LIGHT[1])
+    off = (LIGHT[1] / lh * 1.5, LIGHT[0] / lh * 1.5)             # 1.5 Zellen zum Licht hin (Zeile, Spalte)
+    edge = h - map_coordinates(h, (g.c.yy + off[0], g.c.xx + off[1]), order=1, mode="nearest")
+    v = np.where(par, 0.60 + 0.30 * np.clip(1 - d, 0, 1), 0.20 * (d < 1)) - 1.1 * edge
+    v = np.where(d < 1, v, bg(g) + 0.10 * glow(d, 0.3))
+    g.lit = (d < 1) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_lampe(g):
+    """S31g Lampe: der Stern selbst ist die Lichtquelle (Gegenlicht, silhouettentreu): er glueht, seine Spitzen werfen
+    Lichtbahnen ueber die Seite, der Titel wirft Schatten hinein. Kerben bleiben dunkel, der Umriss steht."""
+    t, fill, bb = title(g)
+    x0, y0, R, rot, x, y = _local(g)
+    d = sd(x, y, rot)
+    tt = binary_dilation(g.T, iterations=1)
+    emit = np.where(tt, 0.0, np.where(d < 1, 1.0, 0.5 * np.exp(-(d - 1) / 0.15)))
+    acc = radial(g, emit, x0, y0, n=120, reach=0.99, decay=0.99, order=1)
+    ref = np.percentile(acc[(d > 1.0) & (d < 1.2)], 90) + 1e-6
+    rays = np.clip(acc / ref, 0, 1) ** 2.2              # hoher Exponent: Bahnen aus den Spitzen, Kerben bleiben dunkel
+    v = bg(g, 0.0, 0.04) + 0.75 * rays
+    v = np.where(d < 1, ink(d, 0.8), v)
+    g.lit = v >= 0.5                                     # normale XOR-Regel: Schrift kippt auf hellen Bahnen
+    return _paint(g, t, fill, np.clip(v, 0, 1))
+
+
+def c_interferenz_innen(g):
+    """S18d Moire im Stern: zwei Hoehenlinien-Sterne (S18), um 30 Grad verdreht und leicht versetzt, per XOR, aber nur
+    in der Silhouette; harter Rand, damit die Spitzen spitz bleiben. Das Moire dreht mit, der Umriss steht."""
+    x0, y0, R, rot, x, y = _local(g)
+    d = sd(x, y, rot)
+    d1, d2 = sd(x + 0.10, y - 0.06, rot), sd(x - 0.10, y + 0.06, rot + 30)
+    par = (rings(d1, 5.0) ^ rings(d2, 5.0)) & (d < 0.86)
+    par |= (d >= 0.86) & (d < 1)
+    g.lit = par
+    return np.where(par, ink(d * 0.9, 0.55), bg(g) + 0.12 * glow(d, 0.3))
+
+
 CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) stehen unter ihrem Stamm
     ("S13", c_sternkind, "Sternkind", "Jede Spitze gebiert einen kleineren Stern, der nach aussen weiterwaechst: Stern-Koch-Kurve."),
     ("S14", c_attraktor, "Sternstaub", "Chaos-Spiel-Attraktor aus zwoelf Sternpunkten, leicht verdreht: der Stern als Staubgalaxie."),
@@ -1260,6 +1403,13 @@ CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) steh
     ("S41", c_zerfall, "Zerfall", "Der Stern zerbroeselt zu Pixelsand, der herabrieselt und sich unten tuermt."),
     ("S42", c_fata, "Fata Morgana", "Die Hitze ueber dem Stern flimmert: Spitzen zittern, der Titel spiegelt sich zerrissen in der Luft."),
     ("S43", c_wunderkerze, "Wunderkerze", "Mit der Wunderkerze in die Nacht gemalt: gluehende Spur, verzweigte Funken, Funkenball am Kopf."),
+    # Licht-Serie fuer den Kick-off-Loop (30.9.): Stern als Koerper im Licht, immer frontal
+    ("S44", c_relief, "Relief", "Geschliffene Sternpyramide im Streiflicht, Lambert + Glanz im Bayer-Korn."),
+    ("S45", c_facette, "Facette", "Derselbe Kristall als Cel-Shading: 12 flache Toene, Schatten als Ben-Day-Punktraster aus Bayer 4x4."),
+    ("S46", c_stufen, "Stufen", "Matrjoschka als Stufenpyramide: Terrassen, Lichtkanten, Schlagschatten auf die Stufe darunter."),
+    ("S47", c_praegung, "Praegung", "Das XOR-Nest als Hochdruck: erhabene Platten mit Lichtkante und Schatten."),
+    ("S31g", c_lampe, "Lampe", "Der Stern ist die Lampe: Lichtbahnen aus den Spitzen, Titelschatten, Umriss bleibt."),
+    ("S18d", c_interferenz_innen, "Moire im Stern", "Zwei Hoehenlinien-Sterne per XOR, nur in der Silhouette, harter Rand."),
 ]
 BY = {c[0]: c for c in CANDS}
 CMP = {"S26v1": c_xortitel_alt, "S30v1": c_versatz_alt, "S31b2": c_lichtfall_kurz}   # alte Fassungen, nur Vergleich
@@ -1311,6 +1461,14 @@ URTEIL.update({"S34": (5, "beides", "Staerkste der Serie: Glutrand + Kohlerisse;
                "S42": (2, "beides", "Hitzeschlieren wirken wie Flammen (Naehe zu S20); Spiegeltitel im Plakat nur leise. Eher raus."),
                "S43": (3, "beides", "Wunderkerzen-Lichtmalerei, thematisch perfekt; bei riesigem R werden die Linien zu duenn (K6 statt K1).")})
 URTEIL.update({c: (1, "raus", "Vadim 26.9.: nicht meins.") for c in "S19c S34 S35 S37 S38 S39 S41 S42 S43".split()})
+# Kick-off-Loop 30.9.: S36 raus (Vadim: "schmilzt, sieht scheisse aus"); neue silhouettentreue Stile fuer den Bumerang
+URTEIL.update({"S36": (1, "raus", "Vadim 30.9.: schmilzt, sieht scheisse aus."),
+               "S44": (4, "Loop", "Relief im Streiflicht: dreht sich der Stern, wandert das Licht ueber die Firste."),
+               "S45": (4, "Loop", "Cel-Shading mit Ben-Day aus Bayer: grafisch, klein sehr klar."),
+               "S46": (4, "Loop", "Stufenpyramide mit Schlagschatten: Matrjoschka als Architektur."),
+               "S47": (4, "Loop", "Nest als Praegung: S7 mit Licht und Schatten an jeder Plattenkante."),
+               "S31g": (4, "Loop", "Gegenlicht, das die Silhouette haelt: Strahlen aus den Spitzen, Titel steht hell davor."),
+               "S18d": (3, "Loop", "Moire nur im Stern: S18 ohne die Titel-Zerstoerung.")})
 KEPT =[c for c in BY if URTEIL[c][1] != "raus"]
 
 # Kick-off-Sichtung 2026-09-25 nachts (Vadim)

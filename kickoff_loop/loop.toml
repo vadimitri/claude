@@ -24,10 +24,23 @@ steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P
 
 [styles]
 # Stern-Stile (Codes wie in styles/index.html), jeder haelt hold_frames Frames, dann der naechste; die Liste laeuft reihum.
-# hold_frames = 2: Aushang und folgender Zwischenframe teilen sich den Stil, der Stil springt mit 4 statt 8 fps.
-# Nur Stile mit stabiler Silhouette: S2 S7 S33 S19d S23 S26 S36. S14 S24 S40 S31–S31d brechen sie, S13 streut
-# Kindsterne ueber den Titel (v003-Test: Lesbarkeit 0.85). 7 Stile teilen 32 nicht: die zweite Runde mischt anders.
-cycle = ["S7", "S19d", "S33", "S2", "S23", "S26"]   # S36 raus (Vadim 30.9.: "schmilzt, sieht scheisse aus")
+# hold_frames = 2: Aushang und folgender Zwischenframe teilen sich den Stil.
+# 12 verschiedene Stile, alle frontal und silhouettentreu (Sechsstern liest gross angeschnitten und klein, Bogen 30.9.).
+# Raus: S14 S24 S40 S31-S31f (brechen Silhouette oder Lesbarkeit: S18 0.56, S31 0.84, S31f 0.89), S13 (Kindsterne im
+# Titel), S36 (Vadim 30.9.: "schmilzt"). 48 Frames = 24 Plaetze = genau 2 Runden. Letzter Frame voller Koerper (S2):
+# er wird im Ausbruch bildfuellend, Ringe/Schalen flackern dort (Blitz-Check v004: 40 % statt 24 % der Flaeche).
+cycle = ["S31g",  # Lampe: der Stern als Lichtquelle, Bahnen aus den Spitzen (Gegenlicht, Vadims Favorit)  F1-2
+         "S26",   # Glutstern, voller Koerper. F3 liegt gross am Datum: S45 0.93, S46 0.94, S26 haelt A     F3-4
+         "S45",   # Facette: Kristall im Cel-Shading, Schatten als Ben-Day-Punktraster aus Bayer 4x4         F5-6
+         "S46",   # Stufen: Matrjoschka als Stufenpyramide im Streiflicht                                    F7-8
+         "S23",   # Anschnitt: tiefes XOR-Nest
+         "S33",   # Matrjoschka: Schalen, die ins Korn laufen
+         "S7",    # Nest: das Original
+         "S18d",  # Moire im Stern: zwei Hoehenlinien-Sterne per XOR, harter Rand
+         "S19d",  # Nest-Rosette
+         "S44",   # Relief: geschliffene Sternpyramide, Licht + Glanz im Korn
+         "S47",   # Praegung: das Nest als Hochdruck, Lichtkante + Schatten an jeder Platte
+         "S2"]    # Verlauf, voller Koerper: F23-24 und F47-48 (Ausbruch ins Digitale)
 hold_frames = 2
 seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
 
@@ -41,7 +54,7 @@ seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakate
 source = "orbit"           # orbit = Bahn wird hier gerechnet (Werte unten) | resolve = Vadims Keyframes aus Resolve
                            # (Projekt SPARK_Kickoff_Loop, Timeline Stern-Bahn; uv run src/kickoff_loop_resolve.py pull)
 vanish = [0.50, 0.50]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
-height = 0.22              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild
+height = 0.28              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild
 near = 0.0                 # Abstand Bahnmitte → Betrachter (Bahnradius = 1). Kleiner = er kommt naeher ran
 depth = 1.0                # Tiefe der Bahn (Ellipse), groesser = fliegt weiter weg
 lens = 0.15                # Brennweite (kurze Plakatseite pro Einheit Abstand)
