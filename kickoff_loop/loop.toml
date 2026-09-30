@@ -39,13 +39,13 @@ seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakate
 # v004 (Vadim 30.9.: "richtiger Bumerang, man soll die Rotation sehen, dreidimensionaler", "kleinere Sparks"):
 # fern jetzt Radius 0.20 statt 0.54 (die kleinen Frames sind Fotoframes: gedruckt fuers Video, nicht zum Aushaengen),
 # und der Stern ist eine flache Scheibe, die sich im Flug ueberschlaegt (styles.tilt).
-vanish = [0.50, 0.32]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
-height = 0.42              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild
+vanish = [0.50, 0.50]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
+height = 0.22              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild
 near = 0.0                 # Abstand Bahnmitte → Betrachter (Bahnradius = 1). Kleiner = er kommt naeher ran
 depth = 1.0                # Tiefe der Bahn (Ellipse), groesser = fliegt weiter weg
 lens = 0.15                # Brennweite (kurze Plakatseite pro Einheit Abstand)
 size = 1.35                # Sterngroesse in Bahneinheiten. Ergebnis: Radius 0.20 (fern) bis 0.92 (nah)
-sweep_deg = [-78, 76]      # sichtbarer Bogen (0 = geradeaus, fern). Der Rest passiert hinter dem Kopf
+sweep_deg = [-78, 73]      # sichtbarer Bogen (0 = geradeaus, fern). Der Rest passiert hinter dem Kopf
 far_rush_frac = 0.7        # fern schneller, nah verweilen: 0 = gleichmaessig, 0.7 = nah halbes Tempo, fern 1.7-fach
 rot_start_deg = 0          # Drehung im ersten Frame
 spin_deg = 600             # Eigendrehung pro Umlauf (18.75° pro Frame: unter 30°, sonst liest das Auge die 6-zackige
