@@ -135,3 +135,30 @@ Quellen (neu): [AWN: Spot + Hobie](https://awn.com/animationworld/unpacking-spot
 [Manga-Linien](https://www.japanesewithanime.com/2020/03/line-effects.html),
 [SIGGRAPH: TMNT Mutant Mayhem](https://history.siggraph.org/?p=163057),
 [AWN: Puss in Boots](https://www.awn.com/animationworld/puss-boots-last-wish-returns-its-fairy-tale-illustration-roots).
+
+## Überarbeitung 1.10. (Vadims Urteil)
+
+Urteil zu `stars_neu.png`: S50 rein wie er ist; S51 „bland“; S54 „zu perfekt“ + „getrennte Würfel“ (Schraffurblöcke,
+gerade abgeschnitten an `_qr_zone`/`_type_zone`); S48 „zu Standard“ → chromatische Aberration, crazier. S49 S52 S53 S55
+nicht gewählt. Bögen: `previz/review/S_rework_1.png` (Runde 1), `_2.png` (mutiger), `_2_farbe.png`, `_3.png` (alles im Korn).
+**Endstand (Vadim): behalten S50, S48c, S48d, S54c. Aquarell (S51, S51b, S51c) raus.** „Alles muss unter dem Dither-Layer
+sein“: keine Fläche liegt mehr auf einer exakten Stufe (`_dithered`, `_lightfield`, `DITHER_MIN/SPAN`), auch in S48.
+
+| Code | Idee | Lesbarkeit min (F1/9/16) · F2 | Urteil |
+|---|---|---|---|
+| S48b Linsenfehler | 3 Platten, um die Plakatmitte verschieden skaliert/gedreht (laterale CA), Licht addiert sich, Außensaum Ben-Day | 0.974 · 0.96 | gut, nicht behalten |
+| **S48c** Linsenfehler Bruch | S48b + waagerechte Bänder, die mit ihren Platten verrutschen (nie im Titelblock) | 0.974 · 0.96 | **behalten** |
+| **S48d** Linsenfehler wild | Linsenfehler ×2, jedes Plakat ein eigener Fehldruck (Seed aus der Sternlage), Punkt- + Linienraster | 0.975 · 0.97 | **behalten** |
+| S51b / S51c Aquarell | Pinselzüge mit Trockenkante, Blüten, Granulation, Spritzer / nasser | 0.975 · 0.96 / 0.95 | raus |
+| S54b Skizze Hand | Flanken 3× gezogen, Überschwinger, Schraffur je Facette (1–3 Lagen nach Licht), Wisch-/Radierspur | 0.974 · 0.93 | Zwischenstand |
+| **S54c** Skizze Studie | S54b + Konstruktion (Sechseck, Zirkelbögen je Flanke, Einstich), doppelte Schattenkontur, Kreuzkontur | 0.974 · 0.93 | **behalten** |
+
+Befunde:
+- **CA trägt nur in Rampen mit Farbwechsel.** In P13 P17 P18 P19 P20 P25 liegen Innen- und Außensaum in zwei Farben
+  (blau|gelb, rot|lime, blau|orange), `_2_farbe.png`. In einfarbigen Rampen (P10 P11 P14 P15) nur hell/dunkel.
+- Aquarell Runde 1: Rauschinseln mit Umrisslinie lesen sich als Landkarte (Nähe S16 „Europa“), deshalb Pinselzüge.
+- „Würfel“ hat einen Selbsttest am fertigen Plakat: `uv run … python src/lab_spark.py test` misst die längste gerade
+  Kante des Schraffurfelds an Titel/QR (S54 = 80 Zellen schlägt an, S54b 12, S54c 13, Grenze 20).
+- **Frame 2 bleibt ein Bahnproblem:** S54b/S54c 0.93 (Pergament jetzt im Korn, vorher 0.94). Lösung in `[spark]`, nicht im Stil.
+- S48c-Bänder grenzen an den verworfenen Glitch (S30b); Vadim will sie trotzdem. S50 hat noch flache Linien/Kontur
+  (nicht angefasst, Auftrag „so wie er ist“); falls „alles im Korn“ auch S50 meint, ist das eine Zeile.

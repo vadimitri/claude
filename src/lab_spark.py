@@ -9,6 +9,7 @@ Zusatzebenen in einer zweiten Palette (Fenster). Nur Importe aus styles.py, kein
   uv run ... python src/lab_spark.py S31 --kick --pal cherenkov                                          # Test mit Kick-off-Titel
   uv run ... python src/lab_spark.py posters [S31b S26]                                                  # A3 im echten Satz
   uv run ... python src/lab_spark.py html                                                                # nur Galerie
+  uv run ... python src/lab_spark.py test                                                                # Selbsttest Handschraffur S54b/c
 -> styles/lab/spark/<code>_<pal>_<fmt>.png, poster_<code>_<pal>.png, sheet_*.png, index.html
 """
 import html
@@ -18,7 +19,8 @@ from multiprocessing import Pool
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import gaussian_filter, map_coordinates, binary_dilation, binary_erosion
+from scipy.ndimage import (gaussian_filter, gaussian_filter1d, map_coordinates, binary_dilation, binary_erosion,
+                           distance_transform_edt)
 
 import styles
 from styles import BASE, Ctx, dither, font, hexpal, line_mask, up
@@ -1428,7 +1430,8 @@ def c_fehldruck(g):
     """S48 Fehldruck (ITSV, Miles' Brooklyn): der Stern in zwei Druckplatten, die Farbplatte um ganze Zellen nach unten
     rechts verrutscht. Versatz = Tiefe wie im Film (Unschaerfe = Plattenversatz): fern 3 Zellen, ganz nah 6. Nur Schwarz-
     platte = hellste Stufe, Uebereinander = eine Stufe tiefer mit Ben-Day-Schatten (Bayer als Punktraster) auf der
-    lichtabgewandten Seite, nur Farbplatte = Mittelstufe. Der Umriss der Schwarzplatte ist der Stern."""
+    lichtabgewandten Seite, nur Farbplatte = Mittelstufe. Der Umriss der Schwarzplatte ist der Stern.
+    Vadim 1.10.: "richtig gut", alles unter den Dither -> auch die hellen Flaechen tragen jetzt einen Lichtverlauf (Korn)."""
     x0, y0, R, rot, x, y = _local(g)
     N, c = g.N, _cell(g)
     k = int(np.clip(round(2 + 5 * R), 3, 6))                           # fern 3, nah 6 Zellen (A3: 3-6 mm)
@@ -1437,7 +1440,8 @@ def c_fehldruck(g):
     lh = np.hypot(LIGHT[0], LIGHT[1])
     lit_side = (x * LIGHT[0] + y * LIGHT[1]) / lh                     # > 0: zum Licht (oben links)
     over = np.where(lit_side > -0.12, (N - 1) / N, (N - 1.5) / N)     # Schatten: Ben-Day, halb Punkte eine Stufe tiefer
-    v = np.select([key & col, key, col], [over, 1.0, (N - 2.5) / N], bg(g) + 0.10 * glow(d, 0.3))
+    off = 1 / N - _dithered(1, _lightfield(x, y, d), N)               # Vadim 1.10.: alles unter den Dither (auch das Weiss)
+    v = np.select([key & col, key, col], [over - off, 1.0 - off, (N - 2.5) / N - 0.5 * off], bg(g) + 0.10 * glow(d, 0.3))
     g.lit = key & (v >= 0.5)
     return np.clip(v, 0, 1)
 
@@ -1618,6 +1622,475 @@ def c_halbton(g):
     return np.clip(v, 0, 1)
 
 
+# ---------------------------------------------------------------- Ueberarbeitung 1.10. (Vadims Urteil zu S48, S51, S54)
+# Vadim 1.10.: S50 bleibt wie er ist. S51 rein, aber "ein bisschen bland" -> S51b. S54 "hat Potenzial, sieht aber zu
+# perfekt aus" + "diese getrennten Wuerfel sehen komisch aus" (Schraffurfelder, gerade abgeschnitten an _qr_zone und
+# _type_zone, in Stufenbloecken) -> S54b. S48 "von der Idee cool, zu Standard": chromatische Aberration, crazier -> S48b/c.
+# Die Originale bleiben zum Vergleich stehen. Alles nur Palettenstufen auf dem Zellraster, Stern frontal, folgt der Bahn.
+
+# Vadim 1.10.: "alles muss unter dem Dither-Layer sein und gedithered werden" -> keine Flaeche auf einer exakten Stufe
+DITHER_MIN = 0.15            # Flaechen liegen mindestens so viel (Anteil einer Stufe) unter ihrer Stufe: nie ganz flach
+DITHER_SPAN = 0.7            # und bis zu so viel mehr im Schatten (Licht von oben links + zur Mitte, _lightfield)
+HAND_STEP_CELLS = 0.45       # Stuetzpunktabstand der Handstriche: < 1/sqrt(2) Zelle, sonst reisst eine Diagonale im Raster
+# S48b/c Linsenfehler: drei Platten, jede um die Plakatmitte (optische Achse) skaliert. So waechst der Versatz mit dem
+# Abstand zur Mitte wie bei echter lateraler chromatischer Aberration: gross am Rand (Frame 1, 16), klein in der Mitte.
+# Dazu ein fester Fehldruck in Zellen (damit auch der ferne Stern in der Mitte Saeume hat) und etwas Drehung.
+CA_SCALE = (0.09, 0.0, -0.07)              # Platte A (aussen), B (Passer = der Stern selbst), C (innen)
+CA_SHIFT_CELLS = ((5, 3), (0, 0), (-4, -3))
+CA_ROT_DEG = (3.5, 0.0, -3.0)
+CA_DOT_CELLS = 4.0           # Platte A ausserhalb des Passers als Ben-Day-Raster (45 Grad, fest auf der Seite), Rasterweite
+CA_DOT_FILL = 0.45           # Flaechendeckung der Punkte
+# Stufe je Ueberdruck, als Abstand zur hellsten Stufe N (Licht addiert sich: alle drei = hellste Stufe). In Colorways mit
+# Farbwechsel in der Rampe (P13 P17 P18 P19 P20 P25) liegen A-Saum und C-Saum in verschiedenen Farbtoenen (blau|gelb),
+# in einfarbigen Rampen (P10 P11 P14 P15) nur in Helligkeit und Saettigung.
+CA_TOP = {"ABC": 0, "BC": 0.5, "AC": 1.5, "AB": 2, "C": 1, "B": 2, "A": 3}
+CA_WILD_GAIN = 2.0           # S48d: Linsenfehler (Skalierung, Drehung) so viel staerker als S48b
+CA_WILD_JITTER_CELLS = (3, 8)  # S48d: Fehldruck je Plakat, Zellen (mal 0.5 + Radius): springt von Frame zu Frame
+CA_LINE_CELLS = 3            # S48d: Linienraster des Innensaums, Abstand in Zellen (45 Grad)
+CA_STRIP_CELLS = (2, 15)     # S48c: Hoehe der Baender in Zellen
+CA_STRIP_P = 0.5             # S48c: Anteil der Baender, die verrutschen
+CA_STRIP_SHIFT = (6, 24)     # S48c: groesster Bandversatz in Zellen, fern .. nah (waechst mit dem Radius)
+# S51b Aquarell in Lagen
+AQ_BASE = 0.44               # Grundlasur (Wertraum 0..1; 0.44 = Stufe 2 mit etwas 3 bei 6 Stufen)
+AQ_GLAZE = 0.17              # jede Lasur hebt um knapp eine Stufe; zwei uebereinander = zwei Stufen
+AQ_STROKES = ((-25, -0.30, 0.42, 5101), (40, 0.20, 0.38, 5104), (95, 0.05, 0.30, 5107))   # Pinselzuege: Winkel (Grad,
+                             # auf dem Stern), Querversatz, halbe Breite (Sternradien), Seed. Der letzte endet im Stern
+AQ_EDGE_CELLS = 3.0          # Trockenkante: Pigment klingt nach innen ueber so viele Zellen ab (exp)
+AQ_STROKES_WET = AQ_STROKES[:2] + ((5, -0.55, 0.22, 5110), (-60, 0.45, 0.2, 5113)) + AQ_STROKES[2:]   # S51c: 5 Zuege
+AQ_WET_DARK = 0.22           # S51c: Nass-in-Nass-Tupfer nimmt so viel Wert weg (gut eine Stufe), Gauss-Rand
+AQ_BLOOMS_WET = 5            # S51c: Blueten
+AQ_FLICK = 40                # S51c: Striche im gerichteten Spritzer (bei Radius 1)
+AQ_BLOOMS = 3                # Rueckfluss-Blueten (Blumenkohlrand) pro Stern
+AQ_SPATTER = 70              # Spritzer pro Stern bei Radius 1 (skaliert mit dem Umfang), meist 1 Zelle
+AQ_DROP_CELLS = (1.3, 2.0)   # Radius der wenigen grossen Tropfen in Zellen (druckgleich)
+# S54b Skizze von Hand
+SK_HATCH_CELLS = 4.0         # Abstand der Schraffurstriche (Feder), Zellen: gleich auf fernen und nahen Sternen
+SK_HATCH_PRESS = (0.4, 0.58) # Druck der Schraffur (Kontur 1.0): Mittelton, Kreuzungen werden dunkler
+SK_LAYER_LAM = (0.5, 0.0, -0.28)   # Licht der Flaeche (Lambert, Facetten wie S45) unter diesen Grenzen: 1, 2, 3 Lagen
+SK_OVER_CELLS = (3, 9)       # Ueberschwinger an den Spitzen (Zellen, dazu bis 5 % Sternradius)
+SK_INSET_CELLS = 1.5         # Kontur so weit innen: der Hauptstrich liegt dunkel auf dem Pergament statt halb auf dem Grund
+SK_KEEP_CELLS = (1.0, 6.0)
+SK_KEEP_WAVE_CELLS = 9.0     # dazu eine langsame Welle (0..9 Zellen): der Abstand zur Sperrzone schwankt entlang der Kante   # die Hand setzt so viele Zellen vor Titel/QR ab, je Strich zufaellig: Kante franst aus
+
+
+def _lightfield(x, y, d):
+    """Weiches Licht auf dem Stern, 0..1: zur Lichtseite (LIGHT, oben links) und zur Mitte heller (wie S2). Traegt den
+    Verlauf, der jede Flaeche unter den Dither legt."""
+    side = np.clip((x * LIGHT[0] + y * LIGHT[1]) / np.hypot(LIGHT[0], LIGHT[1]), -1, 1)
+    return 0.55 * (0.5 + 0.5 * side) + 0.45 * np.clip(1 - d, 0, 1) ** 0.7
+
+
+def _dithered(level, L, N):
+    """Palettenstufe level (0..N) als Wert, der nie genau auf einer Stufe liegt: je nach Licht L zwischen DITHER_MIN und
+    DITHER_MIN + DITHER_SPAN Stufen darunter. Exakte Stufen rendern flach (Skill: Rezept 3), so bekommt jede Flaeche Korn."""
+    return (level - DITHER_MIN - DITHER_SPAN * (1 - L)) / N
+
+
+def _dense(pts, step):
+    """Polylinie (n, 2) auf gleichmaessige Stuetzpunkte im Abstand step (m)."""
+    seg = np.hypot(*np.diff(pts, axis=0).T)
+    s = np.r_[0, np.cumsum(seg)]
+    t = np.linspace(0, s[-1], max(2, int(s[-1] / step) + 2))
+    return np.c_[np.interp(t, s, pts[:, 0]), np.interp(t, s, pts[:, 1])]
+
+
+def _wob(rng, n, corr):
+    """Glattes Zittern entlang eines Strichs: n Werte in -1..1, Korrelation ueber corr Stuetzpunkte."""
+    corr = max(1.0, corr)
+    pad = int(3 * corr) + 1
+    w = gaussian_filter1d(rng.standard_normal(n + 2 * pad), corr)[pad:pad + n]
+    return w / (np.abs(w).max() + 1e-9)
+
+
+def _extend(pts, a, b):
+    """Strich an beiden Enden tangential verlaengern (m): die Hand bremst nicht rechtzeitig (Ueberschwinger)."""
+    k = min(3, len(pts) - 1)
+    e0, e1 = pts[0] - pts[k], pts[-1] - pts[-1 - k]
+    e0, e1 = e0 / (np.hypot(*e0) + 1e-12), e1 / (np.hypot(*e1) + 1e-12)
+    return np.r_[[pts[0] + a * e0], pts, [pts[-1] + b * e1]]
+
+
+def _pen(g, acc, pts, p, free=None, margin=0.0):
+    """Handstrich ins Zellraster. pts (n, 2) in m, dicht (HAND_STEP_CELLS); p = Druck je Punkt 0..1. Pro Strich zaehlt
+    jede Zelle einmal (hoechster Druck), Striche addieren sich (Kreuzung = mehr Tinte). free = Abstand zur Sperrzone in
+    Zellen: der Strich setzt ab, wo er naeher als margin kommt. Weil margin je Strich anders ist, franst die Kante aus,
+    statt als gerade Blockkante zu stehen (Befund S54: "getrennte Wuerfel")."""
+    c = _cell(g)
+    i, j = np.floor(pts[:, 1] / c).astype(int), np.floor(pts[:, 0] / c).astype(int)
+    ok = (i >= 0) & (i < g.gh) & (j >= 0) & (j < g.gw) & (np.broadcast_to(p, i.shape) > 0)
+    if free is not None:
+        ok &= free[np.clip(i, 0, g.gh - 1), np.clip(j, 0, g.gw - 1)] > margin
+    if not ok.any():
+        return
+    k, pp = i[ok] * g.gw + j[ok], np.broadcast_to(p, i.shape)[ok]
+    o = np.lexsort((pp, k))
+    k, pp = k[o], pp[o]
+    last = np.r_[np.nonzero(np.diff(k))[0], len(k) - 1]                 # je Zelle der hoechste Druck
+    acc.reshape(-1)[k[last]] += pp[last]
+
+
+def _flank(x0, y0, R, rot, k, a0=0.0, a1=1.0, n=240):
+    """Flanke k des Sterns (Spitze k -> Kerbe -> Spitze k+1) als Punktfolge in m, nur der Anteil a0..a1."""
+    a = TIP_DEG + 60 * k + 60 * np.linspace(a0, a1, n)
+    th = np.radians(rot + a)
+    r = R * star_r(np.cos(th), np.sin(th), rot)
+    return np.c_[x0 + r * np.cos(th), y0 + r * np.sin(th)]
+
+
+def _keep_free(g):
+    """Abstand (Zellen) zu Titelblock und JOIN US + QR: dort zeichnet die Hand nicht."""
+    return distance_transform_edt(~(_type_zone(g) | _qr_zone(g)))
+
+
+def _star_noise2(g, x, y, rot, sig, seed):
+    """Wie _star_noise, aber anisotrop: sig = (quer, laengs) → Streifen entlang der Sternachse u (Pinselzug)."""
+    n = gaussian_filter(np.random.default_rng(seed).standard_normal((160, 160)), sig)
+    n /= 2.5 * n.std()
+    a = np.radians(-rot)
+    u, w = x * np.cos(a) - y * np.sin(a), x * np.sin(a) + y * np.cos(a)
+    return map_coordinates(n, ((w + 1.6) / 3.2 * 159, (u + 1.6) / 3.2 * 159), order=1, mode="grid-wrap")
+
+
+def _ca_strips(g, y0, R):
+    """S48c: die Seite in waagerechte Baender zerbrochen (nur ueber dem Stern, nie im Titelblock). Etwa jedes zweite Band
+    verrutscht, jede Platte darin etwas anders: der Passer bricht an den Bandkanten. Versatz je Zeile in Zellen, (A, B, C)."""
+    rng = np.random.default_rng(483)
+    c = _cell(g)
+    top = int((g.c.L["db"] + 0.6 * g.c.L["capd"]) / g.px) + 2           # erste Zeile unter dem Titelblock
+    y_a, y_b = max(top, int((y0 - R) / c)), min(g.gh, int((y0 + R) / c) + 1)
+    big = CA_STRIP_SHIFT[0] + (CA_STRIP_SHIFT[1] - CA_STRIP_SHIFT[0]) * min(1.0, R)
+    sh = np.zeros((3, g.gh, 1))
+    r = y_a
+    while r < y_b:
+        h = int(rng.integers(*CA_STRIP_CELLS))
+        if rng.random() < CA_STRIP_P:
+            base = rng.choice([-1, 1]) * rng.uniform(0.35, 1) * big
+            sh[:, r:r + h, 0] = np.round(base + rng.normal(0, 0.3 * big, 3)[:, None])
+        r += h
+    return sh
+
+
+def _fehldruck_ca(g, strips, wild=False):
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    ox, oy = g.A / 2, g.B / 2                                            # optische Achse = Plakatmitte
+    sh = _ca_strips(g, y0, R) if strips else np.zeros((3, 1, 1))
+    gain, jit = 1.0, np.zeros((3, 2))
+    if wild:                                                             # S48d: jedes Plakat ein eigener Fehldruck
+        rng = np.random.default_rng(int(abs(x0 * 9973 + y0 * 7919 + R * 6007) * 1e4) % 2 ** 31)
+        gain = CA_WILD_GAIN
+        mag = rng.uniform(*CA_WILD_JITTER_CELLS) * (0.5 + min(R, 1.0))
+        a = rng.uniform(0, 2 * np.pi)
+        jit = np.array([[np.cos(a), np.sin(a)], [0, 0], [-np.cos(a + 0.6), -np.sin(a + 0.6)]]) * mag
+    pl = []
+    for s, (mx, my), dr, shx, (jx, jy) in zip(CA_SCALE, CA_SHIFT_CELLS, CA_ROT_DEG, sh, jit):
+        k = 1 + gain * s
+        dr = gain * dr
+        xc, yc = ox + (x0 - ox) * k + (mx + jx) * c, oy + (y0 - oy) * k + (my + jy) * c
+        pl.append(sd((g.X - shx * c - xc) / (R * k), (g.Y - yc) / (R * k), rot + dr) < 1)
+    A, B, C = pl
+    top = np.select([A & B & C, B & C, A & C, A & B, C, B, A],
+                    [CA_TOP[k] for k in ("ABC", "BC", "AC", "AB", "C", "B", "A")], -1.0)
+    d = sd(x, y, rot)
+    uu = (g.c.xx - g.c.yy) / np.sqrt(2) / CA_DOT_CELLS
+    ww = (g.c.xx + g.c.yy) / np.sqrt(2) / CA_DOT_CELLS
+    dot = np.hypot(uu - np.round(uu), ww - np.round(ww)) < np.sqrt(CA_DOT_FILL / np.pi)
+    top = np.where(A & ~B & ~C & ~dot, -1.0, top)                         # Aussensaum nur als Punkte
+    if wild:                                                             # Innensaum als Linienraster (zweiter Raster-Typ)
+        hatch = ((g.c.xx - g.c.yy) % CA_LINE_CELLS) < 1
+        top = np.where(C & ~B & ~A & ~hatch, -1.0, top)
+    ink = (top >= 0)
+    v = np.where(ink, _dithered(N - top, _lightfield(x, y, d), N), bg(g) + 0.10 * glow(d, 0.3))   # jede Platte im Korn
+    # Keine Tuschekontur (Vadim 1.10. zu S48b/S48c: "schwarzen Rand weg"): nur die Platten tragen die Form.
+    g.lit = ink & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_fehldruck_ca(g):
+    """S48b Linsenfehler (ITSV, Miles: Farbplatten verrutscht, mehrfarbige Saeume): drei Platten des Sterns, jede um die
+    Plakatmitte anders skaliert und gedreht (laterale chromatische Aberration). Licht addiert sich: wo alle drei liegen, die
+    hellste Stufe; zur Mitte hin ein Saum in der zweithellsten, nach aussen zwei dunklere. Am Plakatrand (Frame 1, 16)
+    reissen die Platten weit auseinander, in der Mitte bleiben schmale Saeume. Aussensaum als Ben-Day-Punkte.
+    Vadim 1.10.: gut, aber "schwarzen Rand weg" -> Tuschekontur entfernt."""
+    return _fehldruck_ca(g, strips=False)
+
+
+def c_fehldruck_wild(g):
+    """S48d Linsenfehler wild: S48b mit doppeltem Linsenfehler, und jedes Plakat ist ein eigener Fehldruck (Platten
+    springen von Frame zu Frame in eine andere Richtung, Seed aus der Sternlage). Aussensaum Ben-Day-Punkte, Innensaum
+    Linienraster: zwei Rasterarten wie im Comicdruck. Ohne Baender (kein Glitch)."""
+    return _fehldruck_ca(g, strips=False, wild=True)
+
+
+def c_fehldruck_bruch(g):
+    """S48c Linsenfehler + Bruch: wie S48b, dazu zerbricht der Stern in waagerechte Baender, die mit ihren Platten
+    verrutschen (Miles' Glitch in ITSV). Nie im Titelblock. Grenzt an den verworfenen Glitch (S30b); Vadim 1.10.: behalten."""
+    return _fehldruck_ca(g, strips=True)
+
+
+def c_aquarell_lagen(g):
+    """S51b Aquarell in Lagen (ATSV, Gwens Earth-65), S51 "ein bisschen bland" -> mehr Malerei. Blasse, wolkige
+    Grundlasur; darueber breite Pinselzuege (Lasuren), jeder mit welligem Rand, der beim Trocknen Pigment gesammelt hat:
+    hell an der Kante, nach innen exponentiell abklingend (Bayer-Verlauf); wo sich Zuege ueberlagern, mehr Pigment = eine
+    Stufe heller. In einem Zug Borstenstreifen (trockener Pinsel), Rueckfluss-Blueten mit Blumenkohlrand, Granulation
+    (Pigmentkoerner), feine Spritzer um den Stern. Pigmentrand am Umriss unterschiedlich dick. Befund Runde 1:
+    Rauschinseln mit Umrisslinie lesen sich als Landkarte (Naehe S16 "Europa"), deshalb Zuege statt Inseln."""
+    return _aquarell(g, wet=False)
+
+
+def c_aquarell_nass(g):
+    """S51c Aquarell nass (mutiger als S51b): fuenf Zuege mit harter Trockenlinie an der Kante, mehr und staerkere
+    Blueten, ein Nass-in-Nass-Einlauf (dunkler Tupfer mit weich auslaufendem Rand auf der Schattenseite) und ein
+    gerichteter Spritzer (kurze Striche in Wurfrichtung) statt nur runder Tropfen."""
+    return _aquarell(g, wet=True)
+
+
+def _aquarell(g, wet):
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    rng = np.random.default_rng(511)
+    inside = d < 1
+    free = _keep_free(g)
+    calm = free < 3 + 3 * (0.5 + 0.5 * _star_noise(g, x, y, rot, 2, 5130))    # Ruhe vor Titel/QR, ausgefranst
+    ec = max(AQ_EDGE_CELLS * c / R, 0.012)                                     # Abklingen der Trockenkante (Sternradien)
+    v = AQ_BASE + 0.06 * _star_noise(g, x, y, rot, 10, 511)                  # Grundlasur, wolkig
+    strokes = AQ_STROKES_WET if wet else AQ_STROKES
+    for k, (ang, off, hw, seed) in enumerate(strokes):                       # Pinselzuege (in Sternkoordinaten, drehen mit)
+        a = np.radians(ang - rot)
+        u = x * np.cos(a) + y * np.sin(a)                                    # laengs des Zugs
+        w = -x * np.sin(a) + y * np.cos(a) - off                             # quer
+        w = w + 0.05 * _star_noise(g, x, y, rot, 4, seed) + 0.015 * _star_noise(g, x, y, rot, 1, seed + 1)
+        sdist = hw * (1 + 0.15 * np.tanh(u)) - np.abs(w)                     # > 0 im Zug, am Rand 0; Zug wird zum Ende breiter
+        if k == len(strokes) - 1:                                            # letzter Zug endet im Stern (Pinsel abgesetzt)
+            sdist = np.minimum(sdist, 0.35 + 0.06 * _star_noise(g, x, y, rot, 2, seed + 2) - u)
+        zug = (sdist > 0) & inside
+        pool = np.exp(-np.maximum(sdist, 0) / ec) * ~calm                    # Pigment an der Trockenkante
+        v = v + zug * (AQ_GLAZE + 0.9 / N * pool)
+        if wet:                                                              # harte Trockenlinie genau an der Kante
+            v = np.where(zug & (sdist < c / R) & ~calm, (N - 0.3) / N, v)
+        if k == 1:                                                           # trockener Pinsel: Borstenstreifen laengs
+            brist = _star_noise2(g, u, w, 0, (0.5, 14), seed + 3) > 0.2
+            v = np.where(zug & brist & ~calm, v + 0.7 / N, v)
+    if wet:                                                                  # Nass in nass: dunkler Tupfer, weich auslaufend
+        ex, ey = _polar(x0, y0, R, rot, np.degrees(np.arctan2(-LIGHT[1], -LIGHT[0])) - rot + rng.uniform(-40, 40), 0.45)
+        rr = np.hypot(g.X - ex, g.Y - ey) / (0.32 * R) * (1 + 0.25 * _star_noise(g, x, y, rot, 3, 5160))
+        v = v - AQ_WET_DARK * np.exp(-rr ** 2) * inside
+    for _ in range(AQ_BLOOMS_WET if wet else AQ_BLOOMS):                     # Rueckfluss: Blumenkohlrand, innen blasser
+        cx, cy = _polar(x0, y0, R, rot, rng.uniform(0, 360), rng.uniform(0.1, 0.6))
+        rad = R * rng.uniform(0.12, 0.24)
+        dx, dy = g.X - cx, g.Y - cy
+        ang, rr = np.arctan2(dy, dx), np.hypot(dx, dy)
+        wob = sum(rng.uniform(0.03, 0.09) * np.sin(k * ang + rng.uniform(0, 6.3)) for k in (5, 8, 13, 21, 34))
+        rb = rad * (1 + wob)
+        bl = (rr < rb) & inside
+        v = np.where(bl, v - 0.08 + 0.7 / N * np.exp(-(rb - rr) / (ec * R)) * ~calm, v)
+    grain = gaussian_filter(np.random.default_rng(5150).standard_normal(d.shape), 0.6)   # Papierkorn: fest auf der Seite
+    gran = (grain > np.quantile(grain, 0.93)) & (v > AQ_BASE + AQ_GLAZE) & ~calm
+    v = np.where(gran, v + 0.8 / N, v)
+    rim = d >= 1 - (1.0 + 2.5 * (0.5 + 0.5 * _star_noise(g, x, y, rot, 6, 5120))) * c / R
+    v = np.where(inside, np.where(rim, 1.0, np.clip(v, 0.3, (N - 0.15) / N)), bg(g) + 0.08 * glow(d, 0.25))
+    drops = np.zeros(d.shape, bool)
+    for _ in range(int(AQ_SPATTER * (0.3 + R))):                             # Spritzer: nah am Stern dicht, weiter weg einzeln
+        cx, cy = _polar(x0, y0, R, rot, rng.uniform(0, 360), 1.03 + 0.5 * rng.random() ** 2)
+        i, j = int(cy / c), int(cx / c)
+        big = rng.random() < 0.12
+        if 0 <= i < g.gh and 0 <= j < g.gw and free[i, j] > 2 + rng.uniform(*SK_KEEP_CELLS):
+            if big:
+                _disk(g, drops, cx, cy, rng.uniform(*AQ_DROP_CELLS) * c)
+            else:                                                            # die meisten: 1 Zelle, manchmal 2
+                drops[i, j] = True
+                if rng.random() < 0.4:
+                    drops[min(i + 1, g.gh - 1), j] = True
+    if wet:                                                                  # gerichteter Spritzer: kurze Striche in Wurfrichtung
+        fa = rng.uniform(0, 360)
+        e = np.array([np.cos(np.radians(rot + fa)), np.sin(np.radians(rot + fa))])
+        for _ in range(int(AQ_FLICK * (0.3 + R))):
+            cx, cy = _polar(x0, y0, R, rot, fa + rng.normal(0, 22), 1.05 + 0.45 * rng.random())
+            i, j = int(cy / c), int(cx / c)
+            if 0 <= i < g.gh and 0 <= j < g.gw and free[i, j] > 3 + rng.uniform(*SK_KEEP_CELLS):
+                ln = rng.uniform(2, 6) * c
+                pts = _dense(np.array([[cx, cy], [cx + ln * e[0], cy + ln * e[1]]]), HAND_STEP_CELLS * c)
+                ii, jj = (pts[:, 1] / c).astype(int), (pts[:, 0] / c).astype(int)
+                ok = (ii >= 0) & (ii < g.gh) & (jj >= 0) & (jj < g.gw)
+                drops[ii[ok], jj[ok]] = True
+    drops &= ~inside
+    v = np.where(drops, (N - 1) / N, v)
+    g.lit = inside | drops
+    return np.clip(v, 0, 1)
+
+
+def c_skizze_hand(g):
+    """S54b Skizze von Hand (ATSV Leonardo-Vulture; Vadim: S54 "zu perfekt", "getrennte Wuerfel"). Jede Flanke mehrfach
+    gezogen: eine leichte Anlage, der Hauptstrich, ein Stueck nachgezogen, jede leicht versetzt, mit Ueberschwingern an
+    den Spitzen (die Striche kreuzen sich dort). Schraffur folgt der Form: jede der 12 Flaechen hat ihre eigenen
+    Richtungen (parallel zu ihren Kanten), je dunkler die Flaeche im Licht, desto mehr Lagen (1-3, gekreuzt), Strich fuer
+    Strich mit Zittern, Druck (setzt kraeftig an, laeuft duenn aus), Enden mal drueber, mal zu kurz. Konstruktion
+    freihaendig (Umkreis mehr als eine Runde, Achsen ueber die Spitzen, Masstriche). Wischspur auf der Schattenseite,
+    eine Radierspur. Tinte kippt wie die Schrift: auf dem Pergament dunkel, auf dem Grund hell. Ungleicher Druck =
+    Zwischenwerte, die Bayer zu gebrochenen Strichen macht (Bleistift auf Korn)."""
+    return _skizze(g, study=False)
+
+
+def c_skizze_studie(g):
+    """S54c Skizze Studie (mutiger als S54b): dazu die Geometrie, aus der der Stern konstruiert ist, wie auf einem
+    Leonardo-Blatt: Sechseck durch die Spitzen (Lineal, ueber die Ecken hinaus), je Flanke der Zirkelbogen, dem sie folgt
+    (ueber die Spitzen weitergezogen), Zirkeleinstich in der Mitte. Kontur auf der Schattenseite doppelt (schwerer Strich),
+    in den dunkelsten Flaechen Kreuzkontur-Schraffur, die der Flankenkurve folgt, kraeftigere Wischspur."""
+    return _skizze(g, study=True)
+
+
+def _skizze(g, study):
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    rng = np.random.default_rng(541)
+    d = sd(x, y, rot)
+    step = HAND_STEP_CELLS * c
+    wave = SK_KEEP_WAVE_CELLS * (0.5 + 0.5 * _star_noise(g, x, y, rot, 3, 5470))  # die Hand umfaehrt Titel/QR in Wellen
+    free = _keep_free(g) - wave
+    line, lead = np.zeros((g.gh, g.gw), np.float32), np.zeros((g.gh, g.gw), np.float32)
+
+    def stroke(acc, pts, base, amp_cells, corr=0.2, taper_cells=5.0, flick=0.0, clip=None):
+        pts = _dense(pts, step)
+        n = len(pts)
+        tg = np.gradient(pts, axis=0)
+        tg /= np.hypot(*tg.T)[:, None] + 1e-12
+        pts = pts + np.c_[-tg[:, 1], tg[:, 0]] * (amp_cells * c * _wob(rng, n, corr * n))[:, None]
+        s = np.arange(n) * step
+        p = base * (0.72 + 0.28 * _wob(rng, n, 0.12 * n)) * np.clip(np.minimum(s, s[-1] - s) / (taper_cells * c), 0.2, 1)
+        p = p * (1 - flick * (s / max(s[-1], 1e-9)) ** 1.5)                 # setzt kraeftig an, laeuft duenn aus
+        if clip is not None:                                               # Schraffur: im Stern, Ende mal drueber, mal kurz
+            p = np.where(sd((pts[:, 0] - x0) / R, (pts[:, 1] - y0) / R, rot) < 1 + clip * c / R, p, 0)
+        _pen(g, acc, pts, p, free, rng.uniform(*SK_KEEP_CELLS))
+
+    # Konstruktion (Bleistift, leicht): Umkreis mehr als eine Runde, Innenkreis angerissen, Achsen, Masstriche an den Spitzen
+    for rad, turns, base in ((1.03, rng.uniform(1.05, 1.2), 0.55), (INNER_R * 1.05, rng.uniform(0.45, 0.7), 0.4)):
+        t = rng.uniform(0, 2 * np.pi) + np.linspace(0, 2 * np.pi * turns, 900)
+        rc = R * rad * (1 + 0.01 * rng.standard_normal())
+        cx, cy = x0 + rng.normal(0, 1.2 * c), y0 + rng.normal(0, 1.2 * c)
+        stroke(lead, np.c_[cx + rc * np.cos(t), cy + rc * np.sin(t)], base, 1.0 + 0.004 * R / c, corr=0.05, taper_cells=12)
+    for k in range(3):
+        a = np.radians(rot + TIP_DEG + 60 * k + rng.normal(0, 0.8))
+        e = np.array([np.cos(a), np.sin(a)])
+        l0, l1 = R * rng.uniform(1.12, 1.3), R * rng.uniform(1.12, 1.3)
+        stroke(lead, np.array([[x0, y0] - l0 * e, [x0, y0] + l1 * e]), 0.45, 0.4, corr=0.3, taper_cells=8)
+    for k in range(6):
+        tx, ty = _polar(x0, y0, R, rot, TIP_DEG + 60 * k, 1)
+        a = np.radians(rot + TIP_DEG + 60 * k + 90 + rng.normal(0, 4))
+        h = rng.uniform(3, 6) * c
+        stroke(lead, np.array([[tx - h * np.cos(a), ty - h * np.sin(a)], [tx + h * np.cos(a), ty + h * np.sin(a)]]),
+               0.6, 0.2, taper_cells=1.5)
+
+    if study:                                                              # Geometrie des Sterns, wie konstruiert
+        tips6 = [np.array(_polar(x0, y0, R, rot, TIP_DEG + 60 * k, 1)) for k in range(7)]
+        for k in range(6):                                                 # Sechseck durch die Spitzen, ueber die Ecken hinaus
+            pa, pb = tips6[k], tips6[k + 1]
+            e = (pb - pa) / np.hypot(*(pb - pa))
+            o0, o1 = rng.uniform(4, 10) * c + 0.05 * R, rng.uniform(4, 10) * c + 0.05 * R
+            stroke(lead, np.array([pa - o0 * e, pb + o1 * e]), 0.5, 0.35, corr=0.3, taper_cells=6)
+            nb = np.array(_polar(x0, y0, R, rot, TIP_DEG + 60 * k + 30, 1))    # Zirkelbogen: Kreis durch Spitze, Kerbe, Spitze
+            ax, ay, bx, by, qx, qy = *pa, *nb, *pb
+            dd = 2 * (ax * (by - qy) + bx * (qy - ay) + qx * (ay - by))
+            ux = ((ax * ax + ay * ay) * (by - qy) + (bx * bx + by * by) * (qy - ay) + (qx * qx + qy * qy) * (ay - by)) / dd
+            uy = ((ax * ax + ay * ay) * (qx - bx) + (bx * bx + by * by) * (ax - qx) + (qx * qx + qy * qy) * (bx - ax)) / dd
+            rc = np.hypot(ax - ux, ay - uy)
+            t0, t1 = np.arctan2(ay - uy, ax - ux), np.arctan2(qy - uy, qx - ux)
+            t1 = t0 + (t1 - t0 + np.pi) % (2 * np.pi) - np.pi                 # kurzer Bogen von Spitze zu Spitze
+            ext = (t1 - t0) * rng.uniform(0.15, 0.35)
+            t = np.linspace(t0 - ext, t1 + ext, 300)
+            stroke(lead, np.c_[ux + rc * np.cos(t), uy + rc * np.sin(t)], 0.45, 0.6, corr=0.08, taper_cells=8)
+        t = np.linspace(0, 2 * np.pi, 60)                                  # Zirkeleinstich
+        stroke(lead, np.c_[x0 + 2.5 * c * np.cos(t), y0 + 2.5 * c * np.sin(t)], 0.8, 0.2, taper_cells=1)
+        for a in (0, np.pi / 2):
+            e = np.array([np.cos(a + np.radians(rot)), np.sin(a + np.radians(rot))]) * 5 * c
+            stroke(line, np.array([[x0, y0] - e, [x0, y0] + e]), 0.8, 0.1, taper_cells=1)
+
+    # Kontur: jede Flanke dreimal (Anlage leicht und versetzt, Hauptstrich, Stueck nachgezogen), Ueberschwinger an den Spitzen
+    for k in range(6):
+        nrm = np.radians(rot + TIP_DEG + 60 * k + 30)                      # Kerbenrichtung: zeigt die Flanke weg vom Licht?
+        shadow = np.cos(nrm) * LIGHT[0] + np.sin(nrm) * LIGHT[1] < 0
+        passes = ((2.6, 1.4, 0.5, True), (0.5, 0.6, 1.0, True), (1.2, 0.9, 0.85, False))
+        if study and shadow:
+            passes += ((0.4, 0.5, 1.0, True),)                            # Schattenseite: schwerer, zweiter Hauptstrich
+        for jit, amp, base, whole in passes:
+            a0, a1 = (0.0, 1.0) if whole else tuple(sorted(rng.uniform(0, 1, 2)))
+            if a1 - a0 < 0.25:
+                continue
+            kk = 1 + rng.normal(0, 0.004 + 0.5 * jit * c / R) - SK_INSET_CELLS * c / R   # Hauptstrich auf dem Pergament
+            pts = _flank(x0 + rng.normal(0, jit * c), y0 + rng.normal(0, jit * c), R * kk, rot + rng.normal(0, 0.6 * jit), k,
+                         a0, a1)
+            ov = [(rng.uniform(*SK_OVER_CELLS) * c + 0.05 * R * rng.random()) if (whole and rng.random() < 0.8) else 0.0
+                  for _ in (0, 1)]
+            stroke(line, _extend(pts, *ov), base, amp, corr=0.12, taper_cells=4)
+            if study and shadow and whole and base == 1.0:                 # doppelter Strich: 1 Zelle weiter innen
+                pts2 = _flank(x0, y0, R * (kk - c / R), rot, k, a0, a1)
+                stroke(line, pts2, 0.9, 0.5, corr=0.12, taper_cells=6)
+
+    # Schraffur, die der Form folgt: 12 Flaechen, Richtungen parallel zu ihren Kanten, Lagen nach Licht
+    for j in range(12):
+        a_s, a_e = TIP_DEG + 30 * j, TIP_DEG + 30 * (j + 1)
+        T = np.array(_polar(x0, y0, R, rot, a_s if j % 2 == 0 else a_e, 1))
+        Kn = np.array(_polar(x0, y0, R, rot, a_e if j % 2 == 0 else a_s, 1))
+        C0 = np.array([x0, y0])
+        cen = (T + Kn + C0) / 3
+        mx, my = _facets(np.array([(cen[0] - x0) / R]), np.array([(cen[1] - y0) / R]), rot, 0.9)
+        lam = float(((mx * LIGHT[0] + my * LIGHT[1] + LIGHT[2]) / np.sqrt(mx * mx + my * my + 1))[0])
+        layers = int(np.searchsorted(-np.array(SK_LAYER_LAM), -lam))       # hell: keine Lage, tiefster Schatten: 3
+        for P, Q, O in ((T, Kn, C0), (C0, T, Kn), (C0, Kn, T))[:layers]:
+            PQ = Q - P
+            h = abs(PQ[0] * (O - P)[1] - PQ[1] * (O - P)[0]) / (np.hypot(*PQ) + 1e-12)
+            nl = int(h / (SK_HATCH_CELLS * c * rng.uniform(0.9, 1.1)))
+            base = rng.uniform(*SK_HATCH_PRESS)
+            for t in (np.arange(nl) + 0.5 + rng.uniform(-0.2, 0.2, nl)) / max(nl, 1) * 0.96:
+                a, b = P + t * (O - P), Q + t * (O - Q)
+                L = np.hypot(*(b - a))
+                if L < 2 * c:
+                    continue
+                e = (b - a) / L
+                q = np.array([-e[1], e[0]])
+                a = a - e * rng.uniform(-2.0, 1.5) * c + q * rng.normal(0, 0.5) * c
+                b = b + e * rng.uniform(-2.0, 1.5) * c + q * rng.normal(0, 0.5) * c
+                m = (a + b) / 2 + q * rng.normal(0, 0.6) * c                   # leicht gebogen (Handgelenk)
+                tt = np.linspace(0, 1, 12)[:, None]
+                bez = (1 - tt) ** 2 * a + 2 * tt * (1 - tt) * m + tt ** 2 * b
+                stroke(line, bez, base * rng.uniform(0.8, 1.1), 0.3, corr=0.3, taper_cells=2, flick=0.55,
+                       clip=rng.uniform(-2.0, 1.0))
+        if study and layers >= 2:                                         # Kreuzkontur: Kurven parallel zur Flanke
+            lo, hi = sorted((a_s, a_e))
+            f = 0.95
+            while f > 0.4:
+                aa = np.radians(rot + np.linspace(lo - 2, hi + 2, 40))
+                rr = f * R * star_r(np.cos(aa), np.sin(aa), rot)
+                stroke(line, np.c_[x0 + rr * np.cos(aa), y0 + rr * np.sin(aa)], rng.uniform(*SK_HATCH_PRESS), 0.3,
+                       corr=0.3, taper_cells=2, flick=0.4, clip=rng.uniform(-2.0, 0.5))
+                f -= SK_HATCH_CELLS * 1.3 * c / (0.7 * R) * rng.uniform(0.85, 1.15)
+
+    # Wischspur: Handballen hat die Schraffur auf der Schattenseite verzogen; Radierspur: Papier heller, Striche als Geist
+    sm_dir = np.array([-LIGHT[1], LIGHT[0]]) / np.hypot(LIGHT[0], LIGHT[1])
+    smear = sum(np.roll(line, (int(round(k * sm_dir[1])), int(round(k * sm_dir[0]))), (0, 1)) * (1 - k / 12)
+                for k in range(12)) / 6
+    lx, ly = x * LIGHT[0] + y * LIGHT[1], -x * LIGHT[1] + y * LIGHT[0]
+    blob = ((lx + 0.45) / 0.28) ** 2 + ((ly - rng.uniform(-0.2, 0.2)) / 0.5) ** 2 < 1 + 0.3 * _star_noise(g, x, y, rot, 3, 5420)
+    blob &= free > 3
+    ea = np.radians(rot + rng.uniform(0, 180))
+    ec = np.array(_polar(x0, y0, R, rot, rng.uniform(0, 360), rng.uniform(0.35, 0.6)))
+    eu = (g.X - ec[0]) * np.cos(ea) + (g.Y - ec[1]) * np.sin(ea)
+    ev = -(g.X - ec[0]) * np.sin(ea) + (g.Y - ec[1]) * np.cos(ea)
+    eh = max(0.05 * R, 4 * c)                                               # Radiergummi: Stadion mit ausgefranstem Rand
+    erased = (np.hypot(np.maximum(np.abs(eu) - 0.2 * R, 0), ev) < eh * (1 + 0.25 * _star_noise(g, x, y, rot, 1.5, 5430)))
+    erased &= free > 3
+    sm = (0.55, 0.2) if study else (0.35, 0.12)                             # Wischspur: Anteil verzogene Tinte, Grauschleier
+    ink = np.clip(line + 0.55 * lead + blob * (sm[0] * np.clip(smear, 0, 1) + sm[1]), 0, 1)
+    ink = np.where(erased, 0.3 * ink, ink)                                  # Striche nur noch als Geist, Papier bleibt
+    paper = d < 1
+    pv = (N - 1 + DITHER_MIN + DITHER_SPAN * _lightfield(x, y, d)) / N     # Pergament im Licht: Korn zwischen 2 hellsten Stufen
+    v_in = pv - (pv - 0.5 / N) * ink
+    v_out = bg(g) + ((N - 2) / N - bg(g)) * np.clip(0.9 * line + 1.0 * lead, 0, 1)
+    v = np.where(paper, v_in, v_out)
+    g.lit = paper & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
 CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) stehen unter ihrem Stamm
     ("S13", c_sternkind, "Sternkind", "Jede Spitze gebiert einen kleineren Stern, der nach aussen weiterwaechst: Stern-Koch-Kurve."),
     ("S14", c_attraktor, "Sternstaub", "Chaos-Spiel-Attraktor aus zwoelf Sternpunkten, leicht verdreht: der Stern als Staubgalaxie."),
@@ -1669,12 +2142,19 @@ CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) steh
     ("S31g", c_lampe, "Lampe", "Der Stern ist die Lampe: Lichtbahnen aus den Spitzen, Titelschatten, Umriss bleibt."),
     ("S18d", c_interferenz_innen, "Moire im Stern", "Zwei Hoehenlinien-Sterne per XOR, nur in der Silhouette, harter Rand."),
     ("S48", c_fehldruck, "Fehldruck", "ITSV Brooklyn: zwei Druckplatten, Farbplatte verrutscht (fern 2, nah 4 Zellen), Ben-Day-Schatten."),
+    ("S48b", c_fehldruck_ca, "Linsenfehler", "ITSV Miles: drei Platten, um die Plakatmitte verschieden skaliert (chromatische Aberration), Licht addiert sich."),
+    ("S48c", c_fehldruck_bruch, "Linsenfehler Bruch", "Wie S48b, der Stern zerbricht in verrutschte Baender (ITSV-Glitch; Vadim behaelt ihn)."),
+    ("S48d", c_fehldruck_wild, "Linsenfehler wild", "S48b doppelt, jedes Plakat ein eigener Fehldruck, Punkt- und Linienraster in den Saeumen."),
     ("S49", c_krackle, "Krackle", "Jack Kirby / ITSV-Kollider: heller Energiesaum, schwarze Kirby-Punkte stanzen den Raum aus."),
     ("S50", c_fokus, "Fokuslinien", "Manga shuuchuu-sen / ITSV-Speedlines: Keile vom Rand auf den Stern, Titelblock bleibt frei."),
     ("S51", c_aquarell, "Aquarell", "ATSV Gwen (Earth-65): Lasur mit Pigmentrand und Rueckfluss-Blueten, scharfer Umriss."),
+    ("S51b", c_aquarell_lagen, "Aquarell Lagen", "Lasuren mit Trockenrand uebereinander, Blumenkohl-Blueten, Pinselzug, Granulation, Spritzer."),
+    ("S51c", c_aquarell_nass, "Aquarell nass", "S51b mutiger: fuenf Zuege mit Trockenlinie, Nass-in-Nass-Tupfer, gerichteter Spritzer."),
     ("S52", c_zine, "Zine", "ATSV Hobie: aus der Fotokopie geschnitten, Toner, Klebeband, harter Schlagschatten."),
     ("S53", c_spot, "Spot", "ATSV The Spot: Gesso-Stern mit Tintenloechern, Bleistift-Konstruktion scheint durch."),
     ("S54", c_skizze, "Skizze", "ATSV Leonardo-Vulture: Pergament, Federschraffur, Konstruktion ueber den Umriss hinaus."),
+    ("S54b", c_skizze_hand, "Skizze Hand", "Mehrfach gezogene Konturen, Ueberschwinger, Schraffur je Flaeche, Wisch- und Radierspur."),
+    ("S54c", c_skizze_studie, "Skizze Studie", "S54b + Konstruktion wie auf einem Leonardo-Blatt: Sechseck, Zirkelboegen, doppelte Schattenkontur."),
     ("S55", c_halbton, "Halbton", "ITSV Ben-Day: echtes Druckraster fest auf der Seite, der Stern fliegt darunter durch."),
 ]
 BY = {c[0]: c for c in CANDS}
@@ -1737,6 +2217,24 @@ URTEIL.update({"S36": (1, "raus", "Vadim 30.9.: schmilzt, sieht scheisse aus."),
                "S18d": (3, "Loop", "Moire nur im Stern: S18 ohne die Titel-Zerstoerung.")})
 # Spider-Verse-Serie 1.10. (Sterne-Fork, Vadim: "Spider-Verse-Inspo, coole Sparks"): meine Sichtung, Vadim waehlt noch
 URTEIL.update({c: (3, "Loop", "neu, Vadim hat noch nicht gewaehlt.") for c in "S48 S49 S50 S51 S52 S53 S54 S55".split()})
+# Vadims Urteil 1.10. zum Bogen stars_neu.png (S48-S55) und zu den Ueberarbeitungen (Boegen previz/review/S_rework_1-3.png).
+# Endstand 1.10.: behalten S50, S48c, S48d, S54c. Alles unter den Dither (keine Flaeche auf einer exakten Stufe). Aquarell raus.
+URTEIL.update({"S50": (5, "Loop", "Vadim 1.10.: kommt rein, so wie er ist."),
+               "S48c": (5, "Loop", "Vadim 1.10.: behalten. Ohne Tuschekontur (\"schwarzen Rand weg\"), alles im Korn. Die "
+                                   "Baender grenzen an den verworfenen Glitch (S30b), Vadim will sie trotzdem."),
+               "S48d": (5, "Loop", "Vadim 1.10.: \"richtig gut\", behalten. Jedes Plakat ein eigener Fehldruck, Punkt- + "
+                                   "Linienraster in den Saeumen, alles im Korn."),
+               "S54c": (5, "Loop", "Vadim 1.10.: \"richtig gut\", behalten. Handzeichnung + Konstruktion (Sechseck, "
+                                   "Zirkelboegen), Pergament im Korn."),
+               "S48": (3, "nicht gewaehlt", "Vadim 1.10.: Idee cool, zu Standard -> S48b-d; zu S_rework_2 \"richtig gut\", "
+                                            "aber behalten werden S48c/S48d. Helle Flaechen jetzt im Korn."),
+               "S48b": (3, "nicht gewaehlt", "Vadim 1.10.: gut (schwarzen Rand weg), behalten werden aber S48c/S48d."),
+               "S54": (2, "nicht gewaehlt", "Vadim 1.10.: Potenzial, aber zu perfekt; getrennte Wuerfel -> S54c."),
+               "S54b": (3, "nicht gewaehlt", "Zwischenstand zu S54c (von Hand, ohne Konstruktion). Behalten wird S54c."),
+               "S51": (1, "raus", "Vadim 1.10.: erst \"kommt rein, bland\", dann \"Aquarell raus\"."),
+               "S51b": (1, "raus", "Vadim 1.10.: Aquarell raus. Befund Runde 1: Rauschinseln mit Umriss = Landkarte (S16)."),
+               "S51c": (1, "raus", "Vadim 1.10.: Aquarell raus."),
+               **{c: (2, "nicht gewaehlt", "Vadim 1.10.: nicht gewaehlt (nicht verworfen).") for c in "S49 S52 S53 S55".split()}})
 KEPT =[c for c in BY if URTEIL[c][1] != "raus"]
 
 # Kick-off-Sichtung 2026-09-25 nachts (Vadim)
@@ -1923,11 +2421,64 @@ img{width:100%;display:block;image-rendering:pixelated;border:1px solid var(--li
         fh.write(doc)
 
 
+HAND_EDGE_ZONE_CELLS = 10    # Selbsttest S54b: gemessen wird nur so nah an Titelblock / JOIN US + QR (Zellen)
+HAND_EDGE_MAX_CELLS = 20     # Selbsttest S54b: laengste gerade (achsparallele) Kante eines Schraffurfelds, Zellen. S54 hat
+                             # dort 80 (Kante von _qr_zone/_type_zone). Gemessen 1.10.: S54b 12, S54c 13 = drei Striche
+                             # (Abstand 4 Zellen), die zufaellig auf derselben Zeile absetzen; ein Wuerfel ist feldbreit
+
+
+def selftest_hand(codes=("S54", "S54b", "S54c"), frames=(0, 15)):
+    """Selbsttest am fertigen Plakat des Loops (Frame 1 und 16: grosser Stern an QR bzw. Titel): Schraffurfelder duerfen
+    nicht an einer geraden Kante enden (Vadim 1.10. zu S54: "diese getrennten Wuerfel sehen komisch aus"). Tinte = Zellen
+    im Stern, dunkler als die zwei hellsten Stufen (Pergament); Feld = Tinte geschlossen (5x5); gemessen wird die
+    laengste waagerechte bzw. senkrechte Feldkante am Rand von Titelblock / JOIN US + QR. S54 muss anschlagen (Nachweis, dass der Test sieht),
+    S54b/S54c muessen durchgehen. Liefert {code: laengste Kante} und bricht ab, wenn das nicht stimmt."""
+    import kickoff_loop as KL
+    from scipy.ndimage import binary_closing
+    cfg = KL.load()
+    got = {}
+    for code in codes:
+        worst = 0
+        for i in frames:
+            st = KL.poster_style(cfg, i)
+            st["S"] = "lab:" + code
+            img = KL.frame(cfg, i, style=st).astype(np.float32) @ KL.LUMA
+            c = styles.Ctx(st, KL.PREVIEW)
+            g = G(st, KL.PREVIEW, c)
+            cx, cy, R, _ = c.L["star"]
+            g.K, g.rot = (cx / g.m, cy / g.m, R / g.m), st.get("rot")
+            x0, y0, R, rot, x, y = _local(g)
+            inner = sd(x, y, rot) < 1 - 4 * _cell(g) / R
+            lum = img[c.px // 2::c.px, c.px // 2::c.px][:g.gh, :g.gw]
+            pl = hexpal(st["P"]).astype(np.float32) @ KL.LUMA                  # Pergament liegt im Korn zwischen den 2
+            ink = inner & (lum < (pl[-2] + pl[-3]) / 2)                       # hellsten Stufen: Tinte = ab 3.-hellster
+            field = binary_closing(ink, np.ones((5, 5), bool)) & inner
+            fr = _keep_free(g)
+            near = (fr < HAND_EDGE_ZONE_CELLS) & inner                        # nur am Rand von Titel/QR (dort sassen die
+            out = fr > 0                                                      # Wuerfel); Kanten ganz in der Zone (JOIN US)
+            for f, m, o in ((field, near, out), (field.T, near.T, out.T)):   # zaehlen nicht, Grate duerfen gerade sein
+                edge = (f[:-1] ^ f[1:]) & m[:-1] & m[1:] & (o[:-1] | o[1:])   # Feld endet zur naechsten Zeile hin
+                for row in edge:
+                    runs = np.diff(np.r_[0, row.astype(np.int8), 0])
+                    if runs.any():
+                        worst = max(worst, int((np.nonzero(runs == -1)[0] - np.nonzero(runs == 1)[0]).max()))
+        got[code] = worst
+    print("Selbsttest Hand (laengste gerade Schraffurkante, Zellen):", got, "Grenze", HAND_EDGE_MAX_CELLS)
+    assert got.get("S54", HAND_EDGE_MAX_CELLS + 1) > HAND_EDGE_MAX_CELLS, "Test blind: S54 (Wuerfel) schlaegt nicht an"
+    bad = {k: v for k, v in got.items() if k != "S54" and v > HAND_EDGE_MAX_CELLS}
+    assert not bad, f"gerade Schraffurkanten (Wuerfel): {bad}"
+    return got
+
+
 def main():
     """Argumente: Codes (S31b ...; ohne = alle behaltenen), --pal a,b | all, --fmt 16x9|9x16|a3, --kick (Test mit
-    Kick-off-Titel SPARK nach styles/lab/spark/_kick/), --sheet name. 'posters [codes]' = A3 im echten Satz, 'html' = Galerie."""
+    Kick-off-Titel SPARK nach styles/lab/spark/_kick/), --sheet name. 'posters [codes]' = A3 im echten Satz, 'html' = Galerie.
+    'test' = Selbsttest der Handschraffur (S54b/c gegen S54) am fertigen Loop-Plakat."""
     os.makedirs(OUT, exist_ok=True)
     args = sys.argv[1:]
+    if args == ["test"]:
+        selftest_hand()
+        return
     if args == ["sheet"] or args == ["html"]:
         gallery()
         return
