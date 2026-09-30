@@ -6,20 +6,23 @@
 """SPARK Kick-off Loop: die Plakatserie ist ein Stop-Motion-Loop. Jedes Plakat = ein Frame.
 
 Alle Gestaltungswerte stehen kommentiert in kickoff_loop/loop.toml, hier steht nur Logik.
-Handbuch (Vision, Entscheidungen, Status, offene Fragen): kickoff_loop/CLAUDE.md.
+Handbuch (Vision, Begriffe, Entscheidungen, Status, offene Fragen): kickoff_loop/CLAUDE.md.
 
   uv run src/kickoff_loop.py preview        Vorschau-Video + Kontaktbogen + Checks  → kickoff_loop/previz/vNNN/
-  uv run src/kickoff_loop.py variants [N]   Detailvarianten von Plakat N nebeneinander → kickoff_loop/previz/variants/
+  uv run src/kickoff_loop.py variants [N]   Detailvarianten von Frame N nebeneinander → kickoff_loop/previz/variants/
   uv run src/kickoff_loop.py frames         nur die Plakat-Frames rendern (fuellt den Cache)
+  uv run src/kickoff_loop.py test           Selbsttest am fertigen Bild
 
 Aufbau dieser Datei (von oben nach unten):
   Konfiguration   load()                    loop.toml lesen und pruefen
-  Geometrie       star_at()                 Frame-Nummer → Lage des Sterns (Silhouette, fuer alle Stile gleich)
-  Plakatsatz      type_layers(), qr_card()  Schrift und QR des Loop-Plakats (ersetzt kickoff.type_layers)
+  Farbe           palette()                 Farbreise: Frame-Nummer → gemischte Palette (OKLab)
+  Geometrie       star_at()                 Frame-Nummer → Lage des Sterns auf der Bumerang-Bahn
+  Plakatsatz      layout(), type_layers()   Satz des Loop-Plakats, QR mit weichem Hof (ersetzt kickoff.type_layers)
   Rendern         frame(), frames()         ein Plakat / alle Plakate als Bild, mit Cache und QR-Check
   Varianten       variants()                Details zum Abstimmen nebeneinander
-Video, Simulation, Blitz-Check und Temp-Ton stehen in kickoff_loop_video.py.
+Video, Endkarte, Blitz-Check stehen in kickoff_loop_video.py, die Musik in kickoff_loop_audio.py.
 """
+import colorsys
 import glob
 import hashlib
 import json
@@ -27,10 +30,11 @@ import os
 import sys
 import tomllib
 from multiprocessing import Pool
+from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import label
+from scipy.ndimage import gaussian_filter, label
 
 import kickoff as K
 import styles as S
@@ -44,6 +48,7 @@ CACHE = os.path.join(PROJECT, "_cache")
 # Ein Vorschau-Plakat ist also pixelgenau der Druck, nur kleiner.
 PREVIEW = "prev"
 PREVIEW_CELL_PX = S.SIZES[PREVIEW][2] * S.BASE["R"]     # 1 * 4 = 4 px pro Zelle
+POSTER_ASPECT = S.SIZES[PREVIEW][0] / S.SIZES[PREVIEW][1]  # Breite / Hoehe (A3 = 1/sqrt 2)
 MODULE_CELLS = 2                                        # ein QR-Modul = 2 Zellen (so setzt es kickoff.layout)
 LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)   # Rec. 709: Anteil von R, G, B an der Helligkeit
 
@@ -62,17 +67,22 @@ def load(path=CONFIG):
     """loop.toml lesen und die Fehler abfangen, die sonst erst nach Minuten Rendern auffallen."""
     with open(path, "rb") as f:
         cfg = tomllib.load(f)
-    frames = cfg["posters"]["frames"]
-    bad = [f"{p} {s}" for p, s in frames if p not in P_CODES or s not in S_CODES]
-    assert not bad, f"[posters].frames: unbekannte Codes {bad}. P (ohne Lila): {sorted(P_CODES)}, S: {sorted(S_CODES)}"
-    assert cfg["spark"]["growth"] in [*EASE, "pulse"], f"[spark].growth: {[*EASE, 'pulse']}"
-    assert cfg["video"]["zoom_curve"] in EASE, f"[video].zoom_curve: {list(EASE)}"
-    assert cfg["qr"]["style"] in ("card", "band"), "[qr].style: card | band"
+    n, col = cfg["loop"]["frames"], cfg["color"]
+    bad = [p for p in col["stations"] if p not in P_CODES]
+    assert not bad, f"[color].stations: unbekannte oder lila Codes {bad}. Erlaubt: {sorted(P_CODES)}"
+    bad = [s for s in cfg["styles"]["cycle"] if s not in S_CODES]
+    assert not bad, f"[styles].cycle: unbekannte Codes {bad}. Erlaubt: {sorted(S_CODES)}"
+    assert n % len(col["stations"]) == 0, "[loop].frames muss durch die Anzahl [color].stations teilbar sein"
+    assert (n // len(col["stations"])) % cfg["loop"]["key_every"] == 0, \
+        "[color].stations: jede Station soll auf einem Aushang liegen (Abstand = Vielfaches von key_every)"
+    lilac = [i + 1 for i in range(n) if is_lilac(palette_hex(cfg, i))]
+    assert not lilac, f"[color].stations: Mischung wird lila auf Frame {lilac} (Rot direkt neben Blau?), Reihenfolge aendern"
+    assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
+    assert cfg["qr"]["halo_dither"] in ("blue", "bayer4"), "[qr].halo_dither: blue | bayer4"
     bar = frames_per_bar(cfg)
     assert bar == int(bar), "[loop].bpm und [video].timeline_fps: ein Takt muss ganze Timeline-Frames lang sein"
     bad = [per for per, _ in cfg["video"]["cadence"] if int(bar) % per]
     assert not bad, f"[video].cadence: {bad} Wechsel pro Takt passen nicht auf {int(bar)} Timeline-Frames pro Takt"
-    assert cfg["video"]["hold_bars"] < sum(b for _, b in cfg["video"]["cadence"]), "[video].hold_bars laenger als cadence"
     return cfg
 
 
@@ -82,38 +92,148 @@ def frames_per_bar(cfg):
 
 
 def count(cfg):
-    return len(cfg["posters"]["frames"])
+    return cfg["loop"]["frames"]
+
+
+def is_key(cfg, i):
+    """Aushang (haengt auf dem Campus) oder Zwischenframe (nur fuers Video). Frame 1 ist immer ein Aushang."""
+    return i % cfg["loop"]["key_every"] == 0
+
+
+# ---------------------------------------------------------------- Farbe
+
+_M1 = np.array([[0.4122214708, 0.5363325363, 0.0514459929], [0.2119034982, 0.6806995451, 0.1073969566],
+                [0.0883024619, 0.2817188376, 0.6299787005]])
+_M2 = np.array([[0.2104542553, 0.7936177850, -0.0040720468], [1.9779984951, -2.4285922050, 0.4505937099],
+                [0.0259040371, 0.7827717662, -0.8086757660]])       # OKLab (Bjoern Ottosson 2020)
+
+
+def to_oklab(rgb):
+    a = np.asarray(rgb, np.float64) / 255
+    lin = np.where(a <= 0.04045, a / 12.92, ((a + 0.055) / 1.055) ** 2.4)
+    return np.cbrt(lin @ _M1.T) @ _M2.T
+
+
+def from_oklab(lab):
+    lin = np.clip((lab @ np.linalg.inv(_M2).T) ** 3 @ np.linalg.inv(_M1).T, 0, 1)
+    return np.round(np.where(lin <= 0.0031308, lin * 12.92, 1.055 * lin ** (1 / 2.4) - 0.055) * 255)
+
+
+def station(p, steps):
+    """Palette einer Station auf `steps` Stufen: kuerzere Paletten (CGA, 4 Stufen) werden gedoppelt, nicht gemischt,
+    damit die reine Station genau so aussieht wie ihr Original."""
+    pal = S.hexpal(P_CODES[p])
+    return pal[np.round(np.arange(steps) * (len(pal) - 1) / (steps - 1)).astype(int)]
+
+
+def palette_hex(cfg, i):
+    """Palette von Frame i als Hex-Liste (dunkel → hell): zwischen zwei Stationen Stufe fuer Stufe linear in OKLab
+    gemischt. OKLab statt RGB, weil gleiche Schritte dort gleich gross aussehen (kein Grau-Loch in der Mitte)."""
+    col = cfg["color"]
+    st = col["stations"]
+    per = count(cfg) // len(st)
+    k, t = divmod(i, per)
+    a = to_oklab(station(st[k], col["steps"]))
+    b = to_oklab(station(st[(k + 1) % len(st)], col["steps"]))
+    rgb = from_oklab(a + (b - a) * t / per)
+    return ["#%02X%02X%02X" % tuple(int(v) for v in c) for c in rgb]
+
+
+def is_lilac(hexes):
+    """Strenger als styles.lila (250-300°, s > 0.3): Mischungen streifen sonst Flieder (240-320°, s > 0.2), das liest
+    sich auch als Lila. Lila gehoert der Maker Night."""
+    for h in hexes:
+        hh, s, v = colorsys.rgb_to_hsv(*[int(h[j:j + 2], 16) / 255 for j in (1, 3, 5)])
+        if 240 <= hh * 360 < 320 and s > 0.2 and v > 0.2:
+            return True
+    return False
+
+
+def palette(cfg, i):
+    """Name der Palette von Frame i in styles.PALS. Wird in jedem Prozess neu eingetragen (macOS spawnt Worker)."""
+    hexes = palette_hex(cfg, i)
+    name = "loop:" + "".join(h[1:] for h in hexes)
+    S.PALS[name] = hexes
+    return name
+
+
+def station_label(cfg, i):
+    """Fuer Bogen und Report: "P11" auf einer Station, "P11>P13 50%" dazwischen."""
+    st = cfg["color"]["stations"]
+    per = count(cfg) // len(st)
+    k, t = divmod(i, per)
+    return st[k] if t == 0 else f"{st[k]}>{st[(k + 1) % len(st)]} {round(100 * t / per)}%"
 
 
 # ---------------------------------------------------------------- Geometrie
 
-def star_at(cfg, i):
-    """Lage des Sterns in Frame i: (x, y, Radius, Drehung) in Plakateinheiten (siehe Kopf von loop.toml).
+def orbit(cfg, phase):
+    """Stern auf der Bumerang-Bahn bei `phase` (Frames, darf gebrochen sein): (x, y, Radius, Drehung) in Plakateinheiten.
 
-    Drehung laeuft ueber i/n: Frame n waere Frame 0 um turn_deg weiter, bei 72° deckungsgleich → nahtlos.
-    Wachstum laeuft ueber i/(n-1): der letzte Frame erreicht genau size_end, danach springt der Stern zurueck.
-    pulse waechst bis zur Loop-Mitte und schrumpft wieder (Kosinus), dann gibt es keinen Sprung."""
+    Kreisbahn um den Betrachter, im Raum gerechnet: Winkel th laeuft ueber den sichtbaren Bogen (sweep_deg) gleichmaessig,
+    Abstand z = near + depth*cos(th), Zentralprojektion auf das Plakat (x ~ sin(th)/z, Groesse ~ 1/z). Nahe am Betrachter
+    ist er gross, tief und schnell, fern klein und nahe am Fluchtpunkt. Die Frame-Mitten liegen bei (i + 0.5)/n, damit
+    der Schritt ueber den Neustart (hinter dem Kopf) so gross ist wie jeder andere."""
     sp, n = cfg["spark"], count(cfg)
-    if sp["growth"] == "pulse":
-        g = 0.5 - 0.5 * np.cos(2 * np.pi * i / n)
-    else:
-        g = EASE[sp["growth"]](i / max(n - 1, 1))
-    radius = sp["size_start"] + (sp["size_end"] - sp["size_start"]) * g
-    rot = sp["rot_start_deg"] + sp["turn_deg"] * i / n
-    x, y = sp["center"]
-    return float(x), float(y), float(radius), float(rot)
+    a, b = sp["sweep_deg"]
+    th = np.radians(a + (b - a) * (phase + 0.5) / n)
+    z = sp["near"] + sp["depth"] * np.cos(th)
+    x = sp["vanish"][0] + sp["lens"] * np.sin(th) / z
+    y = sp["vanish"][1] + sp["lens"] * POSTER_ASPECT * sp["height"] / z
+    return float(x), float(y), float(sp["lens"] * sp["size"] / z), float(sp["rot_start_deg"] + sp["spin_deg"] * phase / n)
+
+
+def star_at(cfg, i):
+    return orbit(cfg, i)
+
+
+def title_scale(cfg, i):
+    """Titelblock waechst linear von title_scale_start (Frame 1) auf 1.0 (Frame N = Standardsatz)."""
+    s0 = cfg["type"]["title_scale_start"]
+    return s0 + (1 - s0) * i / max(count(cfg) - 1, 1)
+
+
+def style_code(cfg, i):
+    sy = cfg["styles"]
+    return sy["cycle"][(i // sy["hold_frames"]) % len(sy["cycle"])]
 
 
 def poster_style(cfg, i):
-    """Stil-Dict fuer styles.render: Colorway + Stern aus der Liste, Lage aus star_at, Satz aus diesem Modul."""
-    p, s = cfg["posters"]["frames"][i]
+    """Stil-Dict fuer styles.render: Palette aus der Farbreise, Stern-Stil aus dem Zyklus, Lage von der Bahn,
+    Satz aus diesem Modul."""
     x, y, radius, rot = star_at(cfg, i)
-    st = K.st_code(p, s, "K1", star=(x, y, radius), rot=rot, seed=cfg["posters"]["seed"])   # star ersetzt die K-Lage
-    st.update(type_fn=type_layers, loop=dict(i=i, n=count(cfg), type=cfg["type"], qr=cfg["qr"]))
+    st = K.style(palette(cfg, i), S_CODES[style_code(cfg, i)], "riese", star=(x, y, radius), rot=rot,
+                 seed=cfg["styles"]["seed"], title_scale=title_scale(cfg, i))
+    st.update(layout=layout, type_fn=type_layers,
+              loop=dict(i=i, n=count(cfg), type=cfg["type"], qr=cfg["qr"], digital=None))
     return st
 
 
 # ---------------------------------------------------------------- Plakatsatz
+
+def layout(c):
+    """kickoff.layout plus x0 (linke Satzkante). Im Digitalteil (st["loop"]["digital"]) liegt das Plakat im 9:16-Bild:
+    der Satz wird zwischen "Plakat, wie es im letzten Foto im Bild liegt" (u = 0) und "eigener 9:16-Satz" (u = 1)
+    gemischt, Stern kommt fertig in Bildpixeln mit."""
+    dg = c.st["loop"]["digital"]
+    if not dg:
+        L = K.layout(c)
+        return dict(L, x0=L["m"])
+    W, H = S.SIZES[PREVIEW][:2]
+    poster = K.layout(SimpleNamespace(W=W, H=H, px=c.px, st=c.st))
+    native = K.layout(c)
+    ox, oy, u = dg["offset"][0], dg["offset"][1], dg["u"]
+    snap = lambda v: round(v / c.px) * c.px                                   # noqa: E731
+    mix = lambda a, b: snap(a + (b - a) * u)                                  # noqa: E731
+    y = lambda k: mix(poster[k] + oy, native[k])                              # noqa: E731
+    L = dict(native, x0=mix(poster["m"] + ox, native["m"]), meta=y("meta"), cap=mix(poster["cap"], native["cap"]),
+             capd=mix(poster["capd"], native["capd"]), capj=mix(poster["capj"], native["capj"]), qbot=y("qbot"))
+    L["tb"] = [mix(poster["tb"][0] + oy, native["tb"][0])]
+    L["sb"] = [mix(a + oy, b) for a, b in zip(poster["sb"], native["sb"])]
+    L["db"] = L["sb"][-1]
+    L["star"] = dg["star"]
+    return L
+
 
 def rect(shape, y0, x0, y1, x1):
     """Rechteck-Maske in Zellen, [y0, y1) x [x0, x1)."""
@@ -132,55 +252,68 @@ def line_gradient(c, base, cap, steps):
     return 1 - steps / c.N * (1 - rel)
 
 
-def flip_glyphs(c, mk, v):
-    """Kleine Schrift kippt pro Buchstabe in die Grundfarbe (Mehrheit seiner Pixel liegt auf Hellem), nicht pro Pixel.
-    So bleibt sie auch in Strahlen und Sternkanten lesbar. Gleiche Regel wie in kickoff.py."""
+def under(c):
+    """Was bisher unter jeder Zelle liegt (Grund + alle Ebenen), Wertraum 0..1."""
     base = S.background(c)
     for _, _, lv, _, _ in c.layers:
         base = np.where(np.isnan(lv), base, lv)
-    bright = c.star_m | (base > 0.5)
+    return base
+
+
+def flip_glyphs(c, mk, v):
+    """Kleine Schrift kippt pro Buchstabe in die Grundfarbe (Mehrheit seiner Pixel liegt auf Hellem), nicht pro Pixel.
+    So bleibt sie auch in Strahlen und Sternkanten lesbar. Gleiche Regel wie in kickoff.py."""
+    bright = c.star_m | (under(c) > 0.5)
     lab, n = label(mk)
     share = np.bincount(lab.ravel(), bright.ravel(), n + 1) / np.maximum(np.bincount(lab.ravel(), minlength=n + 1), 1)
     return np.where(share[lab] > 0.5, c.lvl(0), v)
 
 
-def qr_card(c, q):
-    """JOIN US + QR als ein Element, harte Kanten, keine Dither-Kante, kein Halo.
+def soft_field(c, y0, x0, y1, x1, q):
+    """Helligkeit 0..1 um ein Rechteck (Zellen): innen 1, aussen weich auslaufend (Gauss ueber dem Abstand).
+    Abstand zu einem stark abgerundeten Rechteck (Eckradius halo_round_frac der kurzen halben Seite): die Isolinien
+    werden nach aussen immer runder, es gibt keine gerade Kante und keine Ecke. Ein weiches Rauschen (festes Korn)
+    verbiegt den Auslauf leicht, damit er nicht nach Werkzeug aussieht."""
+    cy, cx = (y0 + y1) / 2, (x0 + x1) / 2
+    hy, hx = (y1 - y0) / 2, (x1 - x0) / 2
+    rad = q["halo_round_frac"] * min(hx, hy)
+    ax, ay = np.abs(c.xx + 0.5 - cx) - (hx - rad), np.abs(c.yy + 0.5 - cy) - (hy - rad)
+    d = np.hypot(np.maximum(ax, 0), np.maximum(ay, 0)) + np.minimum(np.maximum(ax, ay), 0) - rad
+    w = q["halo_fade_cells"]
+    noise = gaussian_filter(np.random.default_rng(7).standard_normal(d.shape), w / 2)
+    d = d + q["halo_warp_cells"] * noise / noise.std() * np.clip(d / w, 0, 1)
+    return np.exp(-(np.maximum(d, 0) / w) ** 2)
 
-    card: Karte flaechig in der hellsten Stufe, Schrift und Module in der dunkelsten.
-    band: QR-Platte hell, darueber ein Band in Plattenbreite in der dunkelsten Stufe, Schrift hell.
-    Die Ruhezone des QR (3 Module rundum) bleibt in beiden Faellen frei. Ein schmaler Rand in Grundfarbe trennt das
-    Element vom Stern; auf dem Grund selbst ist er unsichtbar."""
+
+def qr_embed(c, q):
+    """JOIN US + QR, wie sie sind: Schrift und Module in der dunkelsten Stufe auf der hellsten, 3 Module Ruhezone,
+    JOIN US mittig ueber der Platte. Keine Karte: der helle Grund laeuft weich in das Plakat aus (soft_field), in einem
+    eigenen Dither (Blue Noise: organisches Korn statt Bayer-Kreuzraster), vom Hellen in das, was darunter liegt."""
     L, px = c.L, c.px
     shape = (c.gh, c.gw)
     lum = c.pal @ LUMA
     hi, lo = c.lvl(int(lum.argmax())), c.lvl(int(lum.argmin()))
     n = L["qs"] // px                                             # Plattenkante in Zellen, inkl. Ruhezone
-    top, left = round((L["qbot"] - L["qs"]) / px), round(L["m"] / px)
-    pad, kl = q["label_pad_cells"], q["keyline_cells"]
+    top, left = round((L["qbot"] - L["qs"]) / px), round(L["x0"] / px)
+    pad = q["label_pad_cells"]
 
     text = S.line_mask(K.COPY["cta"], "clash", L["capj"], top * px, left * px, px, shape)
     ys, xs = np.nonzero(text)
     dy = (top - pad - 1) - ys.max()                               # Unterkante der Schrift: pad Zellen ueber der Platte
     dx = left + (n - (xs.max() - xs.min() + 1)) // 2 - xs.min()   # waagerecht mittig ueber der Platte
     text = np.roll(text, (dy, dx), (0, 1))
-    head = ys.min() + dy - pad                                    # Oberkante des Elements
+    head = ys.min() + dy - pad                                    # Oberkante des hellen Kerns
 
-    element = rect(shape, head, left, top + n, left + n)
-    plate = rect(shape, top, left, top + n, left + n)
-    c.add("qr", rect(shape, head - kl, left - kl, top + n + kl, left + n + kl) & ~element, c.lvl(0))
-    if q["style"] == "card":
-        c.add("qr", element, hi)
-        ink = lo
-    else:
-        c.add("qr", element & ~plate, lo)
-        c.add("qr", plate, hi)
-        ink = hi
+    light = soft_field(c, head, left, top + n, left + n, q)
+    flat = light > 0.999
+    base = under(c)
+    c.add("qr", (light > 0.02) & ~flat, base + (hi - base) * light, D=q["halo_dither"])
+    c.add("qr", flat, hi)
     quiet = (n - len(L["q"]) * MODULE_CELLS) // 2                 # Ruhezone in Zellen
     mods = np.zeros(shape, bool)
     mods[top + quiet:top + n - quiet, left + quiet:left + n - quiet] = S.up(L["q"], MODULE_CELLS)
     c.add("qr", mods, lo)
-    c.add("cta", text, ink)
+    c.add("cta", text, lo)
 
 
 def text_lines(c):
@@ -191,37 +324,38 @@ def text_lines(c):
             "date": [(s, b, L["capd"]) for s, b in zip(L["sub"], L["sb"])]}
 
 
-def line_masks(c, lines):
-    return [S.line_mask(s, "clash", cap, b, c.L["m"], c.px, (c.gh, c.gw)) for s, b, cap in lines]
+def line_masks(c, lines, centered=False):
+    """Masken der Zeilen, linksbuendig an x0; centered: waagerecht auf die Bildmitte (Plakat- bzw. 9:16-Mitte, im
+    Digitalteil liegt das Plakat mittig im Bild, die Mitte wandert also nicht)."""
+    out = []
+    for s, b, cap in lines:
+        m = S.line_mask(s, "clash", cap, b, c.L["x0"], c.px, (c.gh, c.gw))
+        if centered and m.any():
+            xs = np.nonzero(m.any(0))[0]
+            m = np.roll(m, round(c.gw / 2 - (xs[0] + xs[-1] + 1) / 2), 1)
+        out.append(m)
+    return out
 
 
 def type_layers(c):
-    """Satz des Loop-Plakats. Raster und Groessen kommen aus kickoff.layout (identisch zu den Einzelplakaten);
-    neu gegenueber kickoff.type_layers: Verlauf pro Zeile, Frame-Nummer statt Hex-Raetsel, QR als Karte."""
+    """Satz des Loop-Plakats. Raster und Groessen aus kickoff.layout (Titelblock skaliert mit title_scale);
+    neu gegenueber kickoff.type_layers: Verlauf pro Zeile, SPARK waagerecht zentriert, keine Kopfzeile, QR ohne Karte."""
     L, px, lp = c.L, c.px, c.st["loop"]
     shape = (c.gh, c.gw)
     n0 = len(c.layers)
-    qr_card(c, lp["qr"])
+    qr_embed(c, lp["qr"])
 
     steps = lp["type"]["text_gradient_steps"]
     for name, lines in text_lines(c).items():
         mk = np.zeros(shape, bool)
         v = np.zeros(shape, np.float32)
-        for (s, b, cap), m in zip(lines, line_masks(c, lines)):
+        for (s, b, cap), m in zip(lines, line_masks(c, lines, centered=name == "title")):
             v = np.where(m, line_gradient(c, b, cap, steps), v)
             mk |= m
         # Titel kippt pro Pixel (XOR mit dem Stern), die kleineren Zeilen pro Buchstabe
         c.add(name, mk, np.where(c.star_m, c.lvl(0), v) if name == "title" else flip_glyphs(c, mk, v))
         K._EXTRA[name] = mk
 
-    def small(s, x, right=False):                 # Kleintext der Kopfzeile, DepartureMono
-        return S.line_mask(s, "departure", L["sc"], L["meta"], x, px, shape, right)
-
-    left = lp["type"]["meta_left"].format(i=lp["i"] + 1, n=lp["n"])
-    mk = small(S.CODENAME[c.st["P"]], c.W - L["m"], True)
-    if left:
-        mk |= small(left, L["m"])
-    c.add("meta", mk, flip_glyphs(c, mk, c.ink))
     K._EXTRA["type"] = np.maximum.reduce([a for _, a, *_ in c.layers[n0:]]) > 0   # fuer das Zweitlicht in kickoff.frame_of
 
 
@@ -235,14 +369,11 @@ def _source_hash():
     return h.hexdigest()
 
 
-def frame(cfg, i, fmt=PREVIEW, style=None):
-    """Plakat i als RGB-Array. Cache-Schluessel = alles, was das Bild bestimmt: Stil, Lage, Satzwerte, Quelltext."""
-    st = style or poster_style(cfg, i)
-    lp = st["loop"]
-    satz = f'{st["type_fn"].__module__}.{st["type_fn"].__qualname__}'        # alter oder neuer Plakatsatz
-    key = json.dumps([fmt, st["P"], st["S"], st["star"], st["rot"], st["seed"], lp, satz, _source_hash()],
-                     sort_keys=True, default=str)
-    path = os.path.join(CACHE, f"{i + 1:02d}_{hashlib.sha1(key.encode()).hexdigest()[:12]}.png")
+def render_cached(st, fmt, tag):
+    """Bild zu einem Stil-Dict, gecacht nach allem, was es bestimmt (Stil, Lage, Satzwerte, Palette, Quelltext)."""
+    key = json.dumps([fmt, st["P"], S.PALS[st["P"]], st["S"], st["star"], st["rot"], st["seed"],
+                      st.get("title_scale"), st["loop"], _source_hash()], sort_keys=True, default=str)
+    path = os.path.join(CACHE, f"{tag}_{hashlib.sha1(key.encode()).hexdigest()[:12]}.png")
     if os.path.exists(path):
         return np.asarray(Image.open(path).convert("RGB"))
     img = K.frame_of(st, fmt)
@@ -250,12 +381,17 @@ def frame(cfg, i, fmt=PREVIEW, style=None):
     return img
 
 
-def legibility(st, img):
+def frame(cfg, i, fmt=PREVIEW, style=None):
+    """Plakat i als RGB-Array."""
+    return render_cached(style or poster_style(cfg, i), fmt, f"{i + 1:02d}")
+
+
+def legibility(st, img, fmt=PREVIEW):
     """Lesbarkeit von Titel und Datum, 0..1, gemessen mit kickoff.legible: wie sauber trennt eine Helligkeitsschwelle
     die Schrift von ihrer Umgebung (0.5 = Zufall → 0). Stufen wie bei den Einzelplakaten: kickoff.TIER."""
-    c = S.Ctx(st, PREVIEW)
+    c = S.Ctx(st, fmt)
     for name, lines in text_lines(c).items():
-        K._EXTRA[name] = np.logical_or.reduce(line_masks(c, lines))
+        K._EXTRA[name] = np.logical_or.reduce(line_masks(c, lines, centered=name == "title"))
     return K.legible(img, PREVIEW_CELL_PX)
 
 
@@ -277,31 +413,28 @@ def frames(cfg):
 def _variant_job(args):
     cfg, i, name, over = args
     st = poster_style(cfg, i)
-    if over == "old":                                   # die Einzelplakate von heute: kickoff.type_layers
-        st["type_fn"] = K.type_layers
-    else:
-        for path, val in over.items():                  # "qr.style" → st["loop"]["qr"]["style"]
-            sec, key = path.split(".")
-            st["loop"][sec] = {**st["loop"][sec], key: val}
+    for path, val in over.items():                      # "qr.halo_dither" → st["loop"]["qr"]["halo_dither"]
+        sec, key = path.split(".")
+        st["loop"][sec] = {**st["loop"][sec], key: val}
     return name, frame(cfg, i, style=st)
 
 
 VARIANTS = [
-    ("heute", "old"),
-    ("Karte · Verlauf 1.0", {"qr.style": "card", "type.text_gradient_steps": 1.0}),
-    ("Karte · Verlauf 1.4", {"qr.style": "card", "type.text_gradient_steps": 1.4}),
-    ("Band · Verlauf 1.0", {"qr.style": "band", "type.text_gradient_steps": 1.0}),
+    ("Hof wie loop.toml", {}),
+    ("Hof Bayer 4x4", {"qr.halo_dither": "bayer4"}),
+    ("Hof weiter", {"qr.halo_fade_cells": 18}),
+    ("Hof enger", {"qr.halo_fade_cells": 7}),
 ]
 
 
 def variants(cfg, i):
-    """Plakat i in allen VARIANTS nebeneinander: oben ganz (halbe Groesse), darunter der Titelblock in Vorschaugroesse
-    (1 Zelle = 4 px) und die QR-Karte doppelt (1 Zelle = 8 px), damit man Verlauf und Kanten zaehlen kann."""
+    """Frame i in allen VARIANTS nebeneinander: oben ganz (halbe Groesse), darunter der Titelblock in Vorschaugroesse
+    (1 Zelle = 4 px) und das untere linke Viertel mit dem QR doppelt (1 Zelle = 8 px), damit man Kanten zaehlen kann."""
     with Pool() as pool:
         res = pool.map(_variant_job, [(cfg, i, n, o) for n, o in VARIANTS])
     h, w = res[0][1].shape[:2]
     title_box = (0, round(0.02 * h), w, round(0.34 * h))      # Kopfzeile bis Datum (Anteile der Plakatflaeche)
-    card_box = (0, round(0.70 * h), w // 2, h)                # unteres linkes Viertel mit der QR-Karte
+    card_box = (0, round(0.70 * h), w // 2, h)                # unteres linkes Viertel mit dem QR
     gap, label_h = 24, 40
     font = S.font("DepartureMono-Regular.otf", 22)
     cols = []
@@ -328,9 +461,10 @@ def variants(cfg, i):
 # ---------------------------------------------------------------- Selbsttest
 
 def selftest(cfg, i=8):
-    """Prueft am fertigen Bild (nicht am Code), was bei den alten Plakaten schiefging:
+    """Prueft am fertigen Bild (nicht am Code), was schiefgehen kann:
     Verlauf pro Zeile = oberste Pixelreihe nur hellste Stufe, unterste nur die Stufe darunter, dazwischen wird es von
-    unten nach oben nie dunkler; Schrift auf dem Stern (gekippt) ist ausgenommen. Dazu: QR lesbar."""
+    unten nach oben nie dunkler; Schrift auf dem Stern (gekippt) ist ausgenommen. QR lesbar. Titel waechst nie rueckwaerts.
+    Farbreise: keine Lila-Mischung, jede Station exakt ihre Original-Palette. SPARK waagerecht zentriert."""
     cfg = {**cfg, "type": {**cfg["type"], "text_gradient_steps": 1.0}}
     st = poster_style(cfg, i)
     img = frame(cfg, i, style=st)
@@ -338,8 +472,13 @@ def selftest(cfg, i=8):
     cells = img[PREVIEW_CELL_PX // 2::PREVIEW_CELL_PX, PREVIEW_CELL_PX // 2::PREVIEW_CELL_PX].astype(int)
     level = np.argmin(((cells[..., None, :] - c.pal.astype(int)[None, None]) ** 2).sum(-1), -1)
     top_level = c.N
-    lines = [ln for group in text_lines(c).values() for ln in group]
-    for (s, _, _), m in zip(lines, line_masks(c, lines)):
+    groups = text_lines(c)
+    lines = [ln for group in groups.values() for ln in group]
+    masks = [m for name, group in groups.items() for m in line_masks(c, group, centered=name == "title")]
+    title = masks[0]
+    xs = np.nonzero(title.any(0))[0]
+    assert abs((xs[0] + xs[-1] + 1) / 2 - c.gw / 2) <= 0.5, "SPARK nicht waagerecht zentriert"
+    for (s, _, _), m in zip(lines, masks):
         m &= level != 0                                 # ohne gekippte Pixel
         rows = np.array([np.mean(level[y][m[y]]) for y in np.nonzero(m.any(1))[0]])
         assert rows[0] == top_level and rows[-1] == top_level - 1, f"{s}: Enden nicht flaechig {rows[0]:.2f} {rows[-1]:.2f}"
@@ -347,7 +486,13 @@ def selftest(cfg, i=8):
         smooth = np.convolve(rows, np.ones(period) / period, "valid")
         assert np.all(np.diff(smooth) <= 0.05), f"{s}: Verlauf wird nach unten wieder heller {np.round(smooth, 2)}"
     assert K.check_qr(img, PREVIEW_CELL_PX), "QR nicht lesbar"
-    return f"Selbsttest ok (Plakat {i + 1}: Verlauf pro Zeile, QR)"
+    assert all(np.diff([title_scale(cfg, k) for k in range(count(cfg))]) > 0), "Titel waechst nicht monoton"
+    per = count(cfg) // len(cfg["color"]["stations"])
+    for k, p in enumerate(cfg["color"]["stations"]):
+        got = np.array([[int(h[j:j + 2], 16) for j in (1, 3, 5)] for h in palette_hex(cfg, k * per)])
+        assert np.abs(got - station(p, cfg["color"]["steps"])).max() <= 1, f"Station {p} weicht vom Original ab"
+    assert is_lilac(["#A877A6"]) and not is_lilac(palette_hex(cfg, 0)), "Lila-Test erkennt Flieder nicht"
+    return f"Selbsttest ok (Frame {i + 1}: Verlauf pro Zeile, QR; Titelwachstum, Stationen, Lila-Test)"
 
 
 # ---------------------------------------------------------------- Befehle

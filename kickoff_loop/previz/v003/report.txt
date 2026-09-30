@@ -1,0 +1,43 @@
+Version v003 · 2026-09-30 21:53 · 64 s Renderzeit
+Loop: 32 Frames = 16 Aushaenge (1 3 5 7 9 11 13 15 17 19 21 23 25 27 29 31) + 16 Zwischenframes (nur Video), 4.00 s pro Umlauf im schnellsten Tempo
+Karussell: 3x16tel → 1x8tel (Takte x Wechsel) bei 120 BPM, 56 Wechsel, startet auf Frame 9, endet auf Frame 32
+Video: 12.00 s (8.0 Zoom ab 0 s, 4.0 digital), 1080x1920 @ 24 fps, echte Fotos: 0/32 (Rest simuliert)
+Farbreise: P11 → P13 → P10 → P19 → P18 → P14 → P20 → P15 → P11 (OKLab, keine Mischung lila: geprueft in load)
+QR lesbar: 32/32
+Lesbarkeit Titel+Datum: 32/32 in Stufe A (>= 0.95)
+Endkarte: Lesbarkeit Titel+Datum 0.97 A
+Blitz-Check (WCAG 2.3.1, vereinfacht): ok · schlimmste Sekunde bei 4.1 s: 12 % der Flaeche ueber 3 Blitze/s (Grenze 25 %), max. 10 Blitze/s an einer Stelle
+
+Frame  Aushang  Farbe               S     Titel  Grund  Lesbarkeit
+01     ja       P11                 S7    0.860  0.01   0.97 A
+02              P11>P13 25%         S7    0.865  0.02   0.97 A
+03     ja       P11>P13 50%         S2    0.869  0.02   0.97 A
+04              P11>P13 75%         S2    0.874  0.02   0.97 A
+05     ja       P13                 S19d  0.878  0.03   0.98 A
+06              P13>P10 25%         S19d  0.883  0.03   0.98 A
+07     ja       P13>P10 50%         S33   0.887  0.03   0.98 A
+08              P13>P10 75%         S33   0.892  0.03   0.98 A
+09     ja       P10                 S36   0.896  0.03   0.98 A
+10              P10>P19 25%         S36   0.901  0.03   0.97 A
+11     ja       P10>P19 50%         S23   0.905  0.03   0.97 A
+12              P10>P19 75%         S23   0.910  0.03   0.97 A
+13     ja       P19                 S26   0.914  0.02   0.97 A
+14              P19>P18 25%         S26   0.919  0.02   0.97 A
+15     ja       P19>P18 50%         S7    0.923  0.02   0.97 A
+16              P19>P18 75%         S7    0.928  0.02   0.97 A
+17     ja       P18                 S2    0.932  0.02   0.97 A
+18              P18>P14 25%         S2    0.937  0.02   0.97 A
+19     ja       P18>P14 50%         S19d  0.941  0.02   0.97 A
+20              P18>P14 75%         S19d  0.946  0.02   0.97 A
+21     ja       P14                 S33   0.950  0.02   0.97 A
+22              P14>P20 25%         S33   0.955  0.03   0.97 A
+23     ja       P14>P20 50%         S36   0.959  0.03   0.97 A
+24              P14>P20 75%         S36   0.964  0.04   0.97 A
+25     ja       P20                 S23   0.968  0.04   0.98 A
+26              P20>P15 25%         S23   0.973  0.06   0.98 A
+27     ja       P20>P15 50%         S26   0.977  0.10   0.98 A
+28              P20>P15 75%         S26   0.982  0.13   0.98 A
+29     ja       P15                 S7    0.986  0.16   0.98 A
+30              P15>P11 25%         S7    0.991  0.12   0.98 A
+31     ja       P15>P11 50%         S2    0.995  0.08   0.97 A
+32              P15>P11 75%         S2    1.000  0.04   0.98 A

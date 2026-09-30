@@ -3,97 +3,131 @@
 Session-Start: diese Datei, dann `previz/index.html` (neueste Version oben) und `loop.toml`.
 Regeln fürs ganze Pack (Ordner, Code, Git): `../CLAUDE.md`. Designsystem (Codes P/S/K, Dither, Taste): Skill `spark-motion`.
 
-## Vision (Vadim, 30.9.)
+## Vision (Vadim, 30.9., Stand v003)
 
-- Die Plakate **sind** die Animation: 16 Plakate = 16 Frames eines Loops. Die Silhouette des Sterns ist auf allen gleich
-  (er wächst und dreht sich von Frame zu Frame), Stil (S) und Colorway (P) wechseln: jede Karte eine Dimension (Spider-Verse).
-  Titel, KICK-OFF, Datum und QR stehen auf allen Plakaten exakt gleich.
-- Aufhängen auf dem ganzen Campus, jedes Plakat fotografieren, Fotos so entzerren, dass das Plakat immer an derselben Stelle
-  liegt (Match Cut). Daraus ein Stop-Motion-Loop mit Musik und SFX; man soll sehen, dass er von vorn beginnt (Karussell).
-- Die Kamera zoomt langsam hinein, bis das Plakat das Bild füllt, dann Wechsel in eine **digitale Endanimation** im selben
-  Stil (hängt nicht, nur im Video) mit mehr Info (Ort, Zeit …) und einem Synth-Hit.
-- Das Hex-Rätsel fliegt raus. Kopfzeile links jetzt `FRAME 07/16`.
-- Schnitt in DaVinci Resolve (Timeline zum Anpassen); Claude liefert alle Bausteine, Exporte und Vorschauen.
-- Anspruch: keine Fehler. Jede Version wird gemessen, nicht nur angeschaut (siehe Checks).
+- Die Plakate **sind** die Animation: 32 Frames = ein Loop. Jeder zweite Frame ist ein **Aushang** (hängt auf dem Campus),
+  die anderen sind **Zwischenframes** (nur fürs Video gedruckt und fotografiert). Jeder Frame muss allein gut aussehen.
+- **Bumerang**: der Stern kreist einmal um den Betrachter. Er kommt hinten links (am linken Ohr vorbei) ins Bild, fliegt
+  in die Tiefe, kehrt um, kommt auf einen zu und verlässt das Bild rechts. Der Sprung von rechts nach links zwischen
+  Frame 32 und 1 ist der Flug hinter dem Kopf = der sichtbare Neustart des Karussells. Nie viel Leerraum.
+- **Farbreise**: benachbarte Frames unterscheiden sich farblich nur wenig; über den Loop wandert die Farbe einmal im Kreis.
+- **Titel wächst**: SPARK (mit KICK-OFF + Datum) beginnt auf Frame 1 etwas kleiner und wächst bis Frame 32 auf den
+  Standardsatz; SPARK steht waagerecht zentriert. Keine Kopfzeile, keine Nummern, keine Farbnamen.
+- **QR eingebettet**: JOIN US + QR stehen, wie sie sind; nur ihr heller Grund läuft weich, rund, in eigenem Dither aus.
+- **Video**: Kamera zoomt vom ersten Frame an gleichmäßig, bis das Plakat das Bild füllt; das Karussell bremst nur leicht
+  und endet immer auf Frame 32. Dann **Wechsel ins Digitale**: das Plakat klappt ins 9:16-Bild auf (Titel hoch, QR runter),
+  der Stern kehrt zurück, fliegt auf einen zu und wird riesig. Synth-Hit auf dem Wechsel.
+- **Musik**: der Intro-Synth aus IGOR'S THEME (Tyler, The Creator), nachgebaut aus Messwerten, kein Sample.
+- Schnitt in DaVinci Resolve; Claude liefert Bausteine, Exporte, Vorschauen. Jede Version wird gemessen (Checks).
+
+## Begriffe (so reden wir miteinander)
+
+| Begriff | Bedeutung |
+|---|---|
+| **Frame** | ein Bild des Loops = ein Plakatmotiv, Nummer 1–32 (nur intern, steht nicht auf dem Plakat) |
+| **Aushang** | Frame mit ungerader Nummer (1, 3 … 31): wird gedruckt und hängt auf dem Campus. 16 Stück |
+| **Zwischenframe** | gerade Nummer: einmal gedruckt, kurz aufgehängt, fotografiert, wieder ab. Nur fürs Video |
+| **Loop** / **Umlauf** | Frame 1 → 32, bei 8 fps genau 4 s = 2 Takte |
+| **Karussell** | wie der Loop im Video abläuft (`cadence`); endet immer auf Frame 32 |
+| **Stern** ("der Spark") | die sechszackige Form. Nicht verwechseln mit dem **Titel** ("SPARK", das Wort) |
+| **Titelblock** | SPARK + KICK-OFF + Datum |
+| **Bahn** / **Bumerang** | der Weg des Sterns um den Betrachter (`[spark]`) |
+| **Stil** (S-Code) | wie der Stern gezeichnet ist (S7 Nest, S2 Verlauf …); wechselt alle 2 Frames |
+| **Farbreise**, **Station** | Farbwechsel über den Loop; Station = reine Colorway (P-Code), dazwischen Mischungen |
+| **Hof** | der weich auslaufende helle Grund um JOIN US + QR |
+| **Platte** | ein Foto (oder die Simulation), entzerrt, Plakat immer an derselben Stelle |
+| **Zoom** | Kamerafahrt von „Plakat klein an der Wand" bis „Plakat füllt das Bild" |
+| **Wechsel ins Digitale**, **Digitalteil** | ab Zoom-Ende rendert der Rechner weiter (24 fps, hängt nirgends) |
+| **Endkarte** | der stehende Schluss des Digitalteils |
+| **Version** (v003) | ein Vorschau-Lauf in `previz/vNNN/` mit Video, Bogen, Report und Kopie der `loop.toml` |
 
 ## Pipeline und Stand
 
 ```
-loop.toml ─▶ Plakat-Frames ─▶ Druck A3 ─▶ Aufhängen + Fotos ─▶ Entzerren ─▶ Video ─▶ Resolve ─▶ Export
-             ✓ Vorschau       offen        Vadim               offen        ✓ Simulation  offen
+loop.toml ─▶ Frames ─▶ Druck A3 ─▶ Aufhängen + Fotos ─▶ Entzerren ─▶ Video ─▶ Resolve ─▶ Export
+             ✓ v003     offen      Vadim               offen        ✓ Sim.   offen
 ```
 
 | Befehl (aus dem Pack-Root) | Ergebnis |
 |---|---|
-| `uv run src/kickoff_loop.py preview` | neue Version `previz/vNNN/`: `preview.mp4` (Video + Temp-Klick), `loop.mp4` (nur Plakate), `contact.png`, `report.txt` (Checks), Kopie der `loop.toml` |
-| `uv run src/kickoff_loop.py variants 9` | Detailvarianten von Plakat 9 nebeneinander → `previz/variants/frame09.png` |
-| `uv run src/kickoff_loop.py frames` | nur Plakate rendern + QR/Lesbarkeit ausgeben |
-| `uv run src/kickoff_loop.py test` | Selbsttest am fertigen Bild: Verlauf pro Zeile + QR |
-| `uv run src/kickoff_loop.py gallery` | `previz/index.html` neu bauen (z. B. nach dem Löschen einer Version) |
+| `uv run src/kickoff_loop.py preview` | neue Version `previz/vNNN/`: `preview.mp4` (Video + Musik), `loop.mp4` (nur Frames), `music.wav`, `contact.png`, `report.txt` (Checks), Kopie der `loop.toml` |
+| `uv run src/kickoff_loop.py variants 9` | Hof-Varianten von Frame 9 nebeneinander → `previz/variants/frame09.png` |
+| `uv run src/kickoff_loop.py frames` | nur Frames rendern + QR/Lesbarkeit ausgeben |
+| `uv run src/kickoff_loop.py test` | Selbsttest am fertigen Bild: Verlauf pro Zeile, QR, SPARK zentriert, Titelwachstum, Stationen, Lila-Test |
+| `uv run src/kickoff_loop.py gallery` | `previz/index.html` neu bauen |
 
-Abhängigkeiten stehen im Skriptkopf (PEP 723), `uv run` holt sie selbst. Fonts: Clash Display, DepartureMono in `~/Library/Fonts`.
-Ein Lauf dauert ~35 s; Plakate sind nach Inhalt gecacht (`_cache/`), nur geänderte werden neu gerendert.
+Abhängigkeiten im Skriptkopf (PEP 723). Fonts: Clash Display in `~/Library/Fonts`. Ein Lauf ~80 s (Frames gecacht in `_cache/`).
 
 ## Ordner
 
 | Pfad | Inhalt | Git |
 |---|---|---|
 | `loop.toml` | **alle Stellschrauben**, kommentiert, Einheiten im Namen | ja |
-| `ref/picks_2026-09-26/` | Vadims Picks aus dem Kick-off-Raster (vorher lose in Downloads/Desktop) | ja |
+| `ref/picks_2026-09-26/` | Vadims Picks aus dem Kick-off-Raster | ja |
+| `ref/audio/igors_theme.mp3` | Referenz-Song (Kopie aus Downloads), nur zum Vermessen | nein |
 | `previz/vNNN/` | jede Vorschau als Version; `report.txt` + `loop.toml` im Git, Medien nicht | teils |
 | `previz/variants/` | Detailvergleiche zum Entscheiden | nein |
-| `photos/raw/` | Vadims Fotos, Name `NN_irgendwas.jpg` (NN = Plakatnummer) | nein |
-| `photos/aligned/NN.png` | entzerrt, Plakat an fester Stelle; ersetzt in der Vorschau automatisch die Simulation | nein |
-| `print/` | Druckdateien A3 300 dpi (kommt nach Freigabe) | nein |
-| `resolve/` | Übergabe an Resolve: Platten, Endkarte (ProRes 4444), Musik, Timeline | nein |
-| `_cache/` | gerenderte Plakate, jederzeit löschbar | nein |
+| `photos/raw/`, `photos/aligned/NN.png` | Fotos, entzerrt (ersetzen in der Vorschau automatisch die Simulation) | nein |
+| `print/`, `resolve/`, `_cache/` | Druckdateien, Resolve-Übergabe, gerenderte Frames | nein |
 
-Code: `src/kickoff_loop.py` (Konfiguration, Sterngeometrie, Plakatsatz, Rendern, Varianten, Selbsttest),
-`src/kickoff_loop_video.py` (Zeitachse, Kamera, Simulation, Endkarte, Blitz-Check, Temp-Ton, Vorschau).
-Nutzt `src/kickoff.py` (Layout, QR-Check, Lesbarkeit) und `src/styles.py` (Paletten, Dither, Raster) unverändert.
+Code: `src/kickoff_loop.py` (Konfiguration, Farbreise, Bahn, Satz, QR-Hof, Rendern, Selbsttest),
+`src/kickoff_loop_video.py` (Zeitachse, Kamera, Platten + Grading, Digitalteil, Blitz-Check, Vorschau),
+`src/kickoff_loop_audio.py` (Synth-Nachbau, Klicks, Swoosh, Hit). Nutzt `src/kickoff.py` (Layout, QR-Check, Lesbarkeit;
+einzige Änderung: optionaler `title_scale`) und `src/styles.py` unverändert.
 
 ## Entscheidungen (mit Befund)
 
 | Datum | Entscheidung | Warum |
 |---|---|---|
-| 30.9. | 16 Plakate, Wechsel in 16teln bei 120 BPM = 1 Takt pro Loop | Loop sitzt auf dem Musikraster; 8 fps = sichtbar Stop-Motion |
-| 30.9. | **Karussell bremst**: `cadence` 2 Takte 16tel → 8tel → Viertel → Halbe, dann Endkarte | Blitz-Check: bildfüllend bei 8 fps blitzen 60 % der Fläche (Grenze 25 %), beste Reihenfolge immer noch 46 %, erst 4 fps = 8 %. Bremsen baut außerdem Spannung auf |
-| 30.9. | Stern: Mitte 0.58/0.76, Radius 0.30 → 0.90, 72° pro Loop, `ease_out` | Lesbarkeit Titel+Datum auf allen 16 Stufe A (≥ 0.95); mit 0.60/0.66 → 0.98 fielen 7 Plakate auf B |
-| 30.9. | Nur Stile mit stabiler Silhouette: S2 S7 S33 S19d S23 S26 S36 (S13, S31e/f bedingt) | Test gleiche Lage, alle Stile: S14 S24 S40 zeigen keinen Stern, S31–S31d fluten das ganze Plakat mit Licht |
-| 30.9. | Papier-Colorways (P16 P22 P23) als Block am Loop-Ende | nur zwei Hell/Dunkel-Sprünge pro Loop |
-| 30.9. | Verlauf pro Zeile, von Grundlinie bis Versalhöhe, 1 Palettenstufe | alter Bug: das Verlaufsband der Datumszeile reichte 1.4 Versalhöhen hoch, KICK-OFF fing unten wieder hell an (gemessen: unterste Reihen 100 % hellste Stufe); `test` fängt ihn |
-| 30.9. | Zoom-Ende = 4 px pro Zelle | exakt das R3-Raster des Systems → Wechsel Foto → digital pixelgenau; 44 px Anschnitt je Seite liegen im 7-%-Rand |
-
-**Vorschläge, warten auf Vadim** (Vergleich: `previz/variants/frame09.png`):
-QR als **Karte** (JOIN US + QR auf einer hellen Fläche, harte Kante, kein Halo) oder **Band** (dunkles Band in Plattenbreite);
-Verlauf **1.0** oder **1.4** Stufen; Kopfzeile `FRAME 07/16`.
+| 30.9. | 32 Frames = 16 Aushänge + 16 Zwischenframes, 16tel bei 120 BPM = 2 Takte pro Loop | weniger Aushänge als Plätze (56 × A3 hoch, 18 × A4 hoch, Konkurrenz); flüssiger als 16 Frames |
+| 30.9. | Farbreise P11 → P13 → P10 → P19 → P18 → P14 → P20 → P15 → zurück, OKLab pro Stufe | Stationen fallen auf Aushänge 1, 5 … 29; max. Schritt 0.020 (OKLab). Andere Reihenfolgen wurden fliederfarben (z. B. P17 → P20: `#A877A6`, P18 → P17: Lila); `is_lilac` (240–320°, s > 0.2) prüft jede Mischung in `load` |
+| 30.9. | Hue-Bogen um Lila herum verworfen | ergibt Regenbogen-Sprünge innerhalb von 4 Frames (Cyan → Grün → Orange → Pink), widerspricht „kleine Farbschritte" |
+| 30.9. | Papier-Colorways (P16 P21–P24) raus aus dem Loop | eine helle Station mitten in dunklen würde auf dem Weg grau |
+| 30.9. | Bumerang: Kreisbahn im Raum, Zentralprojektion, Bogen −68° … +58°, Radius 0.54 (fern) bis 1.10 (nah) | Silhouetten-Test: mit kleinerem Stern 4–10 % Bühnenabdeckung (Leerraum); asymmetrischer Bogen, damit Frame 32 (Heldenbild vor dem Digitalteil) den Stern groß zeigt |
+| 30.9. | Stern ist **6-zackig**, Drehung pro Loop Vielfaches von 60° | Profil gemessen (60°-symmetrisch, Abweichung 0.008); v002 drehte 72°/Loop = 12° Sprung am Neustart |
+| 30.9. | Stile S7 S2 S19d S33 S36 S23 S26 im Zyklus, je 2 Frames | S13 streut Kindsterne über den Titel (Lesbarkeit 0.85, unter A); S2 fällt auf Frame 31/32 (voller Körper) |
+| 30.9. | QR-Hof: abgerundetes Feld, Gauss-Auslauf 12 Zellen, leicht verbogen, Blue Noise | weichgezeichnete Platte las sich als helle Kachel mit Glührand („viereckig"); hell-auf-dunkel-JOIN-US zerfiel auf dem Stern |
+| 30.9. | SPARK waagerecht zentriert, keine Kopfzeile | Vadim 30.9. |
+| 30.9. | Zoom exponentiell ab 0 s ohne Kurve, Karussell 3 Takte 16tel + 1 Takt Achtel | Vadim: „kontinuierlich, nicht schneller werden"; Bremsen bis Halbe war zu langsam |
+| 30.9. | **Grading**: Umgebung jeder Platte auf mittlere Helligkeit 0.22 | Blitz-Check v003 ohne: 45 % der Fläche (Grenze 25 %), Ursache: jeder Frame an einem anderen Ort. Mit: 12 % |
+| 30.9. | Digitalteil: Satz gleitet vom Plakat in den 9:16-Satz, Stern landet mit einem Tal nach oben | mit Spitze nach oben stand sie im Datum („17:0 0"); Endkarte jetzt Lesbarkeit 0.97 A |
+| 30.9. | Musik: IGOR-Intro additiv aus Messwerten nachgebaut (Obertöne 2:3:5 von 37.85 Hz, 3 Stimmen −5/0/+11 Cent, Rauschplateau) | Spektrumvergleich Original/Nachbau: gleiche Schwebungsblöcke im Bass; −14.1 LUFS |
 
 ## Checks (stehen in jedem `report.txt`)
 
-- **QR**: jedes Plakat wird dekodiert (OpenCV, mehrere Modulgrößen), Vorschau und später Druck.
-- **Lesbarkeit** Titel+Datum (`kickoff.legible`, 0..1): alle Plakate Stufe A (≥ 0.95), sie hängen sichtbar.
-- **Blitz** (WCAG 2.3.1, vereinfacht, auf 1/16-Auflösung): ≤ 3 Blitze/s auf ≤ 25 % der Fläche. Die Rot-Regel fehlt noch.
-- **Selbsttest** (`test`): Verlauf pro Zeile an beiden Enden flächig, nach unten nie heller; schlägt am alten Plakat an.
+- **QR**: jeder Frame wird dekodiert (OpenCV, mehrere Modulgrößen).
+- **Lesbarkeit** Titel+Datum (`kickoff.legible`): alle Frames und die Endkarte Stufe A (≥ 0.95).
+- **Blitz** (WCAG 2.3.1, vereinfacht): ≤ 3 Blitze/s auf ≤ 25 % der Fläche, über das ganze Video. Rot-Regel fehlt noch.
+- **Lila**: keine Mischung der Farbreise im Flieder-Bereich (`load` bricht ab).
+- **Selbsttest** (`test`): Verlauf pro Zeile, QR, SPARK zentriert, Titel wächst monoton, Stationen = Original-Paletten.
+
+## Druck und Aushang
+
+- Alle Frames sind A3 hoch (Seitenverhältnis √2): dieselben Dateien drucken auch A4 hoch ohne Umbau.
+- Plätze laut Vadim: 18 × A4 hoch, 56 × A3 hoch, 10 × A4 quer (quer gibt es noch nicht). Konkurrenz um die Plätze:
+  lieber mehr Exemplare der 16 Aushänge hängen (z. B. 2–3 je Motiv) als mehr Motive.
+- Rückseite jedes Aushangs: „BITTE NICHT ABHÄNGEN" (Vadim). Kommt mit dem Druck-Schritt.
+- Zwischenframes: je 1 Druck, nur fürs Foto.
 
 ## Fotos: Anleitung fürs Shooting
 
-Die Vorschau zeigt, was die Kamera am Anfang braucht: das Plakat ist 38 % der Bildhöhe, drumherum ~2 Plakatbreiten Umgebung.
-- **Hochformat**, Hauptkamera 1x (kein Weitwinkel, der verzerrt), höchste Auflösung (48 MP).
-- Plakat **mittig**, ungefähr **1/3 der Fotohöhe**, gerade von vorn, Kamera auf Plakatmitte. Lieber zu viel Umgebung als zu wenig.
-- Kein Blitz, keine Spiegelung/Glanz auf dem Plakat; Licht darf von Ort zu Ort anders sein (das sind die Dimensionen).
-- Pro Plakat 3–5 Fotos, Name `NN_…` (NN = Plakatnummer oben links). Originale zusätzlich im Vault sichern.
+- **Hochformat**, Hauptkamera 1x (kein Weitwinkel), höchste Auflösung. Plakat **mittig**, ~1/3 der Fotohöhe, gerade von vorn.
+- **Zwischenframe am Ort seines Aushangs fotografieren** (kurz darüberhängen): Ort und Stil wechseln dann mit 4 fps,
+  Farbe und Stern mit 8 fps. Ruhiger und weniger Blitz als 32 verschiedene Orte.
+- Kein Blitz, keine Spiegelung. Belichtung darf schwanken, das Grading (`surround_luma`) gleicht die Umgebung an.
+- Pro Frame 3–5 Fotos, Name `NN_…` (NN = Framenummer laut `report.txt`). Originale zusätzlich im Vault sichern.
 
 ## Offen, in dieser Reihenfolge
 
-1. Vadim entscheidet: QR-Variante, Verlauf, Kopfzeile, Reihenfolge/Stile, Anzahl Plakate, Ort (`kickoff.COPY["where"]`), Format (9:16?), Song.
-2. `print`: Druckdateien A3 300 dpi mit QR-Check, **Testdruck** von 2–3 Extremen (Neon-Paletten liegen außerhalb CMYK).
-3. `align`: Fotos entzerren (Merkmalsabgleich gegen den digitalen Render, Homographie; Rückfall: 4 Ecken von Hand).
-4. Endkarte gestalten (heute Platzhalter: letztes Plakat digital, Ränder in Grundfarbe).
-5. Musik + SFX auf den Wechseln (Klick-Spur zeigt das Raster), Synth-Hit auf dem Wechsel ins Digitale.
-6. Resolve-Übergabe: Platten, Endkarte, Musik, Timeline mit den Schnittpunkten aus `Timeline` (Weg per API/FCPXML klären).
+1. Vadim entscheidet über v003: Bahn, Farbreise, Stil-Zyklus, Titel-Startgröße (`title_scale_start`), Hof, Digitalteil,
+   Musik. Ort (`kickoff.COPY["where"]`) für die Endkarte fehlt noch.
+2. `print`: Druckdateien A3 300 dpi mit QR-Check, Rückseite „BITTE NICHT ABHÄNGEN", **Testdruck** von 2–3 Extremen.
+3. `align`: Fotos entzerren (Merkmalsabgleich gegen den Render, Homographie; Rückfall: 4 Ecken von Hand).
+4. Musik v2: nach Vadims Hör-Eindruck (Tiefpass-Fahrt, Hit, Pegel Klicks/Swoosh), evtl. Drums nach dem Hit.
+5. Resolve-Übergabe: Platten, Digitalteil (ProRes 4444), Musik, Timeline mit den Schnittpunkten aus `Timeline`.
+6. 9:16-Sicherheitszonen (Reels-UI deckt unten/rechts ab) für die Endkarte prüfen.
 
 ## Bekannte Grenzen
 
-- Die Wände in der Vorschau sind erfunden (Platzhalter); echte Fotos in `photos/aligned/` ersetzen sie automatisch.
-- Die Endkarte ist ein Platzhalter.
-- Das Karussell bleibt auf dem Plakat stehen, das die Kadenz vorgibt (heute 14); bewusst wählen, sobald die Reihenfolge steht.
+- Die Wände in der Vorschau sind erfunden; echte Fotos in `photos/aligned/` ersetzen sie automatisch.
+- Rauschplateau im Synth ist etwas körniger als im Original (dort dichte, verstimmte Obertöne statt Rauschen).

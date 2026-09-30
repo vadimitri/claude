@@ -1,10 +1,11 @@
-"""Video-Teil des Kick-off-Loops: Plakat-Frames → Fotos (bis dahin Simulation) → Loop + Zoom + Endkarte → Vorschau.
+"""Video-Teil des Kick-off-Loops: Plakat-Frames → Fotos (bis dahin Simulation) → Loop + Zoom → digitaler Teil → Vorschau.
 
 Aufgerufen ueber `uv run src/kickoff_loop.py preview`.
-Alle Werte aus kickoff_loop/loop.toml ([video], [simulation], [checks]).
+Alle Werte aus kickoff_loop/loop.toml ([video], [endcard], [audio], [simulation], [checks]).
 
 Zeitachse in Timeline-Frames (video.timeline_fps), alles auf dem Taktraster von loop.bpm (class Timeline):
-  | hold_bars Takte stehend | Rest der cadence: Zoom, Karussell bremst | endcard_s Sekunden Endkarte (digital) |
+  | Karussell nach cadence, Kamera zoomt vom ersten Frame an gleichmaessig | endcard.seconds Digitalteil |
+Das Karussell endet immer auf dem letzten Frame des Loops (Titel steht dann im Standardsatz); der Startframe folgt daraus.
 
 Plattenraum: pro Plakat ein Bild ("Platte"), in dem das Plakat immer an derselben Stelle liegt, genau so gross wie der
 Vorschau-Render (1168 x 1652 px, 4 px pro Zelle). Echte Fotos werden spaeter auf diese Lage entzerrt
@@ -17,7 +18,7 @@ import os
 import shutil
 import subprocess
 import time
-import wave
+from multiprocessing import Pool
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -25,9 +26,10 @@ from scipy.ndimage import gaussian_filter
 
 import kickoff as K
 import kickoff_loop as KL
+import kickoff_loop_audio as A
 import styles as S
 
-AUDIO_RATE = 48000
+VALLEY_UP_DEG = 30                   # Sternprofil: Spitzen bei 30° + 60°k, bei Drehung 30 (mod 60) zeigt ein Tal nach oben
 FLASH_ANALYSIS_PX = (68, 120)        # Blitz-Check auf 1/16: ein Block = 16 px = eine Bayer-Periode am Zoom-Ende (kein Moire)
 
 
@@ -36,27 +38,26 @@ FLASH_ANALYSIS_PX = (68, 120)        # Blitz-Check auf 1/16: ein Block = 16 px =
 class Timeline:
     """Die Zeitachse in Timeline-Frames, aus [video].cadence und [loop].bpm.
 
-    changes   Plakatwechsel als (Frame, Plakat-Index), Plakate laufen reihum weiter (auch ueber Loop-Grenzen)
-    hold_end  Ende des Abschnitts ohne Zoom
+    changes   Plakatwechsel als (Frame, Plakat-Index), Plakate laufen reihum weiter (auch ueber Loop-Grenzen).
+              Der letzte Wechsel zeigt immer das letzte Plakat des Loops, der erste ergibt sich rueckwaerts.
     zoom_end  Ende des Karussells = Ende des Zooms = Wechsel ins Digitale
-    total     Ende der Endkarte"""
+    total     Ende des Digitalteils"""
 
     def __init__(self, cfg):
         v, n = cfg["video"], KL.count(cfg)
         self.bar = int(KL.frames_per_bar(cfg))
-        self.changes, t, k = [], 0, 0
-        for per_bar, bars in v["cadence"]:
-            for _ in range(per_bar * bars):
-                self.changes.append((t, k % n))
-                t += self.bar // per_bar
-                k += 1
-        self.hold_end = v["hold_bars"] * self.bar
+        steps = [self.bar // per for per, bars in v["cadence"] for _ in range(per * bars)]
+        first = -len(steps) % n
+        self.changes, t = [], 0
+        for j, dur in enumerate(steps):
+            self.changes.append((t, (first + j) % n))
+            t += dur
         self.zoom_end = t
-        self.total = t + round(v["endcard_s"] * v["timeline_fps"])
+        self.total = t + round(cfg["endcard"]["seconds"] * v["timeline_fps"])
         self._starts = [f for f, _ in self.changes]
 
     def poster_at(self, t):
-        """Welches Plakat im Frame t zu sehen ist (in der Endkarte: das, auf dem das Karussell stehen blieb)."""
+        """Welches Plakat im Frame t zu sehen ist (im Digitalteil: das letzte)."""
         return self.changes[bisect.bisect_right(self._starts, min(t, self.zoom_end - 1)) - 1][1]
 
     def change_before(self, t):
@@ -72,14 +73,13 @@ def scales(cfg, poster_h):
 
 
 def camera(cfg, tl, t, poster_h):
-    """Massstab im Timeline-Frame t (nur fuer die Foto-Phase). Exponentiell interpoliert: jeder Frame vergroessert um
-    denselben Faktor, so wirkt ein Zoom gleichmaessig. zoom_curve formt darauf Anfahren und Abbremsen.
+    """Massstab im Timeline-Frame t (nur fuer die Foto-Phase). Exponentiell interpoliert, ohne Kurve: jeder Frame
+    vergroessert um denselben Faktor, ab dem ersten Frame, nie schneller (Vadim 30.9.: "kontinuierlich zoomen").
     Der letzte Karussell-Frame erreicht genau den Endmassstab."""
     s0, s1 = scales(cfg, poster_h)
     if cfg["video"]["zoom_stepped"]:
         t = tl.change_before(t)                           # Kamera springt nur, wenn das Plakat wechselt
-    u = np.clip((t - tl.hold_end) / max(tl.zoom_end - 1 - tl.hold_end, 1), 0, 1)
-    return s0 * (s1 / s0) ** KL.EASE[cfg["video"]["zoom_curve"]](u)
+    return s0 * (s1 / s0) ** np.clip(t / max(tl.zoom_end - 1, 1), 0, 1)
 
 
 # ---------------------------------------------------------------- Platten (Fotos bzw. Simulation)
@@ -114,7 +114,7 @@ def simulated_plate(cfg, poster, k):
     img = Image.fromarray((np.clip(wall, 0, 1) * 255).astype(np.uint8)).resize((PW, PH), Image.BICUBIC)
     img = img.filter(ImageFilter.GaussianBlur(6))
     grain = rng.normal(0, 6, (PH, PW, 1))
-    img = Image.fromarray(np.clip(np.asarray(img, np.float32) + grain, 0, 255).astype(np.uint8))
+    img = grade(Image.fromarray(np.clip(np.asarray(img, np.float32) + grain, 0, 255).astype(np.uint8)), cfg)
 
     s = Image.fromarray(poster).convert("RGBA").rotate(rng.normal(0, sim["jitter_rot_deg"]), Image.BICUBIC, expand=True)
     jx, jy = rng.normal(0, sim["jitter_px"], 2)
@@ -127,6 +127,20 @@ def simulated_plate(cfg, poster, k):
     return img
 
 
+def grade(img, cfg, hole=None):
+    """Belichtung angleichen: ganzes Bild mit einem Faktor so hell/dunkel, dass die Umgebung (alles ausser `hole`,
+    dem Plakat) im Mittel surround_luma hat. Ohne das blitzt bei 8 fps jeder Ortswechsel ueber das ganze Bild
+    (v003 ohne Angleichen: 45 % der Flaeche, Grenze 25 %). Gilt fuer echte Fotos genauso wie fuer die Simulation."""
+    a = np.asarray(img, np.float32) / 255
+    lum = a @ KL.LUMA
+    m = np.ones(lum.shape, bool)
+    if hole:
+        x0, y0, x1, y1 = hole
+        m[y0:y1, x0:x1] = False
+    gain = cfg["video"]["surround_luma"] / max(float(lum[m].mean()), 1e-3)
+    return Image.fromarray((np.clip(a * gain, 0, 1) * 255).astype(np.uint8))
+
+
 def aligned_photo(k):
     return os.path.join(KL.PROJECT, "photos", "aligned", f"{k + 1:02d}.png")
 
@@ -135,7 +149,10 @@ def photo_plate(cfg, poster, k):
     """Echtes, entzerrtes Foto, falls vorhanden (kickoff_loop/photos/aligned/NN.png), sonst Simulation."""
     path = aligned_photo(k)
     if os.path.exists(path):
-        return Image.open(path).convert("RGB")
+        im = Image.open(path).convert("RGB")
+        ph, pw = poster.shape[:2]
+        x0, y0 = (im.width - pw) // 2, (im.height - ph) // 2
+        return grade(im, cfg, (x0, y0, x0 + pw, y0 + ph))
     return simulated_plate(cfg, poster, k)
 
 
@@ -148,18 +165,55 @@ def shoot(plate, s, size):
     return plate.resize(size, Image.LANCZOS, box=box)
 
 
-def endcard(cfg, poster, k):
-    """v0-Platzhalter: das digitale Plakat im Endmassstab, Rest des Bildes in der Grundfarbe seiner Colorway.
-    Hier entsteht spaeter die eigentliche Endkarte (Ort, Zeit, mehr Info, im selben Stop-Motion-Stil)."""
+def digital_offset(cfg):
+    """Wo das Plakat im letzten Foto-Frame liegt (linke obere Ecke in Ausgabepixeln), aufs Zellraster gerundet."""
     W, H = cfg["video"]["size_px"]
-    p = S.hexpal(KL.P_CODES[cfg["posters"]["frames"][k][0]])[0].astype(int)
-    canvas = Image.new("RGB", (W, H), tuple(p))
-    im = Image.fromarray(poster)
-    s = cfg["video"]["end_cell_px"] / KL.PREVIEW_CELL_PX
-    if s != 1:
-        im = im.resize((round(im.width * s), round(im.height * s)), Image.NEAREST)
-    canvas.paste(im, ((W - im.width) // 2, (H - im.height) // 2))
-    return canvas
+    pw, ph = S.SIZES[KL.PREVIEW][:2]
+    px = KL.PREVIEW_CELL_PX
+    return round((W - pw) / 2 / px) * px, round((H - ph) / 2 / px) * px
+
+
+def digital_style(cfg, dt):
+    """Stil-Dict des Digitalteils, dt Sekunden nach dem Wechsel. Palette, Stern-Stil und Satz vom letzten Plakat.
+
+    Der Bumerang kehrt heim: der Stern kommt vom rechten Rand (wo ihn das letzte Plakat zeigt) zurueck, fliegt auf den
+    Betrachter zu und landet riesig (star_end). Lage linear, Groesse logarithmisch (gleichmaessig empfundenes Wachsen),
+    beides mit ease-out (kommt schnell, landet weich); Drehung laeuft mit aus, mindestens spin_end_deg und so weit, dass
+    ein Tal zwischen zwei Spitzen nach oben zeigt (Titel und Datum stehen dann im Dunkeln, nicht auf einer Spitze). Gleichzeitig gleitet der Satz vom Plakat
+    im Bild in den eigenen 9:16-Satz (ease-in-out): Titel nach oben, QR nach unten."""
+    e, n = cfg["endcard"], KL.count(cfg)
+    W, H = cfg["video"]["size_px"]
+    pw, ph = S.SIZES[KL.PREVIEW][:2]
+    ox, oy = digital_offset(cfg)
+    x, y, r, rot = KL.star_at(cfg, n - 1)
+    a = np.array([ox + x * pw, oy + y * ph, np.log(r * pw)])
+    ex, ey, er = e["star_end"]
+    b = np.array([ex * W, ey * H, np.log(er * W)])
+    u = float(np.clip(dt / e["fly_s"], 0, 1))
+    fly = 1 - (1 - u) ** 3
+    sx, sy, lr = a + (b - a) * fly
+    spin = e["spin_end_deg"] + (VALLEY_UP_DEG - rot - e["spin_end_deg"]) % 60       # aufrunden bis ein Tal oben steht
+    st = KL.poster_style(cfg, n - 1)
+    star = (float(sx), float(sy), float(np.exp(lr)), rot + spin * fly)
+    st["loop"] = {**st["loop"], "digital": dict(u=u * u * (3 - 2 * u), offset=(ox, oy), star=star)}
+    st["star"] = (star[0] / W, star[1] / H, star[2] / W)
+    return st
+
+
+def _digital_job(args):
+    cfg, dt = args
+    return KL.render_cached(digital_style(cfg, dt), "9x16", "end")
+
+
+def digital_frames(cfg, tl):
+    """Alle Bilder des Digitalteils (24 fps). Nach dem Anflug steht das Bild: nur einmal rendern."""
+    fps = cfg["video"]["timeline_fps"]
+    fly = round(cfg["endcard"]["fly_s"] * fps)
+    dts = [min(k, fly) / fps for k in range(tl.total - tl.zoom_end)]
+    uniq = sorted(set(dts))
+    with Pool() as pool:
+        imgs = dict(zip(uniq, pool.map(_digital_job, [(cfg, d) for d in uniq])))
+    return [Image.fromarray(imgs[d]) for d in dts]
 
 
 # ---------------------------------------------------------------- Pruefungen
@@ -196,36 +250,6 @@ def flash_check(lum, cfg):
                 worst_at_s=worst / fps, max_flashes_per_s=int(per_s.max()))
 
 
-# ---------------------------------------------------------------- Temp-Ton
-
-def temp_audio(cfg, tl, path):
-    """Timing-Spur (ersetzt spaeter die Musik): Klick pro Plakatwechsel, Akzent auf Plakat 01 (Loop-Anfang),
-    tiefer Schlag beim Wechsel ins Digitale. Nur zum Beurteilen des Rhythmus, kein Sounddesign."""
-    tfps, total = cfg["video"]["timeline_fps"], tl.total
-    out = np.zeros(round(total / tfps * AUDIO_RATE) + AUDIO_RATE, np.float32)
-    rng = np.random.default_rng(0)
-    tick_t = np.arange(round(0.012 * AUDIO_RATE)) / AUDIO_RATE
-    tick = np.diff(rng.standard_normal(len(tick_t) + 1)).astype(np.float32) * np.exp(-tick_t / 0.002)
-    blip_t = np.arange(round(0.05 * AUDIO_RATE)) / AUDIO_RATE
-    blip = np.sin(2 * np.pi * 1760 * blip_t) * np.exp(-blip_t / 0.012)
-    for f, k in tl.changes:
-        i = round(f / tfps * AUDIO_RATE)
-        out[i:i + len(tick)] += 0.25 * tick
-        if k == 0:
-            out[i:i + len(blip)] += 0.35 * blip
-    boom_t = np.arange(round(0.6 * AUDIO_RATE)) / AUDIO_RATE
-    boom = np.sin(2 * np.pi * np.cumsum(40 + 60 * np.exp(-boom_t / 0.05)) / AUDIO_RATE) * np.exp(-boom_t / 0.2)
-    i = round(tl.zoom_end / tfps * AUDIO_RATE)
-    out[i:i + len(boom)] += 0.8 * boom
-    out = out[:round(total / tfps * AUDIO_RATE)]
-    pcm = (np.clip(out / max(np.abs(out).max(), 1e-9) * 0.8, -1, 1) * 32767).astype(np.int16)
-    with wave.open(path, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(AUDIO_RATE)
-        w.writeframes(pcm.tobytes())
-
-
 # ---------------------------------------------------------------- Vorschau
 
 def next_version():
@@ -238,16 +262,17 @@ def next_version():
 
 
 def ffmpeg_writer(path, size, fps, audio=None):
+    """Roh-RGB auf stdin → H.264. Mit Ton: AAC, auf -14 LUFS normalisiert (Reel/Story)."""
     W, H = size
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(fps),
            "-i", "-"] + (["-i", audio] if audio else []) + \
           ["-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + \
-          (["-c:a", "aac", "-b:a", "192k", "-shortest"] if audio else []) + [path]
+          (["-af", "loudnorm=I=-14:TP=-1", "-c:a", "aac", "-b:a", "192k", "-shortest"] if audio else []) + [path]
     return subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
 
 def contact_sheet(cfg, posters, qr_ok, legib, stills, path):
-    """Oben alle Plakate in Loop-Reihenfolge (Nummer, Codes, QR, Lesbarkeit, Codename), unten Momente des Videos."""
+    """Oben alle Plakate in Loop-Reihenfolge (A = Aushang, Nummer, Stil, Farbe, Warnungen), unten Momente des Videos."""
     font = S.font("DepartureMono-Regular.otf", 22)
     n, cols = len(posters), 8
     pw, ph = posters[0].shape[1] // 4, posters[0].shape[0] // 4
@@ -260,11 +285,10 @@ def contact_sheet(cfg, posters, qr_ok, legib, stills, path):
     for i, img in enumerate(posters):
         x, y = (i % cols) * (pw + gap), (i // cols) * (ph + cap)
         sheet.paste(Image.fromarray(img).resize((pw, ph), Image.BOX), (x, y))
-        p, s = cfg["posters"]["frames"][i]
         warn = ("" if qr_ok[i] else " QR!") + ("" if legib[i] >= K.TIER[0] else f" L{legib[i]:.2f}")
-        d.text((x, y + ph + 4), f"{i + 1:02d} {p} {s}{warn}", font=font,
-               fill=(230, 230, 230) if not warn else (255, 120, 90))
-        d.text((x, y + ph + 28), S.CODENAME[KL.P_CODES[p]], font=font, fill=(140, 140, 150))
+        d.text((x, y + ph + 4), f"{'A' if KL.is_key(cfg, i) else ' '} {i + 1:02d} {KL.style_code(cfg, i)}{warn}",
+               font=font, fill=(230, 230, 230) if not warn else (255, 120, 90))
+        d.text((x, y + ph + 28), KL.station_label(cfg, i), font=font, fill=(140, 140, 150))
     y = rows * (ph + cap) + gap
     for k, (label, im) in enumerate(stills):
         x = k * (vw + gap)
@@ -274,7 +298,7 @@ def contact_sheet(cfg, posters, qr_ok, legib, stills, path):
 
 
 def preview(cfg, posters, qr_ok, legib):
-    """Ganze Vorschau in eine neue Version: Video mit Temp-Ton, Plakat-Loop allein, Kontaktbogen, Report, Config-Kopie."""
+    """Ganze Vorschau in eine neue Version: Video mit Musik, Plakat-Loop allein, Kontaktbogen, Report, Config-Kopie."""
     t0 = time.time()
     out = next_version()
     shutil.copy(KL.CONFIG, os.path.join(out, "loop.toml"))
@@ -293,17 +317,18 @@ def preview(cfg, posters, qr_ok, legib):
     ff.stdin.close()
     ff.wait()
 
-    # 2. Das Video: Platten → Kamera → Endkarte
+    # 2. Das Video: Platten → Kamera → Digitalteil, Musik
     plates = [photo_plate(cfg, img, k) for k, img in enumerate(posters)]
-    wav = os.path.join(out, "temp_click.wav")
-    temp_audio(cfg, tl, wav)
+    digital = digital_frames(cfg, tl)
+    wav = os.path.join(out, "music.wav")
+    A.music(cfg, tl, wav)
     ff = ffmpeg_writer(os.path.join(out, "preview.mp4"), size, tfps, wav)
-    marks = {0: "Start", tl.hold_end: "Zoom an", (tl.hold_end + tl.zoom_end) // 2: "Zoom Mitte",
-             tl.zoom_end - 1: "Zoom Ende", tl.zoom_end: "Endkarte"}
+    fly = round(cfg["endcard"]["fly_s"] * tfps)
+    marks = {0: "Start", tl.zoom_end // 2: "Zoom Mitte", tl.zoom_end - 1: "Zoom Ende", tl.zoom_end: "Digital",
+             tl.zoom_end + fly // 3: "Anflug", tl.zoom_end + fly: "Endkarte"}
     stills, lum = [], []
     for t in range(tl.total):
-        k = tl.poster_at(t)
-        img = shoot(plates[k], camera(cfg, tl, t, h), size) if t < tl.zoom_end else endcard(cfg, posters[k], k)
+        img = shoot(plates[tl.poster_at(t)], camera(cfg, tl, t, h), size) if t < tl.zoom_end else digital[t - tl.zoom_end]
         ff.stdin.write(np.asarray(img).tobytes())
         lum.append(luminance(img))
         if t in marks:
@@ -313,33 +338,41 @@ def preview(cfg, posters, qr_ok, legib):
 
     # 3. Pruefungen, Kontaktbogen, Report
     flash = flash_check(np.array(lum), cfg)
+    end_leg = KL.legibility(digital_style(cfg, cfg["endcard"]["fly_s"]), np.asarray(digital[-1]), "9x16")
     contact_sheet(cfg, posters, qr_ok, legib, stills, os.path.join(out, "contact.png"))
-    ground = [float(KL.LUMA @ (S.hexpal(KL.P_CODES[p])[0] / 255)) for p, _ in cfg["posters"]["frames"]]
+    ground = [float(KL.LUMA @ (np.array([int(c[j:j + 2], 16) for j in (1, 3, 5)]) / 255))
+              for c in (KL.palette_hex(cfg, i)[0] for i in range(n))]
     real = sum(os.path.exists(aligned_photo(k)) for k in range(n))
+    keys = [i for i in range(n) if KL.is_key(cfg, i)]
 
     def tier(x):                                  # Lesbarkeitsstufe wie bei den Einzelplakaten
         return "A" if x >= K.TIER[0] else "B" if x >= K.TIER[1] else "C"
 
     cad = " → ".join(f"{bars}x{per}tel" for per, bars in cfg["video"]["cadence"])
     lines = [f"Version {os.path.basename(out)} · {time.strftime('%Y-%m-%d %H:%M')} · {time.time() - t0:.0f} s Renderzeit",
-             f"Karussell: {n} Plakate, {cad} (Takte x Wechsel) bei {bpm} BPM, Loop im schnellsten Tempo "
-             f"{n / top_fps:.2f} s = {n / top_fps * bpm / 60:g} Schlaege",
-             f"Video: {tl.total / tfps:.2f} s ({tl.hold_end / tfps:.1f} stehend, "
-             f"{(tl.zoom_end - tl.hold_end) / tfps:.1f} Zoom, {(tl.total - tl.zoom_end) / tfps:.1f} Endkarte),"
-             f" {size[0]}x{size[1]} @ {tfps} fps, bleibt stehen auf Plakat {tl.poster_at(tl.zoom_end) + 1:02d},"
+             f"Loop: {n} Frames = {len(keys)} Aushaenge ({' '.join(str(i + 1) for i in keys)}) + {n - len(keys)} "
+             f"Zwischenframes (nur Video), {n / top_fps:.2f} s pro Umlauf im schnellsten Tempo",
+             f"Karussell: {cad} (Takte x Wechsel) bei {bpm} BPM, {len(tl.changes)} Wechsel, "
+             f"startet auf Frame {tl.changes[0][1] + 1}, endet auf Frame {tl.changes[-1][1] + 1}",
+             f"Video: {tl.total / tfps:.2f} s ({tl.zoom_end / tfps:.1f} Zoom ab 0 s, "
+             f"{(tl.total - tl.zoom_end) / tfps:.1f} digital), {size[0]}x{size[1]} @ {tfps} fps,"
              f" echte Fotos: {real}/{n} (Rest simuliert)",
+             f"Farbreise: {' → '.join(cfg['color']['stations'])} → {cfg['color']['stations'][0]} "
+             f"(OKLab, keine Mischung lila: geprueft in load)",
              f"QR lesbar: {sum(qr_ok)}/{n}" + ("" if all(qr_ok) else "  ! nicht lesbar: "
                                                 + " ".join(f"{i + 1:02d}" for i, ok in enumerate(qr_ok) if not ok)),
              f"Lesbarkeit Titel+Datum: {sum(x >= K.TIER[0] for x in legib)}/{n} in Stufe A (>= {K.TIER[0]})"
              + ("" if min(legib) >= K.TIER[0] else "  ! unter A: " + " ".join(
                  f"{i + 1:02d}" for i, x in enumerate(legib) if x < K.TIER[0])),
+             f"Endkarte: Lesbarkeit Titel+Datum {end_leg:.2f} {tier(end_leg)}",
              f"Blitz-Check (WCAG 2.3.1, vereinfacht): {'ok' if flash['ok'] else 'VERSTOSS'} · schlimmste Sekunde bei "
              f"{flash['worst_at_s']:.1f} s: {flash['worst_area'] * 100:.0f} % der Flaeche ueber "
              f"{cfg['checks']['flash_max_per_s']} Blitze/s (Grenze {cfg['checks']['flash_max_area_frac'] * 100:.0f} %),"
              f" max. {flash['max_flashes_per_s']} Blitze/s an einer Stelle",
-             "", "Plakat  P    S     Codename          Grund  Lesbarkeit"]
-    lines += [f"{i + 1:02d}      {p:<4} {s:<5} {S.CODENAME[KL.P_CODES[p]]:<17} {g:.2f}   {x:.2f} {tier(x)}"
-              for i, ((p, s), g, x) in enumerate(zip(cfg["posters"]["frames"], ground, legib))]
+             "", "Frame  Aushang  Farbe               S     Titel  Grund  Lesbarkeit"]
+    lines += [f"{i + 1:02d}     {'ja' if KL.is_key(cfg, i) else '  '}       {KL.station_label(cfg, i):<19} "
+              f"{KL.style_code(cfg, i):<5} {KL.title_scale(cfg, i):.3f}  {g:.2f}   {x:.2f} {tier(x)}"
+              for i, (g, x) in enumerate(zip(ground, legib))]
     report = "\n".join(lines) + "\n"
     open(os.path.join(out, "report.txt"), "w", encoding="utf-8").write(report)
     gallery()
@@ -366,6 +399,6 @@ video{{width:100%}}pre{{white-space:pre-wrap;font-size:12px;margin:0}}
 @media(max-width:900px){{.row{{grid-template-columns:1fr}}}}</style><main><h1>SPARK Kick-off Loop · Vorschau</h1>
 <p class="d">Jede Version = ein Lauf von <code>uv run src/kickoff_loop.py preview</code>
 mit der loop.toml, die daneben liegt.
-Links das Video (mit Temp-Klick), Mitte der Plakat-Loop allein. Detailvarianten: <a href="variants/">variants/</a>.</p>
+Links das Video (mit Musik v1), Mitte der Plakat-Loop allein. Detailvarianten: <a href="variants/">variants/</a>.</p>
 {"".join(parts)}</main></html>"""
     open(os.path.join(base, "index.html"), "w", encoding="utf-8").write(page)

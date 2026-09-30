@@ -76,6 +76,7 @@ def layout(c):
     sc = 0.026 * short
     meta = m + snap(sc)
     cap = ((W - 2 * m) / px // width_per_cap(COPY["title"])) * px
+    cap = snap(cap * c.st.get("title_scale", 1.0))                             # Kick-off-Loop: Titelblock waechst pro Frame
     tb = [meta + snap(0.36 * cap) + cap]
     capd = snap(0.30 * cap)
     sub = [s for s in (COPY["what"], COPY["when"], COPY["where"]) if s]
