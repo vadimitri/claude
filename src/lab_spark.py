@@ -1,0 +1,1537 @@
+#!/usr/bin/env python3
+"""Spark-Labor: neue Rollen fuer den Stern (Fraktale, Gitter, Verdeckung) auf dem Maker-Night-Raster.
+
+Jeder Kandidat ist ein Wertfeld v in [0,1] auf dem logischen Raster (D3 Bayer 4x4, R = 4 px), optional mit
+Zusatzebenen in einer zweiten Palette (Fenster). Nur Importe aus styles.py, keine Aenderung dort.
+
+  uv run -q --with numpy --with pillow --with scipy --with scikit-image python src/lab_spark.py              # alle, lav 16x9
+  uv run ... python src/lab_spark.py S31b S26 --pal all                                                  # Auswahl, 6 Pruefpaletten
+  uv run ... python src/lab_spark.py S31 --kick --pal cherenkov                                          # Test mit Kick-off-Titel
+  uv run ... python src/lab_spark.py posters [S31b S26]                                                  # A3 im echten Satz
+  uv run ... python src/lab_spark.py html                                                                # nur Galerie
+-> styles/lab/spark/<code>_<pal>_<fmt>.png, poster_<code>_<pal>.png, sheet_*.png, index.html
+"""
+import html
+import os
+import sys
+from multiprocessing import Pool
+
+import numpy as np
+from PIL import Image, ImageDraw
+from scipy.ndimage import gaussian_filter, map_coordinates, binary_dilation, binary_erosion
+
+import styles
+from styles import BASE, Ctx, dither, font, hexpal, line_mask, up
+from makernight_sparks import star_r
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT = os.path.join(ROOT, "styles", "lab", "spark")
+D = "bayer4"
+# Palette "hinter" dem Fenster (S25) bzw. zweite Lichtfarbe (S31c). Kick-off: kein Lila.
+ALT = {"lav": "acid", "acid": "lav", "cga": "laser", "paper": "acid", "1bit": "acid", "riso": "riso",
+       "cherenkov": "eclipse", "eclipse": "cherenkov", "phosphor": "eclipse", "laser": "cherenkov",
+       "holo": "eclipse", "blueprint": "eclipse", "uv": "holo",
+       "signal": "cherenkov", "lava": "klein", "kirsche": "holo", "klein": "lava", "minze": "orangerie",   # wie ALT2 im Kick-off
+       "orangerie": "eis", "eis": "orangerie", "zitrone": "klein", "tokio": "eclipse", "cga0": "laser"}
+TMP = os.path.join(OUT, "_kick")                                        # Vertragstest Kick-off-Satz, nicht in der Galerie
+PALS16 = ["lav", "riso", "cherenkov", "eclipse", "cga", "phosphor"]     # Lab-Pruefpaletten 16x9
+
+
+# ---------------------------------------------------------------- Geometrie in Seiteneinheiten (m = kurze Seite)
+
+class G:
+    """Geometrie fuer einen Kandidaten. Vertrag fuer Aufrufer (kickoff.py):
+      g.K   = (x0, y0, R) in m-Einheiten (m = kurze Seite) ueberschreibt die Hauptplatzierung des Sterns
+      g.rot = Grad, ueberschreibt die Eigendrehung (wo sinnvoll)
+      g.lit = nach dem Aufruf: Maske der leuchtenden Sternpixel fuer die XOR-Regel (None = v >= 0.5)
+    Plakatmodus (st["poster"]): Titelgeometrie kommt aus c.L (styles.layout-Schluessel), Schrift setzt der Aufrufer."""
+    K = None
+    rot = None
+
+    def __init__(self, st, fmt, c=None):
+        self.c = c = c or Ctx(st, fmt)
+        self.poster = c.L if st.get("poster") else None
+        self.lit = None                                      # Maske "leuchtender Stern" fuer die XOR-Regel der Schrift
+        self.fmt, self.px, self.gh, self.gw = fmt, c.px, c.gh, c.gw
+        self.m = min(c.W, c.H)
+        self.X, self.Y = c.cx / self.m, c.cy / self.m
+        self.A, self.B = c.W / self.m, c.H / self.m          # Seite in m-Einheiten
+        self.tall = c.H > c.W
+        self.pal, self.N = c.pal, c.N
+
+    def at(self, wide, tall):
+        return tall if self.tall else wide
+
+    def pos(self, default):
+        """Hauptplatzierung (x0, y0, R): Aufrufer-Override g.K oder der Vorschlag des Kandidaten."""
+        return tuple(self.K) if self.K is not None else tuple(default)
+
+    def ro(self, default):
+        """Drehung: Aufrufer-Override g.rot oder die Eigendrehung des Kandidaten."""
+        return self.rot if self.rot is not None else default
+
+
+def sd(x, y, rot):
+    """Normierte Sterndistanz (Spitze = 1) fuer lokale Koordinaten."""
+    return np.hypot(x, y) / star_r(x, y, rot)
+
+
+def star(g, x0, y0, R, rot):
+    return sd(g.X - x0, g.Y - y0, rot) / R
+
+
+def tips(rot):
+    return [np.radians(rot + 30 + 60 * k) for k in range(6)]
+
+
+def stamp(g, acc, x0, y0, R, rot, op="xor", val=True):
+    """Stern nur im Fenster auswerten (fuer tausende kleine Sterne)."""
+    px = g.px / g.m
+    j0, j1 = max(0, int((x0 - R) / px) - 1), min(g.gw, int((x0 + R) / px) + 2)
+    i0, i1 = max(0, int((y0 - R) / px) - 1), min(g.gh, int((y0 + R) / px) + 2)
+    if j0 >= j1 or i0 >= i1:
+        return
+    w = sd(g.X[i0:i1, j0:j1] - x0, g.Y[i0:i1, j0:j1] - y0, rot) < R
+    if op == "xor":
+        acc[i0:i1, j0:j1] ^= w
+    elif op == "max":
+        acc[i0:i1, j0:j1] = np.where(w, np.maximum(acc[i0:i1, j0:j1], val), acc[i0:i1, j0:j1])
+    else:
+        acc[i0:i1, j0:j1] += w * val
+
+
+def bg(g, lo=0.02, hi=0.07):
+    nx, ny = g.X / g.A, g.Y / g.B
+    return lo + hi * ((0.35 * nx + ny) / 1.35 if not g.tall else ny)
+
+
+def title(g, dx=0.0, dy=0.0):
+    """(Maske, Fuellwert, bbox in m) des Titels auf dem logischen Raster, Geometrie immer aus c.L
+    (Zeilen, Grundlinien, Versalhoehe, Satzkante wie styles.layout; Kick-off: eine Zeile SPARK).
+    Lab: dx, dy (m) verschieben den Titel, der Kandidat malt ihn selbst.
+    Plakatmodus: kein Versatz, Maske zum Malen leer (Schrift setzt der Aufrufer); die echte Form liegt in g.T."""
+    L = g.c.L
+    if g.poster:
+        dx = dy = 0.0
+    cap = L["cap"]
+    m = np.zeros((g.gh, g.gw), bool)
+    rel = np.zeros((g.gh, g.gw), np.float32)
+    for s, b in zip(L["title"], L["tb"]):
+        b = b + dy * g.m
+        m |= line_mask(s, "clash", cap, b, L["m"] + dx * g.m, g.px, m.shape)
+        band = (g.c.cy <= b + 0.1 * cap) & (g.c.cy > b - 1.4 * cap)
+        rel = np.where(band, np.clip((g.c.cy - (b - cap)) / cap, 0, 1), rel)
+    g.T = m
+    ys, xs = np.nonzero(m)
+    bb = (xs.min() * g.px / g.m, ys.min() * g.px / g.m, (xs.max() + 1) * g.px / g.m, (ys.max() + 1) * g.px / g.m)
+    return (np.zeros_like(m) if g.poster else m), 0.7 + 0.28 * (1 - rel), bb
+
+
+def glow(d, w=0.35):
+    return np.exp(-np.maximum(d - 1, 0) / w)
+
+
+def ink(d, lo=0.64):
+    """Glutverlauf im Stern wie S2."""
+    return lo + (1 - lo) * np.clip(1 - d, 0, 1) ** 0.7
+
+
+def nest(g, x0, y0, R, rot, K=None, ratio=0.74, step=30, warp=None):
+    X, Y = (g.X - x0, g.Y - y0) if warp is None else warp
+    par = np.zeros((g.gh, g.gw), bool)
+    K = K or int(np.log(4 * g.px / g.m / R) / np.log(ratio)) + 1
+    for k in range(K):
+        par ^= sd(X, Y, rot + step * k) < R * ratio ** k
+    return par
+
+
+# ---------------------------------------------------------------- Kandidaten: f(g) -> v  oder  (v, [(v2, maske, palette)])
+
+def c_sternkind(g):
+    """Jede Spitze gebiert einen kleineren Stern, rekursiv, XOR-Paritaet."""
+    x0, y0, R = g.pos(g.at((1.30, 0.52, 0.30), (0.60, 0.98, 0.25)))
+    rot = g.ro(14)
+    acc = np.zeros((g.gh, g.gw), bool)
+
+    def rec(x, y, r, rot, n, back):
+        stamp(g, acc, x, y, r, rot)
+        if n:
+            for a in tips(rot):
+                if back is None or np.cos(a - back) > 0.4:          # nur nach aussen wachsen
+                    rec(x + np.cos(a) * r * 1.02, y + np.sin(a) * r * 1.02, r * 0.42, rot, n - 1, a)
+
+    rec(x0, y0, R, rot, 5, None)
+    d = star(g, x0, y0, R * 1.5, rot)
+    v = bg(g) + 0.10 * glow(d, 0.4)
+    g.lit = acc
+    return np.where(acc, ink(d, 0.6), v)
+
+
+def c_flocke(g):
+    """Sierpinski-Stern: aus jedem Stern faellt der gedrehte Kernstern heraus, jede Spitze ist wieder ein Stern."""
+    x0, y0, R = g.at((1.30, 0.52, 0.46), (0.50, 0.86, 0.46))
+    x, y = (g.X - x0) / R, (g.Y - y0) / R
+    on = sd(x, y, 14) < 1
+    lev = np.zeros(x.shape, np.float32)
+    rot, s, t, hole = 14.0, 0.40, 0.60, 0.40
+    for n in range(7):
+        ins = sd(x, y, rot) < 1
+        on &= ~(ins & (sd(x, y, rot + 30) < hole))
+        lev += ins
+        th = np.arctan2(y, x) - np.radians(rot + 30)
+        ca = np.radians(rot + 30) + np.round(th / (np.pi / 3)) * np.pi / 3
+        x, y = (x - t * np.cos(ca)) / s, (y - t * np.sin(ca)) / s
+    d = star(g, x0, y0, R, 14)
+    v = bg(g) + 0.12 * glow(d, 0.4)
+    return np.where(on, 0.5 + 0.47 * np.clip(lev / 5, 0, 1), v)
+
+
+def c_attraktor(g):
+    """Chaos-Spiel: 6 Kontraktionen zu den Spitzen, leicht gedreht. Dichte = Sternstaub."""
+    x0, y0, R = g.pos(g.at((1.28, 0.50, 0.46), (0.50, 0.84, 0.46)))
+    rng = np.random.default_rng(5)
+    p = rng.random((400000, 2)) - 0.5
+    s, tw = 0.30, np.radians(11)
+    rot = g.ro(14)
+    T = np.array([[np.cos(a), np.sin(a)] for a in tips(rot)] + [[0.42 * np.cos(a - np.pi / 6), 0.42 * np.sin(a - np.pi / 6)]
+                  for a in tips(rot)]) * (1 - s)
+    Rm = s * np.array([[np.cos(tw), -np.sin(tw)], [np.sin(tw), np.cos(tw)]])
+    H = np.zeros((g.gh, g.gw))
+    step = g.px / g.m
+    for n in range(40):
+        k = rng.integers(0, 12, len(p))
+        p = p @ Rm.T + T[k]
+        if n > 12:
+            j = ((x0 + p[:, 0] * R) / step).astype(int)
+            i = ((y0 + p[:, 1] * R) / step).astype(int)
+            ok = (i >= 0) & (i < g.gh) & (j >= 0) & (j < g.gw)
+            np.add.at(H, (i[ok], j[ok]), 1)
+    H = np.sqrt(H / np.percentile(H[H > 0], 99.8))
+    halo = gaussian_filter(H, 10 * 4 / g.px * g.c.u)
+    return np.clip(bg(g) + 0.3 * halo / halo.max() + 0.85 * np.clip(H, 0, 1) ** 1.3, 0, 1)
+
+
+def hexlattice(g, a):
+    """Naechster Punkt eines Hex-Gitters (Abstand a): lokale Koordinaten + Zentrum."""
+    best = None
+    for ox, oy in ((0, 0), (a / 2, a * np.sqrt(3) / 2)):
+        cx = np.round((g.X - ox) / a) * a + ox
+        cy = np.round((g.Y - oy) / (a * np.sqrt(3))) * a * np.sqrt(3) + oy
+        dd = np.hypot(g.X - cx, g.Y - cy)
+        if best is None:
+            best = [dd, cx, cy]
+        else:
+            w = dd < best[0]
+            best = [np.where(w, dd, best[0]), np.where(w, cx, best[1]), np.where(w, cy, best[2])]
+    return g.X - best[1], g.Y - best[2], best[1], best[2]
+
+
+def c_drehfeld(g):
+    """Gitter gleich heller Sterne. Draussen wirbeln sie, im grossen Stern stehen sie still: ein Geheimbild aus Ordnung."""
+    a = g.at(0.052, 0.052)
+    lx, ly, cx, cy = hexlattice(g, a)
+    x0, y0, R = g.at((1.20, 0.52, 0.58), (0.50, 0.80, 0.52))
+    D = sd(cx - x0, cy - y0, 14) / R
+    ang = np.degrees(np.arctan2(cy - y0, cx - x0))
+    rot = np.where(D < 1, 14, 14 + 40 * np.sin(D * 5.5 - 1) + 0.5 * ang)
+    m = sd(lx, ly, rot) < 0.62 * a
+    lum = np.where(D < 1, 0.62, 0.40)
+    return np.where(m, lum, bg(g))
+
+
+def sd3(x, y, rot, a=0.45):
+    """Dreistern: der Logo-Stern, jede zweite Spitze um a gekuerzt -> drei lange Spitzen, dreieckiger Umriss.
+    rot = 0: lange Spitze zeigt nach oben."""
+    th = np.arctan2(y, x) - np.radians(rot + 30)
+    return np.hypot(x, y) / (star_r(x, y, rot) * (1 - a * 0.5 * (1 - np.cos(3 * th))))
+
+
+def rings(d, K, ph=0.0):
+    return (d * K + ph) % 1 < 0.5
+
+
+def _interf_src(g, tall=(0.51, 0.71, 0.30)):
+    """Hauptplatzierung (Mitte zwischen den Quellen); Quellen liegen relativ dazu, skaliert mit R."""
+    x0, y0, R = g.pos(g.at((0.87, 0.54, 0.30), tall))
+    return x0, y0, R, R / 0.30
+
+
+def c_interferenz(g):
+    """Zwei Hoehenlinien-Sterne (S5) ueber die ganze Seite, per XOR: Sternmoire."""
+    x0, y0, R, k = _interf_src(g)
+    o = g.at((0.15, -0.08), (0.11, -0.09))
+    rot = g.ro(14)
+    d1 = star(g, x0 - o[0] * k, y0 - o[1] * k, R, rot)
+    d2 = star(g, x0 + o[0] * k, y0 + o[1] * k, R, rot + 30)
+    x = rings(d1, 2.6) ^ rings(d2, 2.6)
+    lum = 0.06 + 0.92 * np.exp(-0.5 * np.minimum(d1, d2))
+    return np.where(x, lum, bg(g))
+
+
+def c_interferenz3(g):
+    """S18b: drei Quellen im Dreieck, zwei Sechssterne unten, ein Dreistern oben. Jede Welle laeuft nur ein paar
+    Ringe weit, so bleibt jede Quelle als eigene Form lesbar; wo sich die Wellen treffen, XOR-Moire."""
+    x0, y0, R, k = _interf_src(g, (0.50, 0.96, 0.30))              # hoch: Wellen unter dem Titel, nicht darin
+    rot = g.ro(14)
+    P = g.at(((-0.30, 0.10), (0.30, 0.14), (0.02, -0.22)), ((-0.20, 0.18), (0.20, 0.22), (0.0, -0.20)))
+    (p1, p2, p3) = [(x0 + a * k, y0 + b * k) for a, b in P]
+    d1, d2 = star(g, *p1, R, rot), star(g, *p2, R, rot + 30)
+    d3 = sd3(g.X - p3[0], g.Y - p3[1], rot - 14) / (R * 1.15)
+    K, dm = 2.2, 2.6
+    x = (rings(d1, K) & (d1 < dm)) ^ (rings(d2, K) & (d2 < dm)) ^ (rings(d3, K) & (d3 < dm))
+    lum = 0.06 + 0.92 * np.exp(-0.55 * np.minimum(np.minimum(d1, d2), d3))
+    return np.where(x, lum, bg(g))
+
+
+def c_interferenz3z(g):
+    """S18c: Sechsstern und Dreistern auf derselben Mitte, beide Wellen laufen nur drei Ringe weit:
+    ein dreizaehliges Moire-Emblem mit klarem Umriss."""
+    x0, y0, R = g.pos(g.at((1.20, 0.50, 0.34), (0.50, 0.80, 0.34)))
+    rot = g.ro(0)
+    d1 = star(g, x0, y0, R, rot + 30)
+    d3 = sd3(g.X - x0, g.Y - y0, rot) / (R * 1.08)
+    x = (rings(d1, 2.6) & (d1 < 3.1)) ^ (rings(d3, 2.6) & (d3 < 3.1))
+    lum = 0.06 + 0.92 * np.exp(-0.5 * np.minimum(d1, d3))
+    return np.where(x, lum, bg(g))
+
+
+def fold(x, y, n):
+    """Dieder-Faltung D_n: Keil [0, pi/n], gespiegelt."""
+    r, th = np.hypot(x, y), np.arctan2(y, x) % (2 * np.pi / n)
+    th = np.minimum(th, 2 * np.pi / n - th)
+    return r * np.cos(th), r * np.sin(th)
+
+
+def c_kaleido(g):
+    """12-fach gefaltetes Feld: versetzte Sterne im Keil, XOR. Mandala aus einer fremden Kultur."""
+    x0, y0, R = g.pos(g.at((1.28, 0.52, 0.48), (0.50, 0.84, 0.48)))
+    rot = g.ro(0)
+    c, s_ = np.cos(np.radians(rot)), np.sin(np.radians(rot))
+    x, y = ((g.X - x0) * c + (g.Y - y0) * s_) / R, (-(g.X - x0) * s_ + (g.Y - y0) * c) / R
+    r = np.hypot(x, y)
+    x, y = fold(x, y, 6)
+    par = sd(x, y, 0) < 1.0
+    for (px_, py_, rr, ro) in ((0.55, 0.12, 0.34, 10), (0.30, 0.05, 0.22, 40), (0.80, 0.30, 0.20, 0), (0.62, 0.0, 0.12, 30),
+                               (0.15, 0.0, 0.16, 0)):
+        par ^= sd(x - px_, y - py_, ro) < rr
+    par &= r < 1
+    d = star(g, x0, y0, R, rot)
+    g.lit = par
+    return np.where(par, ink(d * 0.9, 0.55), bg(g) + 0.1 * glow(d, 0.4))
+
+
+def _kframe(g, default, rot0=0):
+    x0, y0, R = g.pos(g.at(*default))
+    rot = g.ro(rot0)
+    c, s_ = np.cos(np.radians(rot)), np.sin(np.radians(rot))
+    x, y = ((g.X - x0) * c + (g.Y - y0) * s_) / R, (-(g.X - x0) * s_ + (g.Y - y0) * c) / R
+    return x0, y0, R, rot, x, y
+
+
+def c_kaleido_siegel(g):
+    """S19b: Siegel in der Sternsilhouette: alle Motive auf den Spiegelachsen (keine Herzen), Skalenring aus Strichen
+    wie ein Messinstrument, Kreisbaender kippen die Paritaet."""
+    x0, y0, R, rot, x, y = _kframe(g, ((1.28, 0.52, 0.50), (0.50, 0.84, 0.50)))
+    r = np.hypot(x, y)
+    D0 = sd(x, y, 0)
+    fx, fy = fold(x, y, 6)
+    par = np.zeros(r.shape, bool)
+    for (rr, ph, sz, ro) in ((0.0, 0, 0.30, 0), (0.0, 0, 0.19, 30), (0.0, 0, 0.11, 0), (0.0, 0, 0.05, 30),
+                             (0.40, 0, 0.12, 0), (0.43, 30, 0.07, 30),
+                             (0.64, 0, 0.14, 30), (0.64, 0, 0.07, 0), (0.60, 30, 0.05, 0),
+                             (0.86, 0, 0.07, 0)):
+        a = np.radians(ph)
+        par ^= sd(fx - rr * np.cos(a), fy - rr * np.sin(a), ro) < sz
+    th = np.degrees(np.arctan2(y, x)) % 5
+    lp = g.px / g.m / R
+    tick = (r > 0.50) & (r < 0.55) & (th < 1.6)
+    band = (r > 0.33) & (r < 0.33 + 1.5 * lp) | (r > 0.745) & (r < 0.745 + 1.5 * lp)
+    par ^= band | tick
+    par = (D0 < 1) & ~par                                 # Negativ: der Stern ist voll, die Motive sind ausgestanzt
+    g.lit = par
+    return np.where(par, ink(D0 * 0.95, 0.55), bg(g) + 0.12 * glow(D0, 0.35))
+
+
+def c_kaleido_spiegel(g):
+    """S19c: echtes Spiegelkabinett (p6m): drei Spiegel kacheln ein Sternmotiv unendlich, sichtbar durch den Stern."""
+    x0, y0, R, rot, x, y = _kframe(g, ((1.28, 0.52, 0.52), (0.50, 0.84, 0.52)))
+    D0 = sd(x, y, 0)
+    a = 0.36
+    best = None                                          # naechstes Zentrum eines Hex-Gitters in lokalen Koordinaten
+    for ox, oy in ((0, 0), (a / 2, a * np.sqrt(3) / 2)):
+        cx = np.round((x - ox) / a) * a + ox
+        cy = np.round((y - oy) / (a * np.sqrt(3))) * a * np.sqrt(3) + oy
+        dd = np.hypot(x - cx, y - cy)
+        best = [dd, cx, cy] if best is None else [np.where(dd < best[0], v, b) for v, b in zip((dd, cx, cy), best)]
+    lx, ly = fold(x - best[1], y - best[2], 6)
+    lx, ly = lx / a, ly / a
+    par = (sd(lx, ly, 0) < 0.40) ^ (sd(lx, ly, 30) < 0.24) ^ (sd(lx, ly, 0) < 0.12) \
+        ^ (sd(lx - 0.5, ly - 0.2887, 0) < 0.16) ^ (sd(lx - 0.5, ly, 30) < 0.07) ^ (sd(lx - 0.27, ly - 0.07, 12) < 0.07)
+    par = (D0 < 1) & ~par
+    g.lit = par
+    return np.where(par, ink(D0 * 0.95, 0.5), bg(g) + 0.12 * glow(D0, 0.35))
+
+
+def c_kaleido_nest(g):
+    """S19d: das XOR-Nest (S7), aus der Mitte geschoben und sechsfach gespiegelt: Rosette aus sechs Nestern."""
+    x0, y0, R, rot, x, y = _kframe(g, ((1.28, 0.52, 0.52), (0.50, 0.84, 0.52)))
+    D0 = sd(x, y, 0)
+    fx, fy = fold(x, y, 6)
+    ox = 0.42
+    par = np.zeros(x.shape, bool)
+    for k in range(7):
+        par ^= sd(fx - ox, fy, 30 + 30 * k) < 0.5 * 0.74 ** k
+    par ^= sd(x, y, 30) < 0.30
+    par ^= sd(x, y, 0) < 0.16
+    par &= D0 < 1
+    par |= (D0 >= 0.8) & (D0 < 1)                                    # harter Rand: Spitzen spitz statt vom XOR abgerundet (Vadim)
+    g.lit = par
+    return np.where(par, ink(D0 * 0.9, 0.5), bg(g) + 0.12 * glow(D0, 0.35))
+
+
+def c_kaleido_drei(g):
+    """S19e: dreifaches Kaleidoskop (D3) aus Dreisternen, in der Silhouette eines Dreisterns."""
+    x0, y0, R, rot, x, y = _kframe(g, ((1.28, 0.52, 0.52), (0.50, 0.84, 0.52)))
+    D0 = sd3(x, y, 0)
+    c, s_ = np.cos(np.radians(-30)), np.sin(np.radians(-30))   # Achse der langen Spitze (30 Grad) -> 0 Grad
+    fx, fy = fold(x * c - y * s_, x * s_ + y * c, 3)           # Keil [0, 60]: 0 = lange Spitze, 60 = kurze Spitze
+    par = np.zeros(x.shape, bool)
+    # (Abstand, Achse 0|60, Groesse, Drehung): Drehung -30 = lange Spitze entlang Achse 0 nach aussen, 150 = nach innen,
+    # 30 = entlang Achse 60 nach aussen
+    for (rr, ax, sz, ro) in ((0.0, 0, 0.62, -30), (0.0, 0, 0.44, 30), (0.0, 0, 0.30, -30), (0.0, 0, 0.20, 30),
+                             (0.0, 0, 0.12, -30), (0.0, 0, 0.06, 30),
+                             (0.72, 0, 0.10, -30), (0.72, 0, 0.05, 30), (0.40, 60, 0.07, 30), (0.52, 0, 0.05, 150)):
+        a = np.radians(ax)
+        par ^= sd3(fx - rr * np.cos(a), fy - rr * np.sin(a), ro) < sz
+    par = (D0 < 1) & ~par
+    g.lit = par
+    return np.where(par, ink(D0 * 0.9, 0.5), bg(g) + 0.12 * glow(D0, 0.35))
+
+
+def c_wirbel(g):
+    """Das XOR-Nest, im Log-Polar-Raum verdrillt: ein unendlicher Spiralschlund."""
+    x0, y0, R = g.at((1.30, 0.50, 0.62), (0.72, 1.02, 0.66))
+    x, y = g.X - x0, g.Y - y0
+    r = np.hypot(x, y) + 1e-6
+    al = 0.55 * np.log(r / R)
+    xr, yr = x * np.cos(al) - y * np.sin(al), x * np.sin(al) + y * np.cos(al)
+    par = nest(g, x0, y0, R, 14, ratio=0.8, warp=(xr, yr))
+    d = star(g, x0, y0, R, 14)
+    g.lit = par
+    return np.where(par, ink(d, 0.6), bg(g) + 0.13 * glow(d, 0.3))
+
+
+def c_anschnitt(g):
+    """Riesiges Nest, Zentrum ausserhalb der Seite: nur die Spitzen ragen herein. Titel frei."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos(g.at((1.66, 1.10, 1.05), (1.30, 1.02, 0.92)))
+    rot = g.ro(22)
+    d = star(g, x0, y0, R, rot)
+    par = nest(g, x0, y0, R, rot)
+    g.lit = par
+    v = np.where(par, ink(d, 0.5), bg(g) + 0.12 * glow(d, 0.25))
+    return np.where(t, fill, v)
+
+
+def c_rahmen(g):
+    """Stern so gross, dass die Seite in ihm liegt: die Ecken sind das Aussen, die Spitzen reissen den Rand auf."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos((g.A / 2, g.B / 2, g.at(1.18, 0.98)))
+    d = star(g, x0, y0, R, g.ro(g.at(0, 30)))
+    ins = d < 1
+    rings = ((d * 9) % 1 < 0.5) & ~ins
+    v = np.where(ins, bg(g, 0.04, 0.10) + 0.12 * np.clip(d, 0, 1) ** 4, np.where(rings, 0.38 + 0.4 * glow(d, 0.15), 0.0))
+    v = np.where(ins & (d > 0.975), 0.9, v)
+    g.lit = v >= 0.5
+    return np.where(t, fill, v)
+
+
+def c_fenster(g):
+    """Der Stern als Fenster: dahinter dieselbe Nacht in einer anderen Dimension (fremde Palette, Nest, 30 Grad verdreht)."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.at((1.30, 0.62, 0.44), (0.60, 0.98, 0.44))
+    d = star(g, x0, y0, R, 14)
+    ox, oy, Rn = x0 + 0.18 * R, y0 - 0.12 * R, 1.7 * R            # das andere Universum liegt versetzt und groesser
+    dn = star(g, ox, oy, Rn, 44)
+    par = nest(g, ox, oy, Rn, 44)
+    inside_v = np.where(par & (dn < 1), ink(dn, 0.5), 0.06 + 0.16 * np.clip(1 - d, 0, 1))
+    v = bg(g) + 0.14 * glow(d, 0.3)
+    v = np.where((d < 1) & (d >= 0.955), g.c.lvl(g.N), v)          # Fensterrahmen: flach, hellste Stufe
+    g.lit = d < 1
+    v = np.where(t, fill, v)
+    return v, [(inside_v, (d < 0.955), ALT)]
+
+
+def clean(m, n=1):
+    """Maske ohne haardünne Spitzen (Oeffnung): keine 1-px-Splitter, die Buchstaben zerhacken."""
+    return binary_dilation(binary_erosion(m, iterations=n), iterations=n) & m
+
+
+def c_xortitel_alt(g):
+    """Erste Fassung von S26 (Stern unter dem Titel, halb angeschnitten). Nur zum Vergleich."""
+    t, fill, bb = title(g)
+    x0, y0, R = g.at(((bb[0] + bb[2]) * 0.62, bb[3] + 0.02, 0.50), (0.62, (bb[1] + bb[3]) / 2 + 0.02, 0.52))
+    d = star(g, x0, y0, R, 14)
+    s = d < 1
+    v = np.where(s, ink(d, 0.55), bg(g) + 0.14 * glow(d, 0.3))
+    return np.where(t & s, 0.0, np.where(t, fill, v))
+
+
+def c_xortitel(g):
+    """Glutstern mittig hinter dem Titel; wo die Schrift ihn kreuzt, kippt sie ins Negativ.
+    Fix: Stern sitzt auf der Titelzeile statt darunter (vorher hing er unter der Zeile, nur die Spitzen kreuzten
+    die Schrift, schief um 14 Grad), Spitzen stehen senkrecht, haardünne Spitzenenden sind weggeoeffnet (keine Splitter in den Buchstaben),
+    der Stern hat eine flache Kante statt Dunst."""
+    t, fill, bb = title(g)
+    w, h = bb[2] - bb[0], bb[3] - bb[1]
+    R0 = min(g.at(0.40, 0.54) * w, 0.55 * g.B, 0.46 * g.A)
+    x0, y0, R = g.pos((bb[0] + 0.58 * w, (bb[1] + bb[3]) / 2 + 0.25 * h, R0))
+    d = star(g, x0, y0, R, g.ro(0))
+    s = clean(d < 1, 1)
+    g.lit = s
+    v = np.where(s, ink(d, 0.5), bg(g) + 0.10 * glow(d, 0.18))
+    return np.where(t & s, 0.0, np.where(t, fill, v))
+
+
+def c_durchblick(g):
+    """Die Buchstaben sind Fenster: durch sie sieht man ein riesiges XOR-Nest, das hinter der Seite liegt."""
+    t, fill, bb = title(g)
+    x0, y0, R = g.at(((bb[0] + bb[2]) * 0.55, (bb[1] + bb[3]) / 2, 0.62), (0.52, (bb[1] + bb[3]) / 2, 0.62))
+    d = star(g, x0, y0, R, 14)
+    par = nest(g, x0, y0, R, 14)
+    ghost = np.where(par & (d < 1), 0.1 + 0.08 * (1 - np.clip(d, 0, 1)), bg(g))
+    g.lit = par & (d < 1)
+    lit = np.where(par & (d < 1), fill + 0.02, 0.44)
+    return np.where(t, lit, ghost)
+
+
+def c_finsternis(g):
+    """Sternfinsternis: ein schwarzer Stern schiebt sich vor den hellen, die Korona glueht nach aussen."""
+    x0, y0, R = g.at((1.28, 0.52, 0.34), (0.60, 0.98, 0.38))
+    d = star(g, x0, y0, R, 14)
+    o = star(g, x0 + 0.035, y0 - 0.02, R * 0.97, 14)
+    cor = gaussian_filter((d < 1).astype(float), 18 * 4 / g.px * g.c.u)
+    v = bg(g) + 0.62 * cor + 0.22 * glow(d, 0.5)
+    v = np.where(d < 1, 0.97, v)
+    return np.where(o < 1, 0.0, np.clip(v, 0, 1))
+
+
+def c_aufgang(g):
+    """Der Stern geht hinter der Titelzeile auf: Grundlinie = Horizont, Buchstaben als Silhouette."""
+    L = g.c.L
+    dy = g.at(0.64, 0.60) * g.B - L["tb"][-1] / g.m                 # Lab: Titel auf den Horizont schieben
+    t, fill, bb = title(g, dy=dy)
+    hz = bb[3]
+    x0, y0, R = g.pos(g.at(((bb[0] + bb[2]) * 0.55, hz + 0.03, 0.60), ((bb[0] + bb[2]) / 2, hz + 0.03, 0.62)))
+    d = star(g, x0, y0, R, g.ro(0))
+    up_ = g.Y < hz
+    v = np.where(d < 1, ink(d, 0.55), bg(g) + 0.16 * glow(d, 0.35))
+    v = np.where(up_, v, 0.0)
+    band = (g.Y >= hz) & (g.Y < hz + g.px / g.m * 1.01)
+    v = np.where(band, 0.8, v)
+    g.lit = (d < 1) & up_
+    return np.where(t, np.where(d < 1, 0.0, fill), v)
+
+
+def c_versatz_alt(g):
+    """Erste Fassung von S30 (ein Band, darin 30 Grad weiter). Nur zum Vergleich."""
+    x0, y0, R = g.at((1.30, 0.55, 0.42), (0.52, 0.82, 0.44))
+    h = g.at(0.13, 0.12)
+    inb = np.abs(g.Y - y0 + 0.03) < h / 2
+    d0 = star(g, x0, y0, R, 14)
+    p0 = nest(g, x0, y0, R, 14)
+    p1 = ~nest(g, x0, y0, R * 1.15, 44)
+    d1 = star(g, x0, y0, R * 1.15, 44)
+    v0 = np.where(p0, ink(d0, 0.58), bg(g) + 0.12 * glow(d0, 0.3))
+    v1 = np.where(p1 & (d1 < 1.0), ink(d1, 0.58), bg(g) + 0.12 * glow(d1, 0.3))
+    return np.where(inb, v1, v0)
+
+
+def _slats(g, x0, y0, R, hb):
+    """Bandindex je Zeile (Baender hb logische Pixel hoch, auf dem Raster), Fugen = letzte Zeile jedes Bands."""
+    row = np.floor((g.Y - (y0 - R)) * g.m / g.px + 1e-6)
+    k = np.floor(row / hb)
+    return k, (row % hb) == hb - 1
+
+
+def c_versatz(g):
+    """Zeilensprung: der Stern als zwei Halbbilder. Gerade Baender zeigen ihn jetzt, ungerade einen Moment spaeter
+    (ein Stueck weiter und gedreht): der Kamm einer Videoaufnahme, die ihn in Bewegung erwischt hat."""
+    x0, y0, R = g.pos(g.at((1.24, 0.52, 0.40), (0.52, 0.82, 0.40)))
+    rot = g.ro(14)
+    hb = max(3, round(0.016 * g.m / g.px))
+    k, _ = _slats(g, x0, y0, R, hb)
+    odd = k % 2 == 1
+    dx = 0.42 * R
+    xa, xb = x0 - dx / 2, x0 + dx / 2
+    da, db = star(g, xa, y0, R, rot), star(g, xb, y0 - 0.06 * R, R, rot + 24)
+    va = np.where(da < 1, ink(da, 0.55), bg(g) + 0.10 * glow(da, 0.3))
+    vb = np.where(db < 1, ink(db, 0.55), bg(g) + 0.10 * glow(db, 0.3))
+    g.lit = np.where(odd, db < 1, da < 1)
+    return np.where(odd, vb, va)
+
+
+def c_verschluss(g):
+    """S30b Rolling Shutter: der Stern wird Streifen fuer Streifen abgetastet, waehrend er sich dreht.
+    Jeder Streifen ein spaeterer Moment: der Stern verdreht sich treppenartig von oben nach unten."""
+    x0, y0, R = g.pos(g.at((1.28, 0.52, 0.44), (0.52, 0.82, 0.44)))
+    rot = g.ro(14)
+    hb = max(4, round(0.05 * g.m / g.px))
+    k, seam = _slats(g, x0, y0, R, hb)
+    nk = np.ceil(2 * R * g.m / g.px / hb)
+    tt = np.clip(k / max(nk - 1, 1), 0, 1)
+    rk = rot + 75 * tt
+    sx = x0 + 0.34 * R * (tt - 0.5)
+    X, Y = g.X - sx, g.Y - y0
+    d = np.hypot(X, Y) / star_r(X, Y, rk) / R
+    par = np.zeros(d.shape, bool)
+    for j in range(int(np.log(4 * g.px / g.m / R) / np.log(0.74)) + 1):
+        par ^= np.hypot(X, Y) / star_r(X, Y, rk + 30 * j) < R * 0.74 ** j
+    par &= d < 1
+    d0 = star(g, x0, y0, R, rot)
+    ghost = (d0 < 1) & ~(d < 1)
+    g.lit = par & ~seam
+    v = np.where(par, ink(d, 0.55), np.where(ghost, 0.17, bg(g) + 0.12 * glow(np.minimum(d, d0), 0.3)))
+    return np.where(seam & (d < 1.05), 0.0, v)
+
+
+def c_loch(g):
+    """Ein Loch im Raum: die Seite ist hell, der Stern ein Schacht, der ins Schwarze faellt."""
+    x0, y0, R = g.at((1.25, 0.52, 0.40), (0.50, 0.84, 0.42))
+    d = star(g, x0, y0, R, 14)
+    nx = g.X / g.A
+    ring = ((np.log(np.maximum(d, 1)) * 9) % 1 < 0.5) * np.exp(-(d - 1) / 0.8)
+    outside = 0.44 + 0.08 * nx + 0.14 * ring + 0.3 * np.exp(-(d - 1) / 0.05)
+    k = np.floor(np.log(np.maximum(d, 1e-4)) / np.log(0.78))
+    # jeder Ring eine Stufe tiefer, gedreht: Treppe nach innen
+    x, y = g.X - x0, g.Y - y0
+    rk = np.zeros(d.shape)
+    for i in range(14):
+        rk += sd(x, y, 14 + 12 * i) < R * 0.8 ** i
+    inner = np.where(rk % 2 == 1, 0.34 * 0.82 ** rk, 0.02)
+    return np.where(d < 1, inner, np.clip(outside, 0, 1))
+
+
+def c_fluessig(g):
+    """Das Nest in geschmolzenem Raum: Koordinaten sinus-verbogen wie ein Demoszene-Plasma."""
+    x0, y0, R = g.at((1.25, 0.52, 0.46), (0.50, 0.84, 0.46))
+    x, y = g.X - x0, g.Y - y0
+    for f, a, ph in ((5.0, 0.10, 0.3), (11.0, 0.035, 1.7)):
+        x, y = x + a * np.sin(f * y + ph), y + a * np.sin(f * x + 2 * ph)
+    par = nest(g, x0, y0, R, 14, warp=(x, y))
+    d = sd(x, y, 14) / R
+    return np.where(par, ink(d, 0.6), bg(g) + 0.12 * glow(d, 0.3))
+
+
+def radial(g, src, x0, y0, n=96, reach=0.97, decay=0.985, order=0):
+    """Radiale Unschaerfe zur Lichtquelle (x0, y0): Summe von src entlang der Strecke Pixel -> Quelle."""
+    ci, cj = y0 * g.m / g.px - 0.5, x0 * g.m / g.px - 0.5
+    ii, jj = np.mgrid[0:g.gh, 0:g.gw].astype(np.float32)
+    acc = np.zeros(src.shape)
+    src = src.astype(np.float32)
+    for s in range(n):
+        f = 1 - s / n * reach
+        acc += map_coordinates(src, (ci + (ii - ci) * f, cj + (jj - cj) * f), order=order, cval=0) * (decay ** s)
+    return acc
+
+
+def _gl(g, default, rot0=14):
+    t, fill, bb = title(g)
+    x0, y0, R = g.pos(default(bb))
+    rot = g.ro(rot0)
+    d = star(g, x0, y0, R, rot)
+    return t, fill, bb, x0, y0, R, rot, d, binary_dilation(g.T, iterations=1)
+
+
+def _lit_band(g, v, tt, thr=0.3, per_pixel=False):
+    """XOR-Maske: im Lab der Titel als Silhouette. Im Plakat Titel + Datum ganz (Silhouette vor dem Licht),
+    die Kopfzeile kippt pixelweise, wo das Licht hell ist (sonst verschwindet sie im Strahl).
+    per_pixel: normale XOR-Regel ueberall (fuer Licht mit harten Schatten, sonst verschwindet Schrift im Dunkel)."""
+    g.lit = (v > thr) | tt & (v >= 0.2)
+    if per_pixel:
+        g.lit = v >= thr
+    elif g.poster:                         # Band, aber nur wo ueberhaupt Licht ist (sonst verschwindet Schrift im Dunkel)
+        L, yd = g.poster, g.Y * g.m
+        g.lit = (yd > L["meta"] + L["sc"]) & (yd < L["db"] + 0.3 * L["capd"]) & (v >= 0.2) | (yd <= L["meta"] + L["sc"]) & (v >= 0.5)
+
+
+def _paint(g, t, fill, v):
+    """Lab-Titel nach der XOR-Regel: Silhouette, wo Licht dahinter ist, sonst normale Fuellung."""
+    return np.clip(np.where(t, np.where(g.lit, 0.0, fill), v), 0, 1)
+
+
+def c_gegenlicht(g):
+    """Der Stern steht hinter dem Titel; sein Licht bricht in Strahlen durch die Luecken der Buchstaben."""
+    t, fill, bb, x0, y0, R, rot, d, tt = _gl(g, lambda bb: g.at(((bb[0] + bb[2]) * 0.5, (bb[1] + bb[3]) * 0.5, 0.40),
+                                                                  ((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, 0.40)))
+    src = np.where(tt, 0, np.where(d < 1, 1.0, 0.0))
+    acc = radial(g, src, x0, y0)
+    rays = acc / acc.max()
+    halo = np.exp(-np.hypot(g.X - x0, g.Y - y0) / 0.45)             # Streulicht: die ganze Titelzone steht im Gegenlicht
+    v = bg(g) + 0.95 * rays ** 0.8 + 0.3 * halo
+    v = np.where(d < 1, ink(d, 0.75), v)
+    _lit_band(g, v, tt)
+    return _paint(g, t, fill, v)
+
+
+def _behind(bb):
+    """Standard fuer S31b ff.: Stern hinter der oberen Titelmitte (Licht faellt durch die Zeile nach unten)."""
+    return ((bb[0] + bb[2]) * 0.5, bb[1] + 0.40 * (bb[3] - bb[1]), 0.62 * (bb[3] - bb[1]) + 0.12)
+
+
+def shafts(g, x0, y0, d, tt, n=200, gamma=0.75, core=0.6):
+    """Volumetrische Lichtschaechte: Emitter (Stern + Streulicht), von der Schrift beschnitten, radial verschmiert.
+    Normiert auf den Rand des Sterns, faellt mit der Entfernung von selbst (~1/r)."""
+    emit = np.where(d < 1, 1.0, core * np.exp(-(d - 1) / 0.25))
+    emit = np.where(tt, 0.0, emit)
+    acc = radial(g, emit, x0, y0, n=n, reach=0.995, decay=1.0, order=1) / n
+    ref = np.percentile(acc[(d > 1.0) & (d < 1.3)], 90) + 1e-6
+    return np.clip(acc / ref, 0, 1.2) ** gamma
+
+
+def c_lichtfall(g):
+    """S31b Lichtfall: lange Schaechte, fast ohne Abklingen; die Schatten der Buchstaben ziehen bis an den Seitenrand
+    und das Licht faellt ueber die ganze untere Haelfte."""
+    t, fill, bb, x0, y0, R, rot, d, tt = _gl(g, _behind)
+    rays = shafts(g, x0, y0, d, tt, gamma=0.7)
+    v = bg(g, 0.0, 0.04) + 0.96 * rays
+    v = np.where(d < 1, ink(d, 0.8), v)
+    _lit_band(g, v, tt, 0.45)
+    return _paint(g, t, fill, v)
+
+
+def c_lichtfall_kurz(g):
+    """S31b2 (Vergleich): kurze, schnell abklingende Strahlen, nur ein Kranz um die Zeile."""
+    t, fill, bb, x0, y0, R, rot, d, tt = _gl(g, _behind)
+    rays = shafts(g, x0, y0, d, tt, gamma=1.6)
+    v = bg(g) + 0.95 * rays
+    v = np.where(d < 1, ink(d, 0.8), v)
+    _lit_band(g, v, tt, 0.45)
+    return _paint(g, t, fill, v)
+
+
+def c_zweitlicht(g):
+    """S31c Zweitfarbe: Stern und Titelsilhouette in der eigenen Palette, das Licht dahinter in einer zweiten
+    (Tscherenkow-Blau mit Gold, CGA mit Laserrot, ...)."""
+    t, fill, bb, x0, y0, R, rot, d, tt = _gl(g, lambda bb: _behind(bb)[:2] + (1.0 * (bb[3] - bb[1]) + 0.14,))
+    rays = shafts(g, x0, y0, d, tt, gamma=0.75)
+    v2 = 0.01 + 0.97 * rays
+    star_ = d < 1
+    v = np.where(star_, ink(d, 0.8), 0.0)
+    _lit_band(g, np.where(star_, 1.0, rays), tt, 0.45)
+    return _paint(g, t, fill, v), [(v2, ~star_ & ~(t > 0), ALT)]
+
+
+def rim(g, x0, y0, n=2):
+    """Pixel direkt vor den Buchstaben auf der Seite zum Licht: dort streift das Gegenlicht die Kante."""
+    T = g.T
+    ux, uy = g.X - x0, g.Y - y0
+    r = np.hypot(ux, uy) + 1e-9
+    di, dj = np.round(uy / r).astype(int), np.round(ux / r).astype(int)
+    ii, jj = np.mgrid[0:g.gh, 0:g.gw]
+    out = np.zeros(T.shape, bool)
+    for k in range(1, n + 1):
+        out |= T[np.clip(ii + k * di, 0, g.gh - 1), np.clip(jj + k * dj, 0, g.gw - 1)]
+    return out & ~T
+
+
+def c_randlicht(g):
+    """S31d Randlicht: die Buchstaben sind schwarze Koerper vor dem Stern; wo das Licht ihre Kanten streift,
+    brennt eine harte, flache Lichtkante. Dazu weiche Schaechte."""
+    t, fill, bb, x0, y0, R, rot, d, tt = _gl(g, _behind)
+    rays = shafts(g, x0, y0, d, tt, gamma=0.8)
+    r = np.hypot(g.X - x0, g.Y - y0)
+    rl = rim(g, x0, y0, max(1, round(g.m / g.px / 260)))
+    rl &= radial(g, (g.T & (d >= 1)).astype(np.float32), x0, y0, n=220, reach=1.0, decay=1.0) < 0.5   # nur wo Licht hinkommt
+    hot = np.exp(-np.maximum(r - R, 0) / (0.9 * R))
+    v = bg(g, 0.0, 0.04) + 0.85 * rays
+    v = np.where(d < 1, ink(d, 0.8), v)
+    v = np.where(rl & (hot > 0.35), 1.0, np.where(rl, np.maximum(v, 0.35 + 0.6 * hot), v))
+    _lit_band(g, v, tt, 0.45)
+    return _paint(g, t, fill, v)
+
+
+def _gap_y(g):
+    """Hoehe (m) fuer den Lichtstreif: im Durchschuss zwischen den ersten beiden Titelzeilen,
+    bei einer Zeile knapp unter der Grundlinie."""
+    L = g.c.L
+    tb, cap = L["tb"], L["cap"]
+    y = (tb[0] + tb[1] - cap) / 2 if len(tb) > 1 else tb[0] + 0.2 * cap
+    return y / g.m
+
+
+def c_flare(g):
+    """S31e Flare: der Stern sitzt im Durchschuss, ein anamorpher Lichtbalken laeuft durch die Zeilenluecke ueber
+    die ganze Seite, Geisterbilder (Sterne, ein Ring) liegen auf der Achse durch die Seitenmitte."""
+    t, fill, bb, x0, y0, R, rot, d, tt = _gl(g, lambda bb: ((bb[0] + bb[2]) * 0.5, _gap_y(g), 0.5 * (bb[3] - bb[1]) + 0.1))
+    rays = shafts(g, x0, y0, d, tt, gamma=1.2)
+    lp = g.px / g.m
+    dy_, dx_ = np.abs(g.Y - y0), np.abs(g.X - x0)
+    core = (dy_ < 1.01 * lp) * 1.0
+    wing = np.exp(-dy_ / (0.012 + 0.02 * np.exp(-dx_ / 0.5))) * np.exp(-dx_ / (0.9 * g.A))
+    v = bg(g, 0.0, 0.04) + 0.7 * rays + 0.75 * wing
+    v = np.where(core > 0, np.maximum(v, 0.6 + 0.4 * np.exp(-dx_ / (0.8 * g.A))), v)
+    cx, cy = g.A / 2, g.B / 2
+    ax, ay = cx - x0, cy - y0
+    n_ = np.hypot(ax, ay) + 1e-6
+    if n_ < 0.15:                                                    # Stern schon mittig: Achse nach unten
+        ax, ay, n_ = 0.0, g.B * 0.5, g.B * 0.5
+    ux, uy = ax / n_, ay / n_
+    L_ = np.hypot(g.A, g.B)
+    for tq, sz, ro, lv in ((0.28, 0.05, 30, 0.42), (0.42, 0.018, 0, 0.8), (0.60, 0.11, 30, 0.22), (0.78, 0.035, 0, 0.55)):
+        gx, gy = x0 + ux * tq * L_, y0 + uy * tq * L_
+        dg = star(g, gx, gy, sz, rot + ro)
+        v = np.where(dg < 1, np.maximum(v, lv * (0.75 + 0.25 * (1 - dg))), v)
+    rr = np.hypot(g.X - (x0 + ux * 0.5 * L_), g.Y - (y0 + uy * 0.5 * L_))
+    v = np.where(rr < 0.26, np.maximum(v, 0.16 + 0.06 * (rr / 0.26) ** 4), v)   # Bokeh-Scheibe, Rand etwas heller
+    v = np.where(d < 1, ink(d, 0.8), v)
+    _lit_band(g, v, tt, 0.45, per_pixel=True)
+    return _paint(g, t, fill, v)
+
+
+def c_strahlenkranz(g):
+    """S31f Strahlenkranz: harte Lichtkeile strahlen vom Stern hinter dem Titel ueber die ganze Seite,
+    die Buchstaben werfen ihre Schatten hinein."""
+    t, fill, bb, x0, y0, R, rot, d, tt = _gl(g, _behind)
+    X, Y = g.X - x0, g.Y - y0
+    r = np.hypot(X, Y)
+    th = np.arctan2(Y, X) - np.radians(rot)
+    n = 24
+    wob = 0.5 + 0.5 * np.cos(n * th + 0.9 * np.sin(3 * th))
+    beam = np.clip((wob - 0.35) / 0.4, 0, 1)
+    occ = radial(g, (g.T & (d >= 1)).astype(np.float32), x0, y0, n=220, reach=1.0, decay=1.0) > 0.5
+    vis = ~occ
+    I = beam * np.exp(-np.maximum(r - R, 0) / (0.95 * g.B)) * vis
+    halo = np.exp(-np.maximum(r - R, 0) / 0.35)                      # Glut hinter der Zeile, damit die Silhouette steht
+    v = bg(g, 0.0, 0.03) + 0.62 * I + 0.45 * halo
+    v = np.where(d < 1, ink(d, 0.8), v)
+    _lit_band(g, v, tt, 0.45, per_pixel=True)
+    return _paint(g, t, fill, v)
+
+
+def c_linse(g):
+    """Ein Sternfoermiges Vergroesserungsglas ueber dem Titel: darin die Schrift riesig, in fremder Farbe."""
+    t, fill, bb = title(g)
+    x0, y0, R = g.at((bb[2] - 0.26, (bb[1] + bb[3]) / 2 + 0.05, 0.36), (0.60, bb[3] - 0.08, 0.40))
+    d = star(g, x0, y0, R, 14)
+    k = 2.0
+    ci, cj = y0 * g.m / g.px - 0.5, x0 * g.m / g.px - 0.5
+    ii, jj = np.mgrid[0:g.gh, 0:g.gw].astype(np.float32)
+    mag = map_coordinates(t.astype(np.float32), (ci + (ii - ci) / k, cj + (jj - cj) / k), order=0) > 0.5
+    lens_bg = 0.45 + 0.55 * np.clip(1 - d, 0, 1) ** 0.8
+    inside = np.where(mag, 0.0, lens_bg + 0.2)
+    v = np.where(t, fill, bg(g) + 0.10 * glow(d, 0.2))
+    v = np.where((d < 1) & (d > 0.95), 0.0, v)
+    return v, [(inside, d < 0.95, ALT)]
+
+
+def c_luecke(g):
+    """Die Seite ist aus grob gekachelten Bloecken gebaut; der Stern ist die Luecke, wo Kacheln fehlen."""
+    b = g.at(0.034, 0.034)
+    x0, y0, R = g.at((1.22, 0.50, 0.42), (0.50, 0.82, 0.42))
+    bi, bj = np.floor(g.Y / b), np.floor((g.X - (g.A % b) / 2) / b)
+    cx, cy = (bj + 0.5) * b + (g.A % b) / 2, (bi + 0.5) * b
+    D = sd(cx - x0, cy - y0, 14) / R
+    ly, lx = g.Y - bi * b, g.X - (g.A % b) / 2 - bj * b
+    gap = g.px / g.m * 1.01
+    tile_ = (lx > gap) & (ly > gap)
+    rng = np.random.default_rng(3)
+    jitter = rng.random((int(bi.max()) + 2, int(bj.max()) + 2))[bi.astype(int), bj.astype(int)]
+    val = 0.16 + 0.22 * (1 - np.clip((D - 1) / 1.6, 0, 1)) + 0.08 * jitter
+    rim = (D >= 1) & (D < 1.18)
+    val = np.where(rim, 0.78, val)
+    return np.where(tile_ & (D >= 1), val, np.where(D < 1, 0.0, bg(g, 0.0, 0.03)))
+
+
+def c_escher(g):
+    """Kleiner und kleiner: ein konformes Sternparkett, das sich zum Zentrum ins Unendliche zieht (Escher)."""
+    x0, y0, R = g.at((1.25, 0.52, 0.55), (0.5, 0.84, 0.5))
+    x, y = g.X - x0, g.Y - y0
+    r = np.hypot(x, y) + 1e-6
+    n = 12
+    P = 2 * np.pi / n
+    u = np.log(r / R)
+    v = np.arctan2(y, x) + 0.35 * u
+    ring = np.floor(u / P)
+    v = v + (ring % 2) * P / 2
+    lu, lv = (u / P % 1 - 0.5) * P, (v / P % 1 - 0.5) * P
+    par = sd(lv, lu, 0) < 0.42 * P
+    d = star(g, x0, y0, R, 14)
+    par ^= d < 0.62
+    lum = 0.25 + 0.72 * np.clip(1 - r / (R * 1.6), 0, 1) ** 0.7
+    return np.where(par & (r < R * 1.6) & (r > 0.004), lum, bg(g))
+
+
+# ---------------------------------------------------------------- Brand-Serie (S34 ff.): eingebrannt, verkohlt, geschmolzen
+# Wertraum = Hitze: auf Nachtpaletten glueht es, auf Papierpaletten (Riso, Eis, Zitrone) wird dieselbe Hitze zu Brandspur.
+
+def fbm(g, s, seed=0, octs=4, X=None, Y=None):
+    """fBm-Wertrauschen, Massstab s in m (aufloesungsunabhaengig), grob in [-1, 1], fester Seed."""
+    X, Y = (g.X if X is None else X), (g.Y if Y is None else Y)
+    rng = np.random.default_rng(seed)
+    acc, tot = np.zeros(np.shape(X), np.float32), 0.0
+    for o in range(octs):
+        lat, f, a = rng.random((64, 64)).astype(np.float32), 2 ** o / s, 0.5 ** o
+        acc += a * map_coordinates(lat, ((Y * f) % 64, (X * f) % 64), order=3, mode="grid-wrap")
+        tot += a
+    return np.clip((acc / tot - 0.5) * 3.2, -1, 1)
+
+
+def cells(g, s, seed=0, X=None, Y=None):
+    """Voronoi (Zellgroesse s in m): Abstand zum naechsten und zweitnaechsten Kern (in Zellen), Zufallswert der
+    Zelle und ihr Kern in m."""
+    X, Y = (g.X if X is None else X), (g.Y if Y is None else Y)
+    u, w = X / s, Y / s
+    iu, iw = np.floor(u), np.floor(w)
+    J = np.random.default_rng(seed).random((3, 97, 97))
+    f1, f2 = np.full(u.shape, 9.0), np.full(u.shape, 9.0)
+    h, ku, kw = np.zeros(u.shape), np.zeros(u.shape), np.zeros(u.shape)
+    for a in (-1, 0, 1):
+        for b in (-1, 0, 1):
+            cu, cw = iu + a, iw + b
+            ki, kj = (cw % 97).astype(int), (cu % 97).astype(int)
+            pu, pw = cu + J[0, ki, kj], cw + J[1, ki, kj]
+            dd = np.hypot(pu - u, pw - w)
+            nr = dd < f1
+            f2 = np.where(nr, f1, np.minimum(f2, dd))
+            h, ku, kw = np.where(nr, J[2, ki, kj], h), np.where(nr, pu, ku), np.where(nr, pw, kw)
+            f1 = np.where(nr, dd, f1)
+    return f1, f2, h, ku * s, kw * s
+
+
+def dots(g, acc, xs, ys, vals):
+    """Punkte (m) ins logische Raster, es gilt das Maximum."""
+    i, j = np.floor(ys * g.m / g.px).astype(int), np.floor(xs * g.m / g.px).astype(int)
+    ok = (i >= 0) & (i < g.gh) & (j >= 0) & (j < g.gw)
+    np.maximum.at(acc, (i[ok], j[ok]), np.broadcast_to(vals, xs.shape)[ok])
+
+
+def c_brandmal(g):
+    """S34 Brandmal: mit dem Eisen in die Seite gebrannt. Weissgluehender Abdruckrand, verkohltes Inneres mit
+    gluehenden Rissen, aussen ein Sengring, der in Fingern und Russflecken ausfranst."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos(g.at((1.22, 0.56, 0.42), (0.56, 1.02, 0.42)))
+    d = star(g, x0, y0, R, g.ro(14))
+    n1, n2 = fbm(g, 0.35 * R, 341), fbm(g, 0.07 * R, 342)
+    dn = d + 0.05 * n1 + 0.025 * n2                                   # das Eisen drueckt nicht ueberall gleich
+    f1, f2, h, _, _ = cells(g, 0.10 * R, 34, g.X + 0.015 * R * n2, g.Y)
+    hot = np.clip((dn - 0.35) / 0.65, 0, 1) ** 1.5                  # zum Rand hin heisser
+    crack = (f2 - f1) < 0.06 + 0.10 * hot
+    v_in = np.where(crack, 0.45 + 0.55 * hot, 0.10 + 0.10 * h + 0.18 * hot)
+    w = np.clip(0.20 + 0.18 * n1 + 0.06 * n2, 0.03, None)             # Sengring mit Fingern
+    sc = np.exp(-np.maximum(dn - 1, 0) / w)
+    soot = (n2 > 0.35) & (sc > 0.15) & (sc < 0.7)                      # Russflecken im Sengring
+    v_out = bg(g) + 0.85 * sc ** 1.4 - 0.25 * soot * sc
+    rim_ = (dn >= 0.88) & (dn < 1)
+    v = np.where(dn < 1, np.where(rim_, 1.0, v_in), v_out)
+    g.lit = clean(rim_, 1)
+    return _paint(g, t, fill, np.clip(v, 0, 1))
+
+
+def c_durchgebrannt(g):
+    """S35 Durchgebrannt: die Seite brennt entlang des Sterns durch. Das Loch ist Nichts, davor ein Glutsaum,
+    ein verkohlter Rand und Brandnester, die sich vor der Front in die Seite fressen."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos(g.at((1.22, 0.56, 0.44), (0.56, 1.02, 0.44)))
+    d = star(g, x0, y0, R, g.ro(14))
+    n1, n2, n3 = fbm(g, 0.30 * R, 351), fbm(g, 0.06 * R, 352), fbm(g, 0.10 * R, 353)
+    P = d - 1 + 0.12 * n1 + 0.035 * n2                                # Brandfront, < 0 = weg
+    nests = (0.55 - n3) * 0.9 + 0.8 * np.maximum(P, 0)             # kleine Loecher kurz vor der Front
+    P = np.minimum(P, nests)
+    page = bg(g, 0.28, 0.08) + 0.03 * n2
+    sear = np.clip((P - 0.08) / 0.40, 0, 1)                          # 0 an der Kohle, 1 = unversehrte Seite
+    v = np.where(P < 0, 0.0, np.where(P < 0.035, 1.0, np.where(P < 0.075, 0.62, 0.03 + (page - 0.03) * sear ** 0.8)))
+    g.lit = clean((P >= 0) & (P < 0.075), 1)
+    return _paint(g, t, fill, v)
+
+
+def c_schmelze(g):
+    """S36 Schmelze: der Stern sackt zusammen und laeuft aus. Tropfen ziehen mit der Schwerkraft nach unten,
+    einige erreichen den Seitenrand und sammeln sich dort als Lache."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos(g.at((1.20, 0.40, 0.38), (0.56, 0.80, 0.38)))
+    rot = g.ro(14)
+    s = np.clip((g.Y - (y0 - R)) / (2 * R), 0, 1)                     # 0 oben, 1 unten
+    d = sd((g.X - x0) / (1 + 0.28 * s ** 2), g.Y - y0 - 0.32 * R * s ** 2, rot) / R   # unten breit gelaufen, abgesackt
+    M = d < 1
+    lp = g.px / g.m
+    X1 = g.X[0]
+    rng = np.random.default_rng(36)
+    L = 0.012 + 0.025 * np.clip(fbm(g, 0.05 * R, 361)[0] + 0.3, 0, 1)   # ueberall ein wenig Lauf
+    hl = np.zeros(g.gw, bool)
+    pool = np.zeros(g.gw)
+    bulbs = []
+    rows = np.arange(g.gh)[:, None]
+    last = np.maximum.accumulate(np.where(M, rows, -10 ** 6), axis=0)
+    for k in range(16):
+        xk = x0 + R * rng.uniform(-0.9, 0.9)
+        wk = R * rng.uniform(0.025, 0.07)
+        lk = 9.0 if k % 4 == 0 else R * rng.uniform(0.15, 1.3)         # jeder vierte laeuft bis unten
+        u = (X1 - xk) / wk
+        L = np.maximum(L, lk * np.clip(1 - u ** 2, 0, 1) ** 0.25)
+        hl |= (u > -0.75) & (u < -0.35)
+        if lk > 5:
+            pool += 0.035 * np.exp(-((X1 - xk) / (4 * wk + 0.03)) ** 2)
+        else:
+            j = int(np.clip(round(xk / lp), 0, g.gw - 1))
+            if M[:, j].any():
+                bulbs.append((xk, np.nonzero(M[:, j])[0].max() * lp + lk, 1.25 * wk))
+    dist = (rows - last) * lp
+    drip = (last >= 0) & (dist <= L[None, :]) & ~M
+    for bx, by, br in bulbs:
+        drip |= np.hypot(g.X - bx, g.Y - by) < br
+    ii, jj = np.mgrid[0:g.gh, 0:g.gw].astype(np.float32)
+    wob = 0.05 * R * np.clip(dist / R, 0, 1) * np.sin(g.Y / (0.12 * R) + 3 * fbm(g, 0.3 * R, 362)) / lp   # Laeufe schlingern
+    warp = lambda m: map_coordinates(m.astype(np.float32), (ii, jj + wob), order=0) > 0.5            # noqa: E731
+    hl2, drip = warp(drip & hl[None, :]), warp(drip) & ~M
+    pl = g.Y > g.B - 0.012 - pool[None, :]
+    v = bg(g) + 0.12 * glow(d, 0.3)
+    v = np.where(pl, np.where(g.Y < g.B - 0.012 - pool[None, :] + 1.5 * lp, 1.0, 0.72), v)
+    v = np.where(drip, np.where(hl2, 1.0, 0.92 - 0.35 * np.clip(dist / 0.8, 0, 1)), v)
+    v = np.where(M, ink(d, 0.6), v)
+    g.lit = clean((M | drip | pl) & (v >= 0.5), 1)
+    return _paint(g, t, fill, v)
+
+
+def c_einbrennen(g):
+    """S37 Einbrennen: der Stern hat sich in den Schirm gebrannt. Er selbst hell, dahinter eine Kette von
+    Nachbildern in der Zweitfarbe (wie auf der Netzhaut), jedes blasser und in mehr Zeilen zerfallen."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos(g.at((1.30, 0.62, 0.36), (0.62, 1.10, 0.36)))
+    rot = g.ro(14)
+    d = star(g, x0, y0, R, rot)
+    a = np.radians(g.at(165, 150))                                  # nach links unten, weg vom Titel
+    ii = np.arange(g.gh)[:, None]
+    v2, m2 = np.zeros(d.shape), np.zeros(d.shape, bool)
+    for k in range(9, 0, -1):                                        # hinten zuerst, das juengste liegt oben
+        off = 0.30 * R * k ** 1.15
+        dk = star(g, x0 + off * np.cos(a), y0 + off * np.sin(a), R * (1 + 0.06 * k), rot - 6 * k)
+        sk = (dk < 1) & ((ii % (1 + k // 2 + 1)) < 2 if k > 1 else True)   # zerfaellt in Zeilen
+        edge = (dk < 1) & (dk > 1 - 0.10)
+        lvl = 0.95 * 0.8 ** k
+        v2 = np.where(sk | edge, np.where(edge, min(1.0, 1.4 * lvl), lvl), np.where(dk < 1, 0.0, v2))
+        m2 |= dk < 1
+    s = d < 1
+    v = np.where(s, ink(d, 0.75), bg(g) + 0.14 * glow(d, 0.3))
+    g.lit = clean(s, 1)
+    return _paint(g, t, fill, v), [(v2, m2 & ~s & ~(t > 0), ALT)]
+
+
+def c_glut(g):
+    """S38 Glut: der Stern ist ein Haufen Glutbrocken, zum Rand hin kaelter und broeckelnd; Funken steigen
+    in kurzen, geraden Bahnen auf (Belichtung 1/15 s)."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos(g.at((1.22, 0.60, 0.42), (0.56, 1.06, 0.42)))
+    rot = g.ro(14)
+    d = star(g, x0, y0, R, rot)
+    f1, f2, h, kx, ky = cells(g, 0.075 * R, 38)
+    dk = sd(kx - x0, ky - y0, rot) / R
+    keep = h > 0.3 * np.clip((dk - 1.05) / 0.3, 0, 1)                # am Rand fallen Brocken heraus
+    ember = (d < 1) & keep & ((f2 - f1) > 0.12)
+    heat = (0.35 + 0.65 * h ** 0.7) * np.clip(1.25 - 0.45 * dk, 0.5, 1)
+    core = np.clip(1 - f1 / 0.8, 0, 1)
+    v = bg(g) + 0.24 * glow(d, 0.3)
+    v = np.where((d < 1) & ~ember, 0.06, v)                          # Asche zwischen den Brocken
+    v = np.where(ember, np.clip(0.2 + heat * (0.3 + 0.8 * core), 0, 1), v)
+    acc = np.zeros(d.shape)
+    rng = np.random.default_rng(380)
+    lp = g.px / g.m
+    for _ in range(220):
+        th = rng.uniform(0, 2 * np.pi)
+        r0 = R * star_r(np.cos(th), np.sin(th), rot) * rng.uniform(0.5, 1.0)
+        sx, sy = x0 + r0 * np.cos(th), y0 + r0 * np.sin(th)
+        fly = R * rng.exponential(0.7)                                # wie weit er schon ist
+        a = np.radians(-90 + rng.normal(0, 30)) + 0.4 * np.cos(th)
+        hx, hy = sx + fly * np.cos(a) + 0.2 * fly * np.cos(th), sy + fly * np.sin(a)
+        ln = R * rng.uniform(0.05, 0.22)                                # Strich = Bewegung waehrend der Belichtung
+        tt = np.linspace(0, 1, max(3, int(ln / lp * 1.5)))
+        lv = np.clip(1.2 - fly / (3 * R), 0.6, 1)
+        dots(g, acc, hx - ln * np.cos(a) * (1 - tt), hy - ln * np.sin(a) * (1 - tt), lv * (0.3 + 0.7 * tt))
+    v = np.maximum(v, acc)
+    g.lit = clean(ember & (v >= 0.5), 1)
+    return _paint(g, t, fill, v)
+
+
+def c_filmbrand(g):
+    """S39 Filmbrand: der Stern brennt durch die Emulsion. Er selbst ausgeblendet weiss, drumherum schmilzt der
+    Film in Blasen, gross am Stern, klein nach aussen, jede mit verkohltem Saum."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos(g.at((1.22, 0.56, 0.40), (0.56, 1.02, 0.40)))
+    d = star(g, x0, y0, R, g.ro(14))
+    n1, n2 = fbm(g, 0.4 * R, 391), fbm(g, 0.05 * R, 392)
+    dw = d + 0.10 * n1 + 0.03 * n2
+    zone = np.clip(1 - (dw - 1) / 1.3, 0, 1)
+    v = bg(g, 0.02, 0.04) + 0.30 * zone ** 3 + 0.5 * np.exp(-np.maximum(dw - 1.05, 0) / 0.18)   # Emulsion glueht am Stern
+    for s, sd_, gain in ((0.16 * R, 393, 0.62), (0.06 * R, 394, 0.55)):
+        f1, _, h, _, _ = cells(g, s, sd_, g.X + 0.2 * s * n2, g.Y)
+        rb = gain * zone ** 1.6 * (0.55 + 0.45 * h)
+        bub = f1 < rb
+        seam = (f1 >= rb) & (f1 < rb + 0.16) & (rb > 0.08)
+        v = np.where(seam, 0.0, v)
+        v = np.where(bub, np.where(f1 > rb - 0.1, 0.75, 1.0), v)
+    s_ = dw < 1
+    v = np.where(s_, 1.0, np.where((dw < 1.05), 0.0, v))
+    g.lit = clean(s_, 1)
+    return _paint(g, t, fill, v)
+
+
+def _gray_scott(F, k, V0, n):
+    """Gray-Scott-Reaktionsdiffusion auf festem Raster, F und k duerfen Felder sein."""
+    U, V = np.ones(V0.shape), V0.astype(float)
+    for _ in range(n):
+        lu = np.roll(U, 1, 0) + np.roll(U, -1, 0) + np.roll(U, 1, 1) + np.roll(U, -1, 1) - 4 * U
+        lv = np.roll(V, 1, 0) + np.roll(V, -1, 0) + np.roll(V, 1, 1) + np.roll(V, -1, 1) - 4 * V
+        uvv = U * V * V
+        U += 0.16 * lu - uvv + F * (1 - U)
+        V += 0.08 * lv + uvv - (F + k) * V
+    return V
+
+
+def c_verkohlung(g):
+    """S40 Verkohlung: Reaktionsdiffusion frisst sich durch den Stern. Innen dichtes Labyrinth wie verkohlte
+    Maserung, am Rand loest es sich in Punkte auf, die nach aussen absterben."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos(g.at((1.22, 0.56, 0.44), (0.56, 1.02, 0.44)))
+    rot = g.ro(14)
+    N, ext = 300, 1.5 * R                                             # festes Rechenraster um den Stern
+    q = (np.arange(N) + 0.5) / N * 2 * ext - ext
+    QX, QY = np.meshgrid(q, q)
+    dq = sd(QX, QY, rot) / R
+    w = np.clip((dq - 0.92) / 0.35, 0, 1)
+    F, k = 0.037 + (0.026 - 0.037) * w, 0.060 + (0.061 - 0.060) * w + 0.012 * np.clip((dq - 1.3) / 0.3, 0, 1)
+    V0 = (np.random.default_rng(40).random((N, N)) < 0.02) * (dq < 1) * 0.5
+    V = _gray_scott(F, k, V0, 4000)
+    ci, cj = (g.Y - y0 + ext) / (2 * ext) * N - 0.5, (g.X - x0 + ext) / (2 * ext) * N - 0.5
+    Vg = map_coordinates(V, (ci, cj), order=1, cval=0)
+    d = star(g, x0, y0, R, rot)
+    pat = np.clip((Vg - 0.12) / 0.2, 0, 1)
+    v = np.where(d < 1, 0.18 + 0.82 * pat, bg(g) + 0.1 * glow(d, 0.3) + 0.7 * pat)
+    g.lit = clean((d < 1) & (pat > 0.5), 1)
+    return _paint(g, t, fill, v)
+
+
+def c_zerfall(g):
+    """S41 Zerfall: der Stern zerbroeselt von unten zu Pixelsand. Die Koerner rieseln in Stroemen herab und
+    tuermen sich am Seitenrand zu Haufen (fallender Sand, ein zellulaerer Automat, Momentaufnahme mitten im Fall)."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos(g.at((1.22, 0.40, 0.40), (0.56, 0.80, 0.40)))
+    rot = g.ro(14)
+    d = star(g, x0, y0, R, rot)
+    S = d < 1
+    e = (g.Y - y0) / R + 0.25 * (g.X - x0) / R + 0.45 * fbm(g, 0.25 * R, 411)
+    rng = np.random.default_rng(41)
+    thr = 0.05 + 0.45 * rng.random(S.shape)                         # Kruemelzone statt glatter Kante
+    gone = S & (e > thr)
+    snap = int(0.95 * g.gh)                                          # so viele Schritte, dann Foto
+    lo, hi = e[gone].min(), e[gone].max()
+    rel = np.where(gone, ((hi - e) / (hi - lo + 1e-6) * 1.15 * snap).astype(int), -1)   # unten zuerst
+    stay = S & ~(gone & (rel < snap))                                # spaeter Freigegebenes haengt noch
+    sand = np.zeros(S.shape, bool)
+    hh = np.arange(g.gh)[:, None]
+    for step in range(snap):
+        sand |= rel == step
+        occ = stay | sand
+        below = np.roll(occ, -1, 0)
+        below[-1] = True
+        mv = sand & ~below
+        sand = (sand & ~mv) | np.roll(mv, 1, 0)
+        occ = stay | sand
+        for dj in ((1, -1) if step % 2 else (-1, 1)):             # abrutschen, abwechselnd links und rechts
+            diag = np.roll(np.roll(occ, -1, 0), -dj, 1)
+            sl = sand & np.roll(occ, -1, 0) & ~diag & ~np.roll(occ, -dj, 1) & (hh < g.gh - 1)
+            sand = (sand & ~sl) | np.roll(np.roll(sl, 1, 0), dj, 1)
+            occ = stay | sand
+    v = bg(g) + 0.10 * glow(d, 0.3)
+    v = np.where(sand, g.c.lvl(g.N - 2) + (g.c.lvl(g.N) - g.c.lvl(g.N - 2)) * (rng.random(S.shape) < 0.45), v)   # flache Stufen, kein Korn im Korn
+    v = np.where(stay, ink(d, 0.6), v)
+    g.lit = clean(stay, 1)
+    return _paint(g, t, fill, v)
+
+
+def c_fata(g):
+    """S42 Fata Morgana: der Stern ist so heiss, dass die Luft flimmert. Eine Hitzesaeule steigt in gewellten
+    Schlieren auf, die oberen Spitzen wabern, und unter der Zeile erscheint der Titel ein zweites Mal, gespiegelt."""
+    t, fill, bb = title(g)
+    x0, y0, R = g.pos(g.at((1.22, 0.66, 0.40), (0.56, 1.10, 0.40)))
+    rot = g.ro(14)
+    lp = g.px / g.m
+    up_ = np.maximum(y0 - g.Y, 0)
+    col = np.exp(-((g.X - x0) / (0.9 * R + 0.35 * up_)) ** 2)            # Saeule, nach oben breiter
+    heat = col * np.exp(-up_ / (2.5 * R)) * np.clip((y0 + 0.3 * R - g.Y) / (0.6 * R), 0, 1)
+    turb = fbm(g, 0.5 * R, 421, 3, X=g.X, Y=g.Y * 0.35) + 0.5 * fbm(g, 0.15 * R, 422, 3, X=g.X, Y=g.Y * 0.5)
+    dx = heat * R * (0.05 * np.sin(g.Y / (0.05 * R) + 2.5 * turb) + 0.05 * turb)
+    d = sd(g.X + dx * (g.Y < y0) - x0, g.Y - y0, rot) / R
+    ph = (g.X - x0 + 0.25 * R * turb * (1 + up_ / R)) / (0.045 * R)
+    schl = (np.sin(ph) > 0.55) * heat                                 # Schlieren: gewellte Hitzelinien
+    cap = bb[3] - bb[1]
+    my = 2 * bb[3] + 0.25 * cap - g.Y                                # Spiegelbild unter der Zeile
+    wav = 0.006 * np.sin(g.Y / 0.008 + 2 * turb) + 0.012 * turb
+    mir = map_coordinates(g.T.astype(np.float32), (my / lp - 0.5, (g.X + wav) / lp - 0.5), order=0, cval=0) > 0.5
+    fade = np.clip(1 - (g.Y - bb[3]) / (1.15 * cap), 0, 1) * (g.Y > bb[3])
+    v = bg(g) + 0.16 * glow(d, 0.4) + 0.2 * heat + 0.45 * schl
+    hi = 0.6 if not g.poster else 0.15                               # Plakat: leise, darunter steht das Datum
+    v = np.where(mir & (fade > 0), np.maximum(v, 0.2 + hi * fade), v)
+    v = np.where(d < 1, ink(d, 0.7), v)
+    g.lit = clean(d < 1, 1)
+    return _paint(g, t, fill, np.clip(v, 0, 1))
+
+
+def c_wunderkerze(g):
+    """S43 Wunderkerze: der Stern mit einer Wunderkerze in die Nacht gemalt (Langzeitbelichtung). Die Spur
+    gluehend, ueberall spruehen verzweigte Funken, am Kopf der Kerze ein Funkenball."""
+    t, fill, _ = title(g)
+    x0, y0, R = g.pos(g.at((1.22, 0.56, 0.42), (0.56, 1.02, 0.42)))
+    rot = g.ro(14)
+    lp = g.px / g.m
+    th0 = np.radians(rot + 30)
+    th = th0 + np.linspace(0, 2 * np.pi * 0.94, 4000)
+    rr = R * star_r(np.cos(th), np.sin(th), rot)
+    px_, py_ = x0 + rr * np.cos(th), y0 + rr * np.sin(th)
+    age = np.linspace(0.45, 1.0, th.size)                             # alte Spur dunkler
+    acc = np.zeros((g.gh, g.gw))
+    for ox, oy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+        dots(g, acc, px_ + ox * lp, py_ + oy * lp, age)
+    acc = np.maximum(acc, gaussian_filter(acc, 1.0) * 1.4)
+    rng = np.random.default_rng(43)
+
+    def spark(x, y, a, ln, lv, depth):
+        tt = np.linspace(0, 1, max(4, int(ln / lp * 1.6)))
+        xs, ys = x + ln * np.cos(a) * tt, y + ln * np.sin(a) * tt
+        dots(g, acc, xs, ys, lv * (1 - 0.5 * tt))
+        if depth:
+            for _ in range(rng.integers(2, 4)):                        # Wunderkerzenfunken gabeln am Ende
+                spark(xs[-1], ys[-1], a + rng.normal(0, 0.5), ln * rng.uniform(0.15, 0.35), lv * 0.9, depth - 1)
+
+    for n in range(300):
+        i = int(th.size * rng.random() ** 0.6)
+        spark(px_[i], py_[i], rng.uniform(0, 2 * np.pi), R * rng.exponential(0.09), 0.5 + 0.5 * age[i], int(rng.random() < 0.5))
+    hx, hy = px_[-1], py_[-1]
+    for n in range(90):                                              # Funkenball am Kopf
+        spark(hx, hy, rng.uniform(0, 2 * np.pi), R * rng.uniform(0.1, 0.5), 1.0, 1)
+    hr = np.hypot(g.X - hx, g.Y - hy)
+    d = star(g, x0, y0, R, rot)
+    v = bg(g) + 0.10 * glow(d, 0.3) + 0.5 * np.exp(-hr / (0.06 * R))
+    v = np.maximum(v, np.clip(acc, 0, 1))
+    v = np.where(hr < 0.035 * R + lp, 1.0, v)
+    g.lit = clean(acc > 0.6, 1)
+    return _paint(g, t, fill, np.clip(v, 0, 1))
+
+
+CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) stehen unter ihrem Stamm
+    ("S13", c_sternkind, "Sternkind", "Jede Spitze gebiert einen kleineren Stern, der nach aussen weiterwaechst: Stern-Koch-Kurve."),
+    ("S14", c_attraktor, "Sternstaub", "Chaos-Spiel-Attraktor aus zwoelf Sternpunkten, leicht verdreht: der Stern als Staubgalaxie."),
+    ("S15", c_wirbel, "Schlund", "Das XOR-Nest im Log-Polar-Raum verdrillt: eine unendliche Spirale nach innen."),
+    ("S16", c_escher, "Kleiner und kleiner", "Konformes Sternparkett, das sich zum Zentrum ins Unendliche zieht (Escher)."),
+    ("S17", c_drehfeld, "Drehfeld", "Gitter kleiner Sterne, draussen verdreht, im grossen Stern ausgerichtet: ein Geheimbild aus Ordnung."),
+    ("S18", c_interferenz, "Interferenz", "Zwei Hoehenlinien-Sterne ueber die ganze Seite, XOR: Sternmoire."),
+    ("S18b", c_interferenz3, "Interferenz Drei", "Dritte Quelle: ein Dreistern (Logo-Profil mit drei Spitzen) mischt sein Dreiecksmoire hinein."),
+    ("S18c", c_interferenz3z, "Dreieckszentrum", "Der Dreistern als Zentrum, zwei kleine Sechssterne flankieren: das Moire bekommt eine dreieckige Ordnung."),
+    ("S19", c_kaleido, "Kaleidoskop", "Zwoelffach gefaltetes Feld aus versetzten Sternen, XOR: ein Siegel aus einer fremden Kultur."),
+    ("S19b", c_kaleido_siegel, "Siegel", "Kaleidoskop in der Sternsilhouette: Sternringe und Kreisbaender kippen die Paritaet nach aussen."),
+    ("S19c", c_kaleido_spiegel, "Spiegelkabinett", "Echtes Kaleidoskop (drei Spiegel, p6m): ein Sternmotiv unendlich gekachelt, sichtbar durch den Stern."),
+    ("S19d", c_kaleido_nest, "Nest-Rosette", "Das XOR-Nest aus der Mitte geschoben und sechsfach gespiegelt."),
+    ("S19e", c_kaleido_drei, "Dreifach", "Dreifaches Kaleidoskop aus Dreisternen, in Dreisternsilhouette."),
+    ("S20", c_fluessig, "Plasma-Nest", "Das Nest in sinus-verbogenem Raum, die Spitzen zuengeln wie Flammen."),
+    ("S21", c_loch, "Schacht", "Die Seite ist hell, der Stern ein Loch, das in Stufen ins Schwarze faellt."),
+    ("S22", c_luecke, "Luecke", "Die Seite aus groben Kacheln, der Stern ist die Luecke, wo Kacheln fehlen."),
+    ("S23", c_anschnitt, "Anschnitt", "Riesiges Nest, Mitte ausserhalb der Seite: nur die Spitzen ragen herein."),
+    ("S24", c_rahmen, "Rahmen", "Die ganze Seite liegt im Stern, die Ecken sind das Aussen."),
+    ("S25", c_fenster, "Fenster", "Der Stern als Fenster in eine andere Palette und ein anderes Universum."),
+    ("S26", c_xortitel, "Kippschrift", "Glutstern mittig hinter dem Titel; wo die Schrift ihn kreuzt, kippt sie ins Negativ."),
+    ("S27", c_durchblick, "Durchblick", "Die Buchstaben sind Fenster auf ein riesiges XOR-Nest hinter der Seite."),
+    ("S28", c_finsternis, "Finsternis", "Ein schwarzer Stern schiebt sich vor den hellen, die Korona glueht."),
+    ("S29", c_aufgang, "Aufgang", "Der Stern geht hinter der Titelzeile auf, die Buchstaben stehen als Silhouette davor."),
+    ("S30", c_versatz, "Versatz: Zeilensprung", "Der Stern als Halbbilder: jedes zweite Band zeigt ihn einen Moment spaeter, gedreht und verschoben."),
+    ("S30b", c_verschluss, "Versatz: Rolling Shutter", "Band fuer Band abgetastet, waehrend er sich dreht: der Stern verdreht sich treppenartig."),
+    ("S31", c_gegenlicht, "Gegenlicht", "Stern hinter dem Titel, Lichtstrahlen brechen durch die Buchstabenluecken."),
+    ("S31b", c_lichtfall, "Lichtfall", "Lange Schaechte ohne Abklingen: die Buchstabenschatten ziehen bis an den Rand, Licht faellt ueber die untere Haelfte."),
+    ("S31c", c_zweitlicht, "Zweitlicht", "Stern in der eigenen Palette, das Licht dahinter in einer zweiten (Blau mit Gold, CGA mit Laserrot)."),
+    ("S31d", c_randlicht, "Randlicht", "Schwarze Buchstabenkoerper, harte Lichtkante wo das Gegenlicht sie streift, weiche Schaechte."),
+    ("S31e", c_flare, "Flare", "Anamorpher Lichtstreif, Geisterbilder auf der Achse durch die Seitenmitte, kurze Strahlen."),
+    ("S31f", c_strahlenkranz, "Strahlenkranz", "Harte Lichtkeile strahlen vom Stern hinter dem Titel ueber die ganze Seite, mit Buchstabenschatten."),
+    ("S32", c_linse, "Linse", "Sternfoermige Lupe ueber dem Titel, darin die Schrift riesig in fremder Farbe."),
+    ("S34", c_brandmal, "Brandmal", "Mit dem Eisen eingebrannt: weissgluehender Rand, verkohltes Inneres mit Glutrissen, Sengring mit Fingern."),
+    ("S35", c_durchgebrannt, "Durchgebrannt", "Die Seite brennt entlang des Sterns durch: Loch, Glutsaum, Kohlerand, Brandnester vor der Front."),
+    ("S36", c_schmelze, "Schmelze", "Der Stern sackt ab und laeuft aus: Tropfen mit Glanzkante, unten eine Lache."),
+    ("S37", c_einbrennen, "Einbrennen", "Burn-in: eine Kette von Nachbildern in der Zweitfarbe, jedes blasser und in Zeilen zerfallen."),
+    ("S38", c_glut, "Glut", "Der Stern als Haufen Glutbrocken, aussen kalt und broeckelnd, Funken fliegen nach oben."),
+    ("S39", c_filmbrand, "Filmbrand", "Der Stern brennt durch die Emulsion: weiss ausgeblendet, drumherum Blasen mit Kohlesaum."),
+    ("S40", c_verkohlung, "Verkohlung", "Reaktionsdiffusion: innen Labyrinth wie verkohlte Maserung, aussen Punkte, die absterben."),
+    ("S41", c_zerfall, "Zerfall", "Der Stern zerbroeselt zu Pixelsand, der herabrieselt und sich unten tuermt."),
+    ("S42", c_fata, "Fata Morgana", "Die Hitze ueber dem Stern flimmert: Spitzen zittern, der Titel spiegelt sich zerrissen in der Luft."),
+    ("S43", c_wunderkerze, "Wunderkerze", "Mit der Wunderkerze in die Nacht gemalt: gluehende Spur, verzweigte Funken, Funkenball am Kopf."),
+]
+BY = {c[0]: c for c in CANDS}
+CMP = {"S26v1": c_xortitel_alt, "S30v1": c_versatz_alt, "S31b2": c_lichtfall_kurz}   # alte Fassungen, nur Vergleich
+PARENT = {c: c.rstrip("bcdefgh") for c in BY}
+# Urteil (1-5, wofuer, Satz). Vadim 2026-09-25: raus = S15 S16 S17 S20 S21 S22 S25 S27 S28 S32. Varianten: meine Sichtung.
+URTEIL = {"S13": (4, "beides", "Vadim: cool, bleibt."),
+          "S14": (4, "beides", "Vadim: super, sehr typisch Informatik. Bleibt."),
+          "S15": (1, "raus", "Vadim: tacky."),
+          "S16": (1, "raus", "Vadim: sieht aus wie Europa, komisch."),
+          "S17": (1, "raus", "Vadim: raus."),
+          "S18": (3, "beides", "Vadim: interessant, dritte Quelle dazu (S18b, S18c)."),
+          "S18b": (4, "beides", "Drei Wellen mit endlicher Reichweite: jede Quelle bleibt lesbar, der Dreistern oben ist eindeutig."),
+          "S18c": (3, "beides", "Ruhiger, symmetrisch; eher Emblem als Moire."),
+          "S19": (3, "beides", "Vadim: cool, mehr Varianten und cooler (S19b-e)."),
+          "S19b": (4, "beides", "Staerkste S19: Motive nur auf den Spiegelachsen, liest sich wie ein Abzeichen."),
+          "S19c": (3, "beides", "Echtes Spiegelgitter; dicht, nah an Schneeflocke."),
+          "S19d": (4, "beides", "Am meisten Informatik: das Nest als Mosaik."),
+          "S19e": (3, "beides", "Dreieckig, eigenstaendig, etwas Triforce."),
+          "S20": (1, "raus", "Vadim: raus."),
+          "S21": (1, "raus", "Vadim: raus."),
+          "S22": (1, "raus", "Vadim: raus."),
+          "S23": (4, "Plakat", "Vadim: gut."),
+          "S24": (4, "Plakat", "Vadim: gut."),
+          "S25": (1, "raus", "Vadim: schlecht."),
+          "S26": (4, "Plakat", "Vadim: cool, aber der Stern sah komisch aus. Fix: er hing unter der Zeile, oben angeschnitten, "
+                              "schraeg; haardünne Spitzen zerhackten die Buchstaben. Jetzt mittig, ganz im Bild, Spitzen senkrecht, "
+                              "Spitzenenden weggeoeffnet."),
+          "S27": (1, "raus", "Vadim: raus."),
+          "S28": (1, "raus", "Vadim: raus (als Standbild)."),
+          "S29": (3, "Plakat", "Vadim: ok, bleibt."),
+          "S30": (4, "beides", "Vadim: hat was, aber unklar was passiert. Neu: zwei Halbbilder im Kamm, der Versatz ist sofort lesbar."),
+          "S30b": (3, "beides", "Treppenverdrehung klar, im Standbild etwas unruhig; stark als Bewegung."),
+          "S31": (5, "beides", "Vadim: sehr, sehr cool. Tiefer ins Licht: S31b-f."),
+          "S31b": (5, "beides", "Staerkste: Schaechte bis an den Rand, die Titel-Silhouette steht im Licht."),
+          "S31c": (5, "beides", "Blau/Gold und CGA/Laserrot: zwei Farben ohne Lila, sofort Plakat."),
+          "S31d": (4, "beides", "Lichtkante nur wo Licht hinkommt (Schattentest), sonst wirkt sie wie Outline."),
+          "S31e": (3, "beides", "Balken im Durchschuss ist schoen, Geister bleiben leise. Eher Bewegung."),
+          "S31f": (5, "beides", "Harte Lichtkeile mit Buchstabenschatten: Buehnenlicht, sehr Rave."),
+          "S32": (1, "raus", "Vadim: raus.")}
+# Brand-Serie 2026-09-26 (Vadim: zu zahm, wilder; eingebrannt, verkohlt, geschmolzen). Meine Sichtung.
+URTEIL.update({"S34": (5, "beides", "Staerkste der Serie: Glutrand + Kohlerisse; auf Riso eine echte Brandspur im Papier. Kick-off P18/P16, K1/K4."),
+               "S35": (4, "beides", "Loch mit Glutsaum, sehr plakativ. Seite ist hell (Grund 0.3), Titel bleibt lesbar. P11/P18, K6."),
+               "S36": (4, "beides", "Liest sich sofort als Schmelze; auf Tscherenkow eher Eiszapfen. P14/P18, K1 oder K7 (tropft durch den Titel)."),
+               "S37": (4, "beides", "Nachbilder in der Zweitfarbe, Zeilen zerfallen: Rave-Plakat. Kette laeuft nach links unten. K1 ja, K4 zu gross."),
+               "S38": (3, "beides", "Glutbrocken + Funken, Stern lesbar; im A3 (K1) am besten, im 16x9 etwas koernig."),
+               "S39": (3, "beides", "Weisser Stern, Blasen mit Kohlesaum. Grosse weisse Flaeche, im Plakat sehr laut. P14 K1."),
+               "S40": (5, "beides", "Reaktionsdiffusion: Labyrinth im Stern, Punkte als Umriss. Wirkt wie ein Organismus, Tokio K6 top."),
+               "S41": (3, "beides", "Pixelsand-Automat, im 16x9 stark; in grossen K liegt der Stern zu tief, zu wenig Fallhoehe."),
+               "S42": (2, "beides", "Hitzeschlieren wirken wie Flammen (Naehe zu S20); Spiegeltitel im Plakat nur leise. Eher raus."),
+               "S43": (3, "beides", "Wunderkerzen-Lichtmalerei, thematisch perfekt; bei riesigem R werden die Linien zu duenn (K6 statt K1).")})
+URTEIL.update({c: (1, "raus", "Vadim 26.9.: nicht meins.") for c in "S19c S34 S35 S37 S38 S39 S41 S42 S43".split()})
+KEPT =[c for c in BY if URTEIL[c][1] != "raus"]
+
+# Kick-off-Sichtung 2026-09-25 nachts (Vadim)
+URTEIL.update({"S29": (1, "raus", "Vadim: alles schwarz, Stil komplett raus."),
+               "S30": (1, "raus", "Vadim: Stil raus."), "S30b": (1, "raus", "Vadim: Glitch-Look, komplett raus."),
+               "S19b": (1, "raus", "Vadim: diese Art Fraktal ist nichts."),
+               "S18b": (2, "geparkt", "Vadim: Dreistern-Sachen erstmal parken."), "S18c": (2, "geparkt", "Vadim: Dreistern parken."),
+               "S19e": (2, "geparkt", "Vadim: Dreistern parken."),
+               "S19d": (4, "beides", "Vadim: cool, Spitzen waren zu rund -> harter Rand."),
+               "S31e": (4, "beides", "Vadim: der gluehende Stern muss viel groesser, wie eine Sonne.")})
+
+
+# ---------------------------------------------------------------- Render
+
+def fn(code):
+    return BY[code][1] if code in BY else CMP[code]
+
+
+def kick_layout(c):
+    """Test-Satz wie die Kick-off-Kampagne: eine riesige Titelzeile SPARK, sonst dieselben Schluessel wie styles.layout."""
+    L, px = dict(c.L), c.px
+    snap = lambda v: round(v / px) * px                                        # noqa: E731
+    port = c.H > c.W
+    cap = ((c.W - 2 * L["m"]) * (1.0 if port else 0.72) / px // styles.width_per_cap("SPARK")) * px
+    tb = [L["meta"] + snap(0.4 * cap) + cap]
+    L.update(title=("SPARK",), cap=cap, tb=tb, db=tb[-1] + snap(0.42 * cap) + L["capd"])
+    return L
+
+
+def render(code, pal="lav", fmt="16x9", kick=False):
+    g = G({**BASE, "P": pal, "D": D, "R": 4}, fmt)
+    if kick:
+        g.c.L = kick_layout(g.c)
+    r = fn(code)(g)
+    v, extra = (r if isinstance(r, tuple) else (r, []))
+    img = g.pal[dither(v, g.N, D, g.px)]
+    for v2, mask, p2 in extra:
+        p2 = p2[pal] if isinstance(p2, dict) else p2
+        pl = hexpal(p2)
+        col = pl[dither(v2, len(pl) - 1, D, g.px)]
+        img = np.where(up(mask, g.px)[..., None], col, img)
+    return img.astype(np.uint8)
+
+
+# ---------------------------------------------------------------- Plakat im echten Layout (styles.render, K-Satz, XOR-Regel)
+
+# code -> [(palette, dim)]: Top-Auswahl als A3 im echten Satz
+POSTERS = {"S31": [("cherenkov", 731), ("eclipse", 137)], "S31b": [("cherenkov", 312), ("riso", 213)],
+           "S31c": [("cherenkov", 313), ("cga", 331)], "S31d": [("eclipse", 314), ("phosphor", 413)],
+           "S31e": [("eclipse", 315), ("cherenkov", 513)], "S31f": [("riso", 316), ("eclipse", 613)],
+           "S18b": [("cherenkov", 182), ("riso", 281)], "S19b": [("eclipse", 192), ("cga", 291)],
+           "S19c": [("phosphor", 193), ("cherenkov", 391)], "S19d": [("riso", 194)], "S19e": [("eclipse", 195)],
+           "S26": [("cherenkov", 262), ("riso", 626)], "S30": [("phosphor", 302), ("cga", 203)],
+           "S30b": [("cherenkov", 303), ("eclipse", 330)],
+           "S34": [("eclipse", 341), ("riso", 342)], "S36": [("eclipse", 361), ("cherenkov", 362)],
+           "S37": [("cherenkov", 371)], "S40": [("cherenkov", 401), ("riso", 402)]}
+PCODE = {"lav": "P1", "acid": "P5", "cga": "P6", "paper": "P8", "laser": "P9", "phosphor": "P10", "cherenkov": "P11",
+         "uv": "P12", "holo": "P13", "eclipse": "P14", "blueprint": "P15", "riso": "P16"}
+
+
+def poster(code, pal="lav", dim=42):
+    """Kandidat als Stern-Ebene in styles.render(): ganzes Feld als Ebene 'spark', c.star_m = leuchtende Pixel,
+    Zusatzpaletten (Fenster) danach ausserhalb der Schrift einsetzen."""
+    got = {}
+    spark0, type0 = styles.spark, styles.type_layers
+
+    def my_spark(c):
+        g = G(c.st, c.fmt, c)
+        r = fn(code)(g)
+        v, extra = (r if isinstance(r, tuple) else (r, []))
+        c.star_m = g.lit if g.lit is not None else v >= 0.5
+        c.add("spark", np.ones(v.shape, bool), np.clip(v, 0, 1))
+        got.update(g=g, extra=extra)
+
+    def my_type(c):
+        n = len(c.layers)
+        type0(c)
+        got["type"] = np.maximum.reduce([a for _, a, *_ in c.layers[n:]]) > 0
+
+    styles.spark, styles.type_layers = my_spark, my_type
+    try:
+        frame = styles.render(dict(styles.st_of(f"{PCODE[pal]} K1"), poster=True, dim=dim), "a3")[0]
+    finally:
+        styles.spark, styles.type_layers = spark0, type0
+    g = got["g"]
+    for v2, mask, p2 in got["extra"]:
+        pl = hexpal(p2[pal] if isinstance(p2, dict) else p2)
+        col = pl[dither(v2, len(pl) - 1, D, g.px)]
+        frame = np.where((up(mask, g.px) & ~got["type"])[..., None], col, frame).astype(np.uint8)
+    return frame
+
+
+def job_poster(args):
+    code, pal, dim = args
+    p = os.path.join(OUT, f"poster_{code}_{pal}.png")
+    Image.fromarray(poster(code, pal, dim)).quantize(256, method=Image.Quantize.MAXCOVERAGE, dither=Image.Dither.NONE) \
+        .save(p, optimize=True, dpi=(300, 300))
+    return p
+
+
+def job(args):
+    code, pal, fmt, kick = (*args, False)[:4]
+    a = render(code, pal, fmt, kick)
+    p = os.path.join(OUT if not kick else TMP, f"{code}_{pal}_{fmt}.png")
+    im = Image.fromarray(a).quantize(256, method=Image.Quantize.MAXCOVERAGE, dither=Image.Dither.NONE)
+    im.save(p, optimize=True, **({"dpi": (300, 300)} if fmt == "a3" else {}))
+    return p
+
+
+def sheet(files, path, cols=4, tw=480):
+    ims = [Image.open(f).convert("RGB") for f in files]
+    th = round(tw * ims[0].height / ims[0].width)
+    rows = -(-len(ims) // cols)
+    S = Image.new("RGB", (cols * (tw + 8) + 8, rows * (th + 30) + 8), (10, 7, 17))
+    dr = ImageDraw.Draw(S)
+    f = font("DepartureMono-Regular.otf", 22)
+    for n, (fn, im) in enumerate(zip(files, ims)):
+        x, y = 8 + n % cols * (tw + 8), 8 + n // cols * (th + 30)
+        S.paste(im.resize((tw, th), Image.Resampling.BOX), (x, y))
+        dr.text((x, y + th + 4), os.path.basename(fn)[:-4], font=f, fill=(241, 236, 255))
+    S.save(path)
+
+
+def gallery():
+    esc = html.escape
+    files = set(os.listdir(OUT))
+    CSS = """:root{--bg:#0A0711;--fg:#F1ECFF;--mut:#9B8FC0;--line:#2A1F4A;--acc:#AE93EE;--lime:#D7FF3A}
+body{margin:0;padding:24px 16px 80px;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,Menlo,monospace}
+main{max-width:1500px;margin:auto}h1{font-size:22px;margin:0 0 6px}h2{font-size:16px;margin:40px 0 4px;color:var(--acc)}
+h3{font-size:14px;margin:18px 0 2px}p.d{color:var(--mut);margin:0 0 10px;max-width:110ch}
+.row{display:grid;grid-template-columns:2fr 1fr;gap:12px;align-items:start}
+.alts{display:grid;grid-template-columns:1fr 1fr;gap:6px}.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:22px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}.pair.one{grid-template-columns:1fr}
+.var{border-left:2px solid var(--line);padding-left:14px;margin-left:4px}
+img{width:100%;display:block;image-rendering:pixelated;border:1px solid var(--line)}a{color:var(--acc)}code{color:var(--lime)}
+.r{font-size:11px;padding:0 5px;border:1px solid var(--line);color:var(--mut);margin-left:6px}.r.top{color:var(--lime);border-color:var(--lime)}
+.r.raus{color:#6A5E8C;text-decoration:line-through}.raus{opacity:.4}nav a{margin-right:10px}
+@media(max-width:800px){.row{grid-template-columns:1fr}}"""
+    img = lambda f, alt: f'<a href="{f}"><img src="{f}" loading="lazy" alt="{esc(alt)}"></a>'   # noqa: E731
+
+    def tag(code):
+        n, use, _ = URTEIL[code]
+        return f'<span class="r{" top" if n >= 4 else " raus" if use == "raus" else ""}">{n}/5 · {use}</span>'
+
+    def block(code, head="h2"):
+        _, _, t, desc = BY[code]
+        raus = URTEIL[code][1] == "raus"
+        order = ["lav", "acid", "cga", "paper"] if raus else ["cherenkov", "riso", "eclipse", "cga", "phosphor", "lav"]
+        have = [f"{code}_{p}_16x9.png" for p in order if f"{code}_{p}_16x9.png" in files]
+        if not have:
+            return ""
+        note = URTEIL[code][2]
+        return (f'<{head}><code>{code}</code> {esc(t)}{tag(code)}</{head}><p class="d">{esc(desc)}{" " + esc(note) if note else ""}</p>'
+                f'<div class="row">{img(have[0], code)}<div class="alts">{"".join(img(f, f) for f in have[1:])}</div></div>')
+
+    posters = []
+    for code in sorted(POSTERS, key=lambda c: (-URTEIL[c][0], c)):
+        ps = [f"poster_{code}_{p}.png" for p, _ in POSTERS[code] if f"poster_{code}_{p}.png" in files]
+        if ps:
+            _, _, t, desc = BY[code]
+            posters.append(f'<figure style="margin:0"><div class="pair{" one" if len(ps) == 1 else ""}">'
+                           + "".join(img(f, f"{code} {f}") for f in ps)
+                           + f'</div><h3><code>{code}</code> {esc(t)}{tag(code)}</h3><p class="d">{esc(desc)}</p></figure>')
+    parents = [c for c in BY if PARENT[c] == c]
+    kept = [c for c in parents if URTEIL[c][1] != "raus"]
+    raus = [c for c in parents if URTEIL[c][1] == "raus"]
+    parts = []
+    for code in kept + raus:
+        kids = [k for k in BY if PARENT[k] == code and k != code]
+        inner = block(code) + "".join(f'<div class="var">{block(k, "h3")}</div>' for k in kids)
+        parts.append(f'<section id="{code}" class="{"raus" if code in raus else ""}">{inner}</section>')
+    nav = " ".join(f'<a href="#{c}">{c}</a>' for c in kept)
+    doc = (f'<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+           f'<title>Spark-Labor</title><style>{CSS}</style></head><body><main><h1>Spark-Labor: S13 und folgende</h1>'
+           f'<p class="d">Neue Rollen fuer den Stern. Stand nach Vadims Urteil vom 25.09.: behalten, Varianten darunter '
+           f'(Buchstaben-Suffix), raus ausgegraut am Ende. D3 Bayer 4x4, R = 4 px, ein Raster. '
+           f'Platzierung per <code>g.K = (x0, y0, R)</code>, Drehung per <code>g.rot</code>.</p><nav>{nav}</nav>'
+           f'<h2>Plakate im echten Satz · A3</h2><p class="d">Kandidat als Stern-Ebene in <code>styles.render()</code>: '
+           f'Titel, Datum, QR, Kopfzeile und XOR-Regel aus styles.py. Sortiert nach Bewertung.</p><div class="pg">{"".join(posters)}</div>'
+           f'<h2>Alle Kandidaten · 16x9</h2><p class="d">Gross: Tscherenkow. Rechts: Riso, Eklipse, CGA, Phosphor, Lavendel. '
+           f'Ausgegraut = raus (alte Renderings).</p>'
+           f'{"".join(parts)}</main></body></html>')
+    with open(os.path.join(OUT, "index.html"), "w") as fh:
+        fh.write(doc)
+
+
+def main():
+    """Argumente: Codes (S31b ...; ohne = alle behaltenen), --pal a,b | all, --fmt 16x9|9x16|a3, --kick (Test mit
+    Kick-off-Titel SPARK nach styles/lab/spark/_kick/), --sheet name. 'posters [codes]' = A3 im echten Satz, 'html' = Galerie."""
+    os.makedirs(OUT, exist_ok=True)
+    args = sys.argv[1:]
+    if args == ["sheet"] or args == ["html"]:
+        gallery()
+        return
+    if args and args[0] == "posters":             # posters [S31b S26 ...]
+        want = args[1:] or list(POSTERS)
+        with Pool(4) as pool:                     # A3-Ebenen sind gross: mehr Prozesse = Swap
+            files = list(pool.imap(job_poster, [(c, p, d) for c in want for p, d in POSTERS[c]]))
+        print("\n".join(os.path.relpath(f, ROOT) for f in files))
+        sheet(files, os.path.join(OUT, "sheet_posters.png"), cols=min(8, len(files)), tw=300)
+        gallery()
+        return
+    fmt = args[args.index("--fmt") + 1] if "--fmt" in args else "16x9"
+    pals = args[args.index("--pal") + 1].split(",") if "--pal" in args else ["lav"]
+    pals = PALS16 if pals == ["all"] else pals
+    kick = "--kick" in args
+    name = args[args.index("--sheet") + 1] if "--sheet" in args else None
+    codes = [a for a in args if a in BY or a in CMP] or KEPT
+    os.makedirs(TMP, exist_ok=True)
+    jobs = [(c, p, fmt, kick) for c in codes for p in pals]
+    with Pool() as pool:
+        files = list(pool.imap(job, jobs))
+    for f in files:
+        print(os.path.relpath(f, ROOT))
+    if len(files) > 1:
+        tag = name or ("_".join(pals) + "_" + fmt + ("_kick" if kick else ""))
+        cols = len(pals) if 1 < len(pals) <= 6 else (4 if fmt != "a3" else 6)
+        sheet(files, os.path.join(TMP if kick else OUT, f"sheet_{tag}.png"), cols=cols, tw=480 if fmt != "a3" else 300)
+    if not kick:
+        gallery()
+
+
+if __name__ == "__main__":
+    main()

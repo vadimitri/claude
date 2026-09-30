@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Renderer-Test</title>
+<style>
+body{background:#111;color:#ccc;font:12px/1.4 ui-monospace,monospace;margin:12px}
+#c{image-rendering:pixelated;display:block;max-width:calc(100vw - 280px);max-height:calc(100vh - 60px);width:auto;height:auto}
+#wrap{display:flex;gap:16px;align-items:flex-start}
+#links a{color:#9cf;margin-right:6px;display:inline-block}
+#err{color:#f88;white-space:pre-wrap;margin:0}
+#side{width:250px}
+</style></head>
+<body>
+<div id="info"></div>
+<div id="wrap"><canvas id="c"></canvas><div id="side"><div id="links"></div><pre id="err"></pre></div></div>
+<script type="module" src="/src/render/test.ts"></script>
+</body></html>
