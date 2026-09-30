@@ -19,13 +19,34 @@ und Kontaktbögen in ~20 s statt Video in 2 min; Video erst, wenn die Standbilde
    groß rechts), beschriftet mit Code → Vadim wählt, welche bleiben. Stand: 12 im Zyklus (siehe Entscheidungen);
    Bögen des Stil-Agenten: `~/.claude/jobs/0be940a0/tmp/pack/kickoff_loop/previz/variants/frontal.png` (evtl. weg,
    dann neu rendern).
-3. **Mehr Frames.** 48 sind Vadim noch zu wenig; gedruckt wird dann viel A4 an vielen Orten (Plätze sind kein Problem).
-   Vorschlag: **64** = 4 Takte in 16teln = genau das Karussell bis zum Impact (jeder Frame genau einmal im Video; dafür
-   `cadence = [[16, 4]]`), oder 96 (6 Takte, Karussell zeigt dann 2/3). 8 Stationen × 8 bzw. 12 Frames, `key_every` 2
-   bleibt. Nach der Änderung Lesbarkeit aller Frames prüfen (die Bahn wird feiner abgetastet).
-4. **Endloop (Hypno) verbessern**, schnell iterieren: Streifen aus 8–12 Standbildern (`main_card.py`-Muster: Stichproben
-   von `V._digital_job`), Stellschrauben `[endcard] card_*`. Kein Kippen, keine Achsdrehung, 24 fps.
-5. Danach: Vorschau-Video, `print`, Resolve-Bausteine (`resolve`), Reel-Timeline in Resolve.
+3. **Mehrere Durchgänge statt mehr Frames** (Vadim, Korrektur: „ich wurde falsch verstanden"). Der Bumerang-Loop soll
+   im Clip **3–5-mal durchlaufen**, erst am Ende des **letzten** Durchgangs poppt der Stern ins Digitale (Ausbruch wie
+   jetzt). Dafür die vorhandenen Frames **verdichten**, also weniger Frames pro Loop (die Bahn gröber abtasten). Beispiel:
+   **16 Frames pro Loop** = 1 Takt in 16teln → 4 Durchgänge in 4 Takten (bei 120 BPM: 2 s pro Durchgang). Folgen:
+   Farbreise 8 Stationen auf 16 Frames = 2 Frames pro Station (größere Schritte; ggf. weniger Stationen), Stil-Zyklus
+   (hold 2) = 8 Plätze, Druck = 16 Plakate (8 Aushänge + 8 Fotoframes), jedes davon gern mehrfach als A4. Das Karussell
+   bremst nicht (Vadim v003), der Zoom läuft über alle Durchgänge.
+4. **Musik als Mashup** (Python/ffmpeg oder Fairlight in Resolve), zwei Varianten zum Anhören bauen:
+   - **A**: IGOR-„Brummen" (Intro-Drone, im Song bis 24.0 s nur Drone) → IGOR-Beat (Drums ab 24.04 s) → beim Ausbruch/
+     Impact Übergang in **unsere Maker-Night-Musik**.
+   - **B**: IGOR-Brummen → direkt in unsere Maker-Night-Musik (ohne IGOR-Beat).
+   Unsere Musik: `makernight/loop/loop_full.wav` (16 s nahtlos, **120 BPM**, Dm9 | Bbmaj9 | C(add9) | C(add9), die Arp,
+   die Vadim liebt), `loop_full_60s.wav`, Quelle `src/makernight_loop.py` (kann Stems/Varianten rendern).
+   Befunde für den Übergang: IGOR läuft mit 81.61 BPM, Maker Night mit 120 → das Karussell folgt der Musik, die unter
+   ihm liegt (bei B: 120-BPM-Raster, 16tel = 8 fps wie v003). Der Drone-Grundton liegt bei 37.85 Hz, D1 = 36.71 Hz, also
+   **+53 Cent über D**: für den Übergang in D-Moll den Drone um −53 Cent verschieben (oder die Maker-Night-Musik um
+   +53 Cent). Übergang auf den Impact legen (Hit/Downbeat), keine Überblendung als Standard-Crossfade (Vadim mag
+   keine Standard-Effekte): z. B. Drone-Tiefpass öffnet → ½ Beat Luft → Maker-Night-Drop.
+5. **Endloop (Hypno) verbessern**, schnell iterieren: Streifen aus 8–12 Standbildern (Stichproben von
+   `kickoff_loop_video._digital_job`), Stellschrauben `[endcard] card_*`. Kein Kippen, keine Achsdrehung, 24 fps.
+6. Danach: Vorschau-Video, `print`, Resolve-Bausteine (`resolve`), Reel-Timeline in Resolve.
+
+**Stern-Editor in Resolve, Stand** (Details `resolve/EDITOR.md`, Commit d0ee517): Projekt `SPARK_Kickoff_Loop`,
+Timeline `Stern-Bahn`, Fusion-Knoten `Stern` (Merge mit Loader `SternBild`), Keys alle 4 Frames. `push`/`pull`/`check`
+laufen (`check`: Lage 0.0005 Plakatbreite, Größe 0.09 %, Drehung 0°). **Nicht am Bild bestätigt:** Resolves Render-Queue
+gibt die Fusion-Comp nicht aus, daher sind y-Richtung, Drehsinn und Maßstab nur gerechnet. Schnelltest für Vadim auf der
+Fusion-Seite: Frame 0 großer Stern links angeschnitten, Mitte klein mittig, letzter Frame groß rechts. Nach Änderung der
+Frame-Zahl `push --force` (überschreibt Keys!). Loader zeigen auf diesen Worktree.
 
 **Resolve, wie es gedacht ist** (Vadim fragte nach dem Plan):
 - Resolve ist **Editor und Schnitt**, Python bleibt **Renderer** der Plakate (nur Python hält Pixelraster, Bayer-Dither,
@@ -173,7 +194,7 @@ Der Synth-Nachbau (v003, `kickoff_loop_audio.py`) ist gelöscht, steht in Commit
 
 ## Offen, in dieser Reihenfolge
 
-0. Zuerst die Punkte aus **Übergabe** oben (QR-Glühen, Sterne aussuchen, mehr Frames, Hypno-Endloop).
+0. Zuerst die Punkte aus **Übergabe** oben (QR-Glühen, Sterne aussuchen, 3–5 Durchgänge, Musik-Mashup, Hypno).
 1. Vadim: Bahn im Stern-Editor prüfen/ändern → `pull` → `[spark].source = "resolve"` → `preview`. Ort
    (`kickoff.COPY["where"]`) für die Endkarte fehlt noch.
 2. `print` laufen lassen, **Testdruck** von 2–3 Extremen (großer Stern angeschnitten, ferner Stern, S45 Ben-Day-Raster).
