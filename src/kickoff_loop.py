@@ -9,7 +9,7 @@ Alle Gestaltungswerte stehen kommentiert in kickoff_loop/loop.toml, hier steht n
 Handbuch (Vision, Begriffe, Entscheidungen, Status, offene Fragen): kickoff_loop/CLAUDE.md.
 
   uv run src/kickoff_loop.py preview        Vorschau-Video + Kontaktbogen + Checks  → kickoff_loop/previz/vNNN/
-  uv run src/kickoff_loop.py variants [N]   Detailvarianten von Frame N nebeneinander → kickoff_loop/previz/variants/
+  uv run src/kickoff_loop.py variants [N..] Detailvarianten der Frames N nebeneinander → kickoff_loop/previz/variants/
   uv run src/kickoff_loop.py frames         nur die Plakat-Frames rendern (fuellt den Cache)
   uv run src/kickoff_loop.py test           Selbsttest am fertigen Bild
   uv run src/kickoff_loop.py print          Druckdateien A3 300 dpi (PDF, verlustfrei) → kickoff_loop/print/
@@ -19,7 +19,7 @@ Aufbau dieser Datei (von oben nach unten):
   Konfiguration   load()                    loop.toml lesen und pruefen
   Farbe           palette()                 Farbreise: Frame-Nummer → gemischte Palette (OKLab)
   Geometrie       star_at()                 Frame-Nummer → Lage des Sterns auf der Bumerang-Bahn
-  Plakatsatz      layout(), type_layers()   Satz des Loop-Plakats, QR mit weichem Hof (ersetzt kickoff.type_layers)
+  Plakatsatz      layout(), type_layers()   Satz des Loop-Plakats, QR als Caption-Box (ersetzt kickoff.type_layers)
   Rendern         frame(), frames()         ein Plakat / alle Plakate als Bild, mit Cache und QR-Check
   Varianten       variants()                Details zum Abstimmen nebeneinander
 Video, Endkarte, Musik (Song-Ausschnitt), Blitz-Check stehen in kickoff_loop_video.py.
@@ -36,7 +36,7 @@ from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import gaussian_filter, label
+from scipy.ndimage import binary_dilation, generate_binary_structure, label
 
 import kickoff as K
 import styles as S
@@ -80,7 +80,14 @@ def load(path=CONFIG):
     lilac = [i + 1 for i in range(n) if is_lilac(palette_hex(cfg, i))]
     assert not lilac, f"[color].stations: Mischung wird lila auf Frame {lilac} (Rot direkt neben Blau?), Reihenfolge aendern"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
-    assert cfg["qr"]["halo_dither"] in ("blue", "bayer4"), "[qr].halo_dither: blue | bayer4"
+    q = cfg["qr"]
+    for key, ok in (("label", ("inside", "sticker")), ("label_fill", ("light", "dark")),
+                    ("outline", ("solid", "checker")), ("shadow", ("solid", "checker"))):
+        assert q[key] in ok, f"[qr].{key}: {' | '.join(ok)}"
+    assert q["shadow_step"] in range(col["steps"]), f"[qr].shadow_step: Palettenstufe 0..{col['steps'] - 1}"
+    cells = [q[k] for k in ("label_cap_cells", "label_pad_cells", "outline_cells", "corner_cells")]
+    assert all(type(v) is int for v in cells + q["shadow_cells"] + q["sticker_offset_cells"]), \
+        "[qr]: alle *_cells in ganzen Zellen, die Box liegt exakt auf dem Pixelraster"
     sp = cfg["spark"]
     assert sp["source"] in ("orbit", "resolve"), "[spark].source: orbit | resolve"
     if sp["source"] == "resolve":
@@ -247,11 +254,13 @@ def layout(c):
     return L
 
 
-def rect(shape, y0, x0, y1, x1):
-    """Rechteck-Maske in Zellen, [y0, y1) x [x0, x1)."""
-    m = np.zeros(shape, bool)
-    m[max(y0, 0):y1, max(x0, 0):x1] = True
-    return m
+def rect(c, y0, x0, y1, x1, r=0):
+    """Rechteck-Maske in Zellen, [y0, y1) x [x0, x1). r > 0: Ecken als Pixeltreppe (eine Zelle gehoert dazu, wenn ihre
+    Mitte im Viertelkreis mit Radius r liegt). Nur ganze Zellen, keine Kantenglaettung."""
+    cy, cx = c.yy + 0.5, c.xx + 0.5
+    dy = np.maximum(np.maximum(y0 + r - cy, cy - (y1 - r)), 0)
+    dx = np.maximum(np.maximum(x0 + r - cx, cx - (x1 - r)), 0)
+    return (cy > y0) & (cy < y1) & (cx > x0) & (cx < x1) & (np.hypot(dx, dy) <= r)
 
 
 def line_gradient(c, base, cap, steps):
@@ -281,51 +290,61 @@ def flip_glyphs(c, mk, v):
     return np.where(share[lab] > 0.5, c.lvl(0), v)
 
 
-def soft_field(c, y0, x0, y1, x1, q):
-    """Helligkeit 0..1 um ein Rechteck (Zellen): innen 1, aussen weich auslaufend (Gauss ueber dem Abstand).
-    Abstand zu einem stark abgerundeten Rechteck (Eckradius halo_round_frac der kurzen halben Seite): die Isolinien
-    werden nach aussen immer runder, es gibt keine gerade Kante und keine Ecke. Ein weiches Rauschen (festes Korn)
-    verbiegt den Auslauf leicht, damit er nicht nach Werkzeug aussieht."""
-    cy, cx = (y0 + y1) / 2, (x0 + x1) / 2
-    hy, hx = (y1 - y0) / 2, (x1 - x0) / 2
-    rad = q["halo_round_frac"] * min(hx, hy)
-    ax, ay = np.abs(c.xx + 0.5 - cx) - (hx - rad), np.abs(c.yy + 0.5 - cy) - (hy - rad)
-    d = np.hypot(np.maximum(ax, 0), np.maximum(ay, 0)) + np.minimum(np.maximum(ax, ay), 0) - rad
-    w = q["halo_fade_cells"]
-    noise = gaussian_filter(np.random.default_rng(7).standard_normal(d.shape), w / 2)
-    d = d + q["halo_warp_cells"] * noise / noise.std() * np.clip(d / w, 0, 1)
-    return np.exp(-(np.maximum(d, 0) / w) ** 2)
+def qr_box(c, q):
+    """JOIN US + QR als Comic-Caption-Box (Into the Spider-Verse): Ebenen [(name, Maske, Wert)] in Malreihenfolge, alles
+    in ganzen Zellen und exakten Palettenstufen (kein Verlauf, kein Weichzeichnen, kein Dither-Auslauf).
 
-
-def qr_embed(c, q):
-    """JOIN US + QR, wie sie sind: Schrift und Module in der dunkelsten Stufe auf der hellsten, 3 Module Ruhezone,
-    JOIN US mittig ueber der Platte. Keine Karte: der helle Grund laeuft weich in das Plakat aus (soft_field), in einem
-    eigenen Dither (Blue Noise: organisches Korn statt Bayer-Kreuzraster), vom Hellen in das, was darunter liegt."""
+    Karte in der hellsten Stufe, Rand (outline) und harter Schlagschatten (shadow) in der dunkelsten; auf dunklem Grund
+    traegt die helle Flaeche, auf dem Stern trennt der dunkle Rand sie vom Stern. Die Karte umschliesst immer die ganze
+    QR-Platte (Module + 3 Module Ruhezone aus kickoff.layout), Rand und Schatten liegen also nie in der Ruhezone.
+    JOIN US hat eine feste Groesse in Zellen und waechst nicht mit dem Titel: eine harte Kante, die von Frame zu Frame
+    um eine Zelle springt, saehe nach Fehler aus.
+      inside   JOIN US in der Karte ueber dem QR, Abstand zu den Modulen = Ruhezone, darueber label_pad_cells
+      sticker  JOIN US auf eigener Karte (label_fill hell oder dunkel), versetzt ueber der oberen Kante; sie endet samt
+               Rand und Schatten ueber der Ruhezone"""
     L, px = c.L, c.px
-    shape = (c.gh, c.gw)
     lum = c.pal @ LUMA
     hi, lo = c.lvl(int(lum.argmax())), c.lvl(int(lum.argmin()))
     n = L["qs"] // px                                             # Plattenkante in Zellen, inkl. Ruhezone
-    top, left = round((L["qbot"] - L["qs"]) / px), round(L["x0"] / px)
-    pad = q["label_pad_cells"]
-
-    text = S.line_mask(K.COPY["cta"], "clash", L["capj"], top * px, left * px, px, shape)
-    ys, xs = np.nonzero(text)
-    dy = (top - pad - 1) - ys.max()                               # Unterkante der Schrift: pad Zellen ueber der Platte
-    dx = left + (n - (xs.max() - xs.min() + 1)) // 2 - xs.min()   # waagerecht mittig ueber der Platte
-    text = np.roll(text, (dy, dx), (0, 1))
-    head = ys.min() + dy - pad                                    # Oberkante des hellen Kerns
-
-    light = soft_field(c, head, left, top + n, left + n, q)
-    flat = light > 0.999
-    base = under(c)
-    c.add("qr", (light > 0.02) & ~flat, base + (hi - base) * light, D=q["halo_dither"])
-    c.add("qr", flat, hi)
     quiet = (n - len(L["q"]) * MODULE_CELLS) // 2                 # Ruhezone in Zellen
-    mods = np.zeros(shape, bool)
+    top, left = round((L["qbot"] - L["qs"]) / px), round(L["x0"] / px)
+    mods = np.zeros((c.gh, c.gw), bool)
     mods[top + quiet:top + n - quiet, left + quiet:left + n - quiet] = S.up(L["q"], MODULE_CELLS)
-    c.add("qr", mods, lo)
-    c.add("cta", text, lo)
+
+    text = S.line_mask(K.COPY["cta"], "clash", q["label_cap_cells"] * px, top * px, left * px, px, (c.gh, c.gw))
+    ys, xs = np.nonzero(text)
+    th, tw = ys.max() - ys.min() + 1, xs.max() - xs.min() + 1
+    pad, r, ink = q["label_pad_cells"], q["corner_cells"], lo
+    if q["label"] == "inside":                                    # Schrift sitzt direkt auf der Platte (Ruhezone darunter)
+        ty, tx = top - th, left + (n - tw) // 2
+        cards = [(rect(c, ty - pad, left, top + n, left + n, r), hi)]
+    else:
+        ox, oy = q["sticker_offset_cells"]
+        clear = q["outline_cells"] + max(q["shadow_cells"][1], 0)  # Rand + Schatten des Etiketts enden ueber der Platte
+        ty, tx = top - clear - pad - th, left + ox + pad
+        dark = q["label_fill"] == "dark"
+        ink = hi if dark else lo
+        cards = [(rect(c, ty - pad - oy, left, top + n, left + n, r), hi),
+                 (rect(c, ty - pad, tx - pad, ty + th + pad, tx + tw + pad, r), lo if dark else hi)]
+    text = np.roll(text, (ty - ys.min(), tx - xs.min()), (0, 1))
+
+    grow = np.ones((3, 3), bool) if r == 0 else generate_binary_structure(2, 1)  # Treppe: Rand folgt diagonal, 1 Zelle
+    checker = (c.yy + c.xx) % 2 == 0                              # 1-Bit-Grau: jede zweite Zelle
+    out = []
+    for card, fill in cards:
+        rim = binary_dilation(card, grow, q["outline_cells"]) & ~card if q["outline_cells"] else card & False
+        body = card | rim
+        shadow = np.roll(body, q["shadow_cells"][::-1], (0, 1)) & ~body
+        out += [("qr", shadow & (checker | (q["shadow"] == "solid")), c.lvl(q["shadow_step"])),
+                ("qr", rim, np.where(checker | (q["outline"] == "solid"), lo, hi)),
+                ("qr", card, fill)]
+    return out + [("qr", mods, lo), ("cta", text, ink)]
+
+
+def qr_embed(c, q):
+    """JOIN US + QR auf das Plakat legen (Geometrie und Stufen: qr_box)."""
+    for name, mask, v in qr_box(c, q):
+        c.add(name, mask, v)
 
 
 def text_lines(c):
@@ -351,7 +370,7 @@ def line_masks(c, lines, centered=False):
 
 def type_layers(c):
     """Satz des Loop-Plakats. Raster und Groessen aus kickoff.layout;
-    neu gegenueber kickoff.type_layers: Verlauf pro Zeile, SPARK waagerecht zentriert, keine Kopfzeile, QR ohne Karte."""
+    neu gegenueber kickoff.type_layers: Verlauf pro Zeile, SPARK waagerecht zentriert, keine Kopfzeile, QR als Caption-Box."""
     L, px, lp = c.L, c.px, c.st["loop"]
     shape = (c.gh, c.gw)
     n0 = len(c.layers)
@@ -430,49 +449,79 @@ def frames(cfg):
 def _variant_job(args):
     cfg, i, name, over = args
     st = poster_style(cfg, i)
-    for path, val in over.items():                      # "qr.halo_dither" → st["loop"]["qr"]["halo_dither"]
+    for path, val in over.items():                      # "qr.label" → st["loop"]["qr"]["label"]
         sec, key = path.split(".")
         st["loop"][sec] = {**st["loop"][sec], key: val}
-    return name, frame(cfg, i, style=st)
+    img = frame(cfg, i, style=st)
+    return name, img, K.check_qr(img, PREVIEW_CELL_PX)
 
 
+# Box um JOIN US + QR (qr_box). Jede Variante nennt alle Box-Schluessel, damit sie unabhaengig vom Stand der loop.toml
+# gleich aussieht; die Variante, die loop.toml gerade setzt, ist auf den Boegen markiert.
+_CAPTION = {"qr.label": "inside", "qr.label_fill": "light", "qr.label_cap_cells": 9, "qr.label_pad_cells": 6,
+            "qr.sticker_offset_cells": [-5, -6], "qr.outline_cells": 1, "qr.outline": "solid", "qr.shadow_cells": [2, 2],
+            "qr.shadow": "solid", "qr.shadow_step": 0, "qr.corner_cells": 0}
 VARIANTS = [
-    ("Hof wie loop.toml", {}),
-    ("Hof Bayer 4x4", {"qr.halo_dither": "bayer4"}),
-    ("Hof weiter", {"qr.halo_fade_cells": 18}),
-    ("Hof enger", {"qr.halo_fade_cells": 7}),
+    ("A Caption", _CAPTION),
+    ("B Pixeltreppe", {**_CAPTION, "qr.corner_cells": 5, "qr.outline_cells": 0, "qr.shadow_cells": [0, 0]}),
+    ("C Rasterrand", {**_CAPTION, "qr.outline_cells": 2, "qr.outline": "checker", "qr.shadow_cells": [0, 0]}),
+    ("D Sticker", {**_CAPTION, "qr.label": "sticker", "qr.label_pad_cells": 3, "qr.sticker_offset_cells": [-4, -8]}),
+    ("D2 Etikett dunkel", {**_CAPTION, "qr.label": "sticker", "qr.label_fill": "dark", "qr.label_pad_cells": 3,
+                           "qr.sticker_offset_cells": [3, -8]}),
+    ("E1 Halbton-Schatten", {**_CAPTION, "qr.shadow_cells": [3, 3], "qr.shadow": "checker"}),
+    ("E2 Farbversatz", {**_CAPTION, "qr.shadow_cells": [3, 3], "qr.shadow_step": 3}),
 ]
 
 
-def variants(cfg, i):
-    """Frame i in allen VARIANTS nebeneinander: oben ganz (halbe Groesse), darunter der Titelblock in Vorschaugroesse
-    (1 Zelle = 4 px) und das untere linke Viertel mit dem QR doppelt (1 Zelle = 8 px), damit man Kanten zaehlen kann."""
+def _sheet(cols, path):
+    """Spalten [(Ueberschrift, [(Beschriftung, Bild)])] nebeneinander auf dunklem Grund speichern."""
+    gap, label_h = 24, 56
+    font = S.font("DepartureMono-Regular.otf", 36)
+    cw = max(im.width for _, parts in cols for _, im in parts)
+    sheet_h = label_h + max(sum(im.height + gap + (label_h if cap else 0) for cap, im in parts) for _, parts in cols)
+    sheet = Image.new("RGB", (len(cols) * (cw + gap), sheet_h), (14, 14, 18))
+    d = ImageDraw.Draw(sheet)
+    for k, (name, parts) in enumerate(cols):
+        x, y = k * (cw + gap), label_h
+        d.text((x, 8), name, font=font, fill=(230, 230, 230))
+        for cap, im in parts:
+            if cap:
+                d.text((x, y + 8), cap, font=font, fill=(150, 150, 160))
+                y += label_h
+            sheet.paste(im, (x, y))
+            y += im.height + gap
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    sheet.save(path)
+    return path
+
+
+def variants(cfg, idx):
+    """Frames idx in allen VARIANTS. Pro Frame ein Bogen previz/variants/frameNN.png: oben ganz (halbe Groesse), darunter
+    der Titelblock in Vorschaugroesse (1 Zelle = 4 px) und das untere linke Viertel mit dem QR doppelt (1 Zelle = 8 px),
+    damit man Kanten zaehlen kann. Dazu qr_box_sheet.png: JOIN US + QR aller Varianten (Spalten) auf allen Frames
+    (Zeilen), doppelt, mit QR-Befund, zum Auswaehlen auf einen Blick."""
     with Pool() as pool:
-        res = pool.map(_variant_job, [(cfg, i, n, o) for n, o in VARIANTS])
+        res = pool.map(_variant_job, [(cfg, i, n, o) for i in idx for n, o in VARIANTS])
     h, w = res[0][1].shape[:2]
     title_box = (0, round(0.02 * h), w, round(0.34 * h))      # Kopfzeile bis Datum (Anteile der Plakatflaeche)
     card_box = (0, round(0.70 * h), w // 2, h)                # unteres linkes Viertel mit dem QR
-    gap, label_h = 24, 40
-    font = S.font("DepartureMono-Regular.otf", 22)
-    cols = []
-    for name, img in res:
-        im = Image.fromarray(img)
-        card = im.crop(card_box)
-        cols.append((name, [im.resize((w // 2, h // 2), Image.NEAREST), im.crop(title_box),
-                            card.resize((card.width * 2, card.height * 2), Image.NEAREST)]))
-    sheet_h = label_h + sum(p.height + gap for p in cols[0][1])
-    sheet = Image.new("RGB", (len(cols) * (w + gap), sheet_h), (14, 14, 18))
-    d = ImageDraw.Draw(sheet)
-    for k, (name, parts) in enumerate(cols):
-        x, y = k * (w + gap), label_h
-        d.text((x, 8), name, font=font, fill=(230, 230, 230))
-        for part in parts:
-            sheet.paste(part, (x, y))
-            y += part.height + gap
-    out = os.path.join(PROJECT, "previz", "variants", f"frame{i + 1:02d}.png")
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    sheet.save(out)
-    return out
+    qr_crop = (0, round(0.68 * h), round(0.36 * w), h)        # JOIN US + QR mit etwas Umgebung
+    x2 = lambda im: im.resize((im.width * 2, im.height * 2), Image.NEAREST)  # noqa: E731
+    mark = lambda name, over: name + (" = loop.toml" if all(                  # noqa: E731
+        cfg[p.split(".")[0]][p.split(".")[1]] == v for p, v in over.items()) else "")
+    names = [mark(n, o) for n, o in VARIANTS]
+    out, grid = [], {n: [] for n in names}
+    for k, i in enumerate(idx):
+        cols = []
+        for name, (_, img, ok) in zip(names, res[k * len(VARIANTS):(k + 1) * len(VARIANTS)]):
+            im = Image.fromarray(img)
+            cols.append((name + ("" if ok else "  QR!"), [(None, im.resize((w // 2, h // 2), Image.NEAREST)),
+                                                         (None, im.crop(title_box)), (None, x2(im.crop(card_box)))]))
+            grid[name].append((f"Frame {i + 1} {station_label(cfg, i)} {style_code(cfg, i)}  QR {'ok' if ok else 'NICHT lesbar'}",
+                               x2(im.crop(qr_crop))))
+        out.append(_sheet(cols, os.path.join(PROJECT, "previz", "variants", f"frame{i + 1:02d}.png")))
+    out.append(_sheet(list(grid.items()), os.path.join(PROJECT, "previz", "variants", "qr_box_sheet.png")))
+    return "\n".join(out)
 
 
 # ---------------------------------------------------------------- Selbsttest
@@ -481,7 +530,9 @@ def selftest(cfg, i=8):
     """Prueft am fertigen Bild (nicht am Code), was schiefgehen kann:
     Verlauf pro Zeile = oberste Pixelreihe nur hellste Stufe, unterste nur die Stufe darunter, dazwischen wird es von
     unten nach oben nie dunkler; Schrift auf dem Stern (gekippt) ist ausgenommen. QR lesbar. Titelblock steht in jedem Frame gleich.
-    Farbreise: keine Lila-Mischung, jede Station exakt ihre Original-Palette. SPARK waagerecht zentriert."""
+    Farbreise: keine Lila-Mischung, jede Station exakt ihre Original-Palette. SPARK waagerecht zentriert.
+    QR-Box hart: jede Zelle, die qr_box belegt, hat im Bild genau ihre Palettenstufe und ist innen einfarbig (Raster,
+    kein Auslauf, kein Dither; der alte weiche Hof faellt hier durch), rundum >= 3 Module hellste Stufe als Ruhezone."""
     cfg = {**cfg, "type": {**cfg["type"], "text_gradient_steps": 1.0}}
     st = poster_style(cfg, i)
     img = frame(cfg, i, style=st)
@@ -503,6 +554,21 @@ def selftest(cfg, i=8):
         smooth = np.convolve(rows, np.ones(period) / period, "valid")
         assert np.all(np.diff(smooth) <= 0.05), f"{s}: Verlauf wird nach unten wieder heller {np.round(smooth, 2)}"
     assert K.check_qr(img, PREVIEW_CELL_PX), "QR nicht lesbar"
+    box = qr_box(c, st["loop"]["qr"])
+    want = np.full(level.shape, -1)
+    for _, m, v in box:
+        want[m] = np.rint(np.broadcast_to(v, m.shape)[m] * c.N)
+    got = want >= 0
+    bad = np.count_nonzero(level[got] != want[got])
+    assert not bad, f"QR-Box: {bad} Zellen nicht in ihrer Stufe (weicher Rand, Dither oder falsche Farbe)"
+    p = PREVIEW_CELL_PX
+    blocks = img[:c.gh * p, :c.gw * p].reshape(c.gh, p, c.gw, p, 3)
+    assert (blocks == blocks[:, :1, :, :1]).all((1, 3, 4))[got].all(), "QR-Box: Zellen nicht einfarbig (nicht auf dem Raster)"
+    ys, xs = np.nonzero(box[-2][1])                     # Module
+    q = 3 * MODULE_CELLS
+    zone = level[ys.min() - q:ys.max() + q + 1, xs.min() - q:xs.max() + q + 1].copy()
+    zone[q:-q, q:-q] = c.hi
+    assert (zone == c.hi).all(), "QR-Ruhezone: weniger als 3 Module hellste Stufe um die Module"
     last = S.Ctx(poster_style(cfg, count(cfg) - 1), PREVIEW)
     same = [np.array_equal(a, b) for a, b in zip(masks, (m for name, group in text_lines(last).items()
                                                        for m in line_masks(last, group, centered=name == "title")))]
@@ -512,7 +578,7 @@ def selftest(cfg, i=8):
         got = np.array([[int(h[j:j + 2], 16) for j in (1, 3, 5)] for h in palette_hex(cfg, k * per)])
         assert np.abs(got - station(p, cfg["color"]["steps"])).max() <= 1, f"Station {p} weicht vom Original ab"
     assert is_lilac(["#A877A6"]) and not is_lilac(palette_hex(cfg, 0)), "Lila-Test erkennt Flieder nicht"
-    return f"Selbsttest ok (Frame {i + 1}: Verlauf pro Zeile, QR; Titel fix, Stationen, Lila-Test)"
+    return f"Selbsttest ok (Frame {i + 1}: Verlauf pro Zeile, QR, QR-Box + Ruhezone; Titel fix, Stationen, Lila-Test)"
 
 
 # ---------------------------------------------------------------- Befehle
@@ -582,7 +648,7 @@ def main():
     elif cmd == "print":
         print(print_files(cfg))
     elif cmd == "variants":
-        print(variants(cfg, int(args[1]) - 1 if len(args) > 1 else 8))
+        print(variants(cfg, [int(a) - 1 for a in args[1:]] or [8]))
     elif cmd == "preview":
         import kickoff_loop_video as V
         print(V.preview(cfg, *frames(cfg)))

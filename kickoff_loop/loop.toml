@@ -59,13 +59,25 @@ text_gradient_steps = 1.0
 # Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
 
 [qr]
-# JOIN US und QR stehen, wie sie sind: dunkelste Stufe auf der hellsten, 3 Module Ruhezone, JOIN US mittig darueber.
-# Keine Karte: ihr heller Grund laeuft weich ins Plakat aus, abgerundet (keine Kante, keine Ecke), in eigenem Dither.
-label_pad_cells = 3        # Luft um JOIN US (oben bis zum Auslauf, unten bis zur QR-Platte)
-halo_fade_cells = 12       # Laenge des Auslaufs (Gauss). Groesser = weicher, unsichtbarere Grenze, aber mehr Licht
-halo_round_frac = 0.45     # Eckradius des hellen Kerns (Bruchteil der halben kurzen Seite). Aussen wird es immer runder
-halo_warp_cells = 3        # leichte Unregelmaessigkeit des Auslaufs (festes Rauschen), 0 = exakt rund
-halo_dither = "blue"       # blue = Blue Noise (organisch) | bayer4 = wie der Rest des Plakats
+# JOIN US + QR als Comic-Caption-Box (Into the Spider-Verse): harte Karte in der hellsten Stufe, Rand und Schlagschatten
+# in der dunkelsten, alles in ganzen Zellen (kein Verlauf, kein Weichzeichnen, kein Gluehen). Die Karte umschliesst die
+# QR-Platte: Module dunkelste Stufe auf hellster, Ruhezone 3 Module rundum (kickoff.layout), Rand/Schatten immer ausserhalb.
+# Varianten nebeneinander: uv run src/kickoff_loop.py variants 1 9 27 → previz/variants/qr_box_sheet.png
+label = "inside"           # JOIN US: inside = in der Karte ueber dem QR | sticker = eigene Karte, versetzt ueber der
+                           # Oberkante (sticker_offset_cells, label_fill)
+label_cap_cells = 9        # Versalhoehe JOIN US, fest (waechst nicht mit dem Titel). 9 = so breit wie die QR-Module (59/58)
+label_pad_cells = 6        # Luft um JOIN US in seiner Karte; inside: nur oben (unten folgt direkt die Ruhezone).
+                           # 6 = Ruhezone des QR: ein Abstand rundum
+label_fill = "light"       # nur sticker: light = hellste Stufe, dunkle Schrift | dark = dunkelste Stufe, helle Schrift
+sticker_offset_cells = [-5, -6]  # nur sticker: linke obere Ecke des Etiketts gegen die der QR-Karte (x, y; links/oben negativ)
+outline_cells = 1          # Rand um jede Karte in der dunkelsten Stufe, 0 = kein Rand
+outline = "solid"          # solid | checker = Schachbrett aus hellster und dunkelster Stufe (1-Bit-Grau)
+shadow_cells = [3, 3]      # harter Schlagschatten (x, y) in Zellen, nach rechts unten positiv, [0, 0] = keiner
+shadow = "solid"           # solid = volle Flaeche | checker = Rasterpunkte (Halbton), dazwischen bleibt der Grund
+shadow_step = 3            # Palettenstufe des Schattens: 0 = dunkelste (klassisch) bis 5 = hellste. 3 = Farbversatz in der
+                           # satten Mittelstufe: sichtbar auf dunklem Grund (0 verschwindet dort, Befund 30.9.: Schattenkante
+                           # auf 32/32 Frames sichtbar statt 23/32), auf dem Stern trennt der dunkle Rand
+corner_cells = 0           # Ecken als Pixeltreppe mit diesem Radius, 0 = rechtwinklig
 
 [video]
 size_px = [1080, 1920]     # Ausgabe Breite x Hoehe (9:16 fuer Reel/Story)
