@@ -9,6 +9,7 @@ Alle Gestaltungswerte stehen kommentiert in kickoff_loop/loop.toml, hier steht n
 Handbuch (Vision, Begriffe, Entscheidungen, Status, offene Fragen): kickoff_loop/CLAUDE.md.
 
   uv run src/kickoff_loop.py sheet          schnelle Runde (~15 s): Kontaktbogen + Plakat-Loop → previz/now/, oeffnet beides
+  uv run src/kickoff_loop.py sheet X.toml   dasselbe fuer eine Variante (Kopie der loop.toml) → previz/review/X_*
   uv run src/kickoff_loop.py boil           Test: Digitalteil ohne | mit Boil nebeneinander → previz/now/boil.mp4
   uv run src/kickoff_loop.py preview [A|B]  Vorschau-Video + Kontaktbogen + Checks  → kickoff_loop/previz/vNNN/
   uv run src/kickoff_loop.py variants [N..] Detailvarianten der Frames N nebeneinander → kickoff_loop/previz/variants/
@@ -709,7 +710,8 @@ def print_files(cfg):
 def main():
     args = sys.argv[1:]
     cmd = args[0] if args else "preview"
-    cfg = load(music=args[1] if cmd == "preview" and len(args) > 1 else None)
+    var = args[1] if cmd == "sheet" and len(args) > 1 else None   # sheet <variante.toml>: Variante neben loop.toml
+    cfg = load(var or CONFIG, music=args[1] if cmd == "preview" and len(args) > 1 else None)
     if cmd == "frames":
         _, ok, leg = frames(cfg)
         print(f"{len(ok)} Plakate, QR lesbar: {sum(ok)}/{len(ok)}, Lesbarkeit: {' '.join(f'{x:.2f}' for x in leg)}")
@@ -725,9 +727,10 @@ def main():
     elif cmd == "sheet":                                # schnelle Runde: Kontaktbogen + Plakat-Loop, kein Video
         import kickoff_loop_video as V
         posters, ok, leg = frames(cfg)
-        out = V.sheet(cfg, posters, ok, leg)
-        print(f"{out}  QR {sum(ok)}/{len(ok)}, Lesbarkeit min {min(leg):.2f}")
-        subprocess.run(["open", os.path.join(out, "contact.png"), os.path.join(out, "loop.mp4")])
+        tag = os.path.splitext(os.path.basename(var))[0] + "_" if var else ""   # B1.toml → review/B1_contact.png
+        out = V.sheet(cfg, posters, ok, leg, os.path.join(PROJECT, "previz", "review" if var else "now"), tag)
+        print(f"{out}/{tag}contact.png  QR {sum(ok)}/{len(ok)}, Lesbarkeit min {min(leg):.2f}")
+        subprocess.run(["open", os.path.join(out, tag + "contact.png"), os.path.join(out, tag + "loop.mp4")])
     elif cmd == "boil":                                 # Test: Digitalteil ohne | mit Boil nebeneinander
         import kickoff_loop_video as V
         out = V.boil_test(cfg)

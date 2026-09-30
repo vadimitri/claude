@@ -399,16 +399,15 @@ def contact_sheet(cfg, posters, qr_ok, legib, stills, path):
     sheet.save(path)
 
 
-def sheet(cfg, posters, qr_ok, legib):
+def sheet(cfg, posters, qr_ok, legib, out, tag=""):
     """Schnelle Runde (~15 s statt ~2 min): nur Kontaktbogen + Plakat-Loop im Karusselltempo → previz/now/.
     Fuer Standbild-Entscheidungen; das Video erst mit preview, wenn die Standbilder stehen."""
-    out = os.path.join(KL.PROJECT, "previz", "now")
     os.makedirs(out, exist_ok=True)
-    contact_sheet(cfg, posters, qr_ok, legib, [], os.path.join(out, "contact.png"))
+    contact_sheet(cfg, posters, qr_ok, legib, [], os.path.join(out, tag + "contact.png"))
     h, w = posters[0].shape[:2]
     bar_s = 16 * cfg["music"]["grid"]["sixteenth_s"]
     fps = max(per for per, _ in cfg["video"]["cadence"]) / bar_s
-    ff = ffmpeg_writer(os.path.join(out, "loop.mp4"), (w // 2, h // 2), fps)
+    ff = ffmpeg_writer(os.path.join(out, tag + "loop.mp4"), (w // 2, h // 2), fps)
     for img in posters * 4:
         ff.stdin.write(np.asarray(Image.fromarray(img).resize((w // 2, h // 2), Image.BOX)).tobytes())
     ff.stdin.close()
