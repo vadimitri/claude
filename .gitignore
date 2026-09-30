@@ -27,3 +27,5 @@ kickoff_loop/ref/audio/*
 !kickoff_loop/ref/audio/igor_beats.json
 !kickoff_loop/ref/audio/igor_analysis.png
 !kickoff_loop/ref/audio/mashup_*.json
+kickoff_loop/ref/spiderverse/img/
+kickoff_loop/ref/spiderverse/board.png

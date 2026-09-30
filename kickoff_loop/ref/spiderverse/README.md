@@ -83,3 +83,55 @@ gestaucht liest sie sich aber als „wird dünner“, nicht als „dreht sich“
 - No Film School, Comic-Panels, Textkästen, Split-Screens: https://nofilmschool.com/comic-panels-in-spiderverse-movies
 - GarageFarm, Look in Blender nachgebaut (Halbton, Linien): https://blog.garagefarm.net/blog/recreating-the-spider-verse-look-in-the-blender-node-editor
 - Stills: film-grab (Links oben). Zeitmarken in Videos habe ich nicht geprüft; statt Timecodes stehen Galerie-Nummern.
+
+## Neue Sterne (1.10., Agent)
+
+Auftrag Vadim: „Spider-Verse ITSV & ATSV Inspo raussuchen, Animationsstile, coole Sparks kreieren.“ Code in
+`src/lab_spark.py` (Abschnitt „Spider-Verse-Serie“), registriert in `kickoff.LAB`. Bogen: `previz/variants/stars_neu.png`
+(jeder Stil an Frame 1 groß links / 9 fern / 16 groß rechts, Lesbarkeit im Kopf). Neu rendern:
+`uv run src/kickoff_loop.py stars S48 S49 S50 S51 S52 S53 S54 S55` (schreibt `stars.png`).
+
+Alle acht: **frontal**, 6-zackig, **folgen der Bahn** (Lage/Größe/Drehung über `_local(g)` aus `c.L["star"]`), nur
+Palettenstufen auf dem Zellraster, `g.lit` gesetzt (Titel kippt per XOR), QR auf allen 16 Frames lesbar. Maße in Zellen
+statt Sternradien, wo es Druck-/Strichgrößen sind (Versatz, Strichabstand, Rasterweite): gleich groß auf fernen und nahen
+Sternen, druckgleich in A3. Lesbarkeit = Minimum über alle 16 Frames; **Frame 2 ist ein Bahn-Brennpunkt** (Sternspitze
+sticht durch „KICK-OFF / 14.“, Datumsbuchstaben kippen halb): dort schon S2 0.96, S45/S47/S31g 0.95.
+
+| Code | Idee (1 Satz) | Quelle | Lesbarkeit min (F2) | Bahn |
+|---|---|---|---|---|
+| **S48 Fehldruck** | Zwei Druckplatten, die Farbplatte um ganze Zellen verrutscht (fern 3, nah 6 Zellen = Tiefe wie im Film), Ben-Day-Schatten auf der Schattenseite | ITSV Brooklyn/Miles, Farbversatz statt Unschärfe (Technik 05 oben) | 0.97 (0.95) | ja |
+| **S49 Krackle** | Heller Stern, dunkler Spalt, Energiesaum in der Mittelstufe, Trauben schwarzer Kirby-Punkte stanzen ihn aus | Jack Kirby „Kirby Krackle“ ([Wikipedia](https://en.wikipedia.org/wiki/Kirby_Krackle)), ITSV-Kollider | 0.96 (0.95) | ja |
+| **S50 Fokuslinien** | Keile vom Seitenrand laufen spitz auf den Stern zu, sparen Titelblock und JOIN US + QR aus wie Manga-Linien die Sprechblase | Manga shuuchuu-sen ([Japanese with Anime](https://www.japanesewithanime.com/2020/03/line-effects.html)), ITSV-Speedlines, Trigger/Gainax | 0.97 (0.94) | ja, Linien zielen immer auf den Stern |
+| **S51 Aquarell** | Unruhige Lasur, die auf dem Stern sitzt und mitdreht, Pigmentrand als hellste harte Kante, Blütenränder innen | ATSV Gwen/Earth-65 „watercolor-wash“ ([AWN: sechs Stile](https://www.awn.com/news/spider-man-across-spider-verse-feature-six-different-art-styles)) | 0.97 (0.95) | ja |
+| **S52 Zine** | Aus der Fotokopie geschnitten: gerade Scherenschnitte (6 pro Flanke, leicht daneben), Toner-Flecken, Klebeband über der unteren Spitze | ATSV Hobie/Spider-Punk: Xerox, Tape, Rasierklinge, Collage ([AWN: Spot + Hobie](https://awn.com/animationworld/unpacking-spot-and-hobies-disruptive-styles-spider-man-across-spider-verse)) | 0.96 (0.94) | ja |
+| **S53 Spot** | Weißer Gesso-Stern mit schwarzen Tinten-Löchern (Portale, drehen mit), Bleistift-Konstruktion (Umkreis, Innenkreis, Achsen) scheint durch und läuft über den Umriss hinaus | ATSV The Spot: „gesso … you can still see the construction lines“, weiß mit schwarzen Portalen (AWN, s. o.; [Foundry](https://foundry.com/insights/film-tv/across-the-spider-verse-nuke-mari-katana)) | 0.97 (0.94) | ja |
+| **S54 Skizze** | Pergament-Stern mit Federzeichnung: dunkle Kontur, Schraffur auf der Schattenseite (tief gekreuzt, 4 Zellen Abstand), Konstruktionslinien hell auf dem Grund | ATSV Leonardo-Vulture (Renaissance-Skizzenbuch) | 0.97 (0.94) | ja |
+| **S55 Halbton** | Echtes Druckraster (runde Punkte, 45°, fest auf der Seite): der Stern fliegt unter der Rasterfolie durch, Punktgröße = Helligkeit, Halbton-Schein | ITSV Ben-Day als Licht (Technik 06 oben) | 0.97 (0.94) | ja, Raster steht, Stern wandert |
+
+Meine Sichtung am Bogen: **S50, S55, S53 am stärksten** (sofort Comic, klein wie groß klar); S48 und S52 gut; S49 und
+S51 leiser (bei ⅓ Größe subtil); S54 Geschmackssache (Pergament ist ein Fremdkörper in dunklen Colorways).
+
+**Für Vadims neuen Wunsch „interdimensional, alle bunten Colorways“:** alle acht arbeiten nur mit Palettenstufen und
+wirken deshalb in jeder Colorway. Am meisten „andere Dimension je Frame“: S48/S55 (Druck), S52 (Punk-Zine), S53 (Spot),
+S54 (Renaissance), S51 (Gwen). Idee, nicht gebaut: den Stil-Zyklus als Dimensionssprung lesen (jeder Stil = eine Welt,
+gekoppelt an eine Colorway-Station), dann ist die Farbreise zugleich eine Reise durch die Spider-Verse-Welten.
+
+Unfertig / bewusst nicht gemacht:
+- **Frame 2 ≤ 0.95 bei S50, S52–S55** (0.94): Bahn-Frage (Spitze im Datum), nicht Stil-Frage; Ausschneiden der Deko im
+  Titelblock half nicht (gemessen). Lösung eher in `[spark]` (Bahn auf Frame 2) als im Stil.
+- JOIN US auf großem, hellem Stern: kippt pro Buchstabe (Regel der Hauptsession); S50/S52/S53/S54 halten deshalb eine
+  QR-Zone frei (`_qr_zone`, nimmt JOIN US 9 + 4 Zellen aus `[qr]` als Konstante `SV_LABEL_CELLS` an, bei Änderung nachziehen).
+- Verworfen beim Bauen: S49 v1 (heller Saum ohne Spalt fraß die Silhouette, sah verbrannt aus → Nähe zur verworfenen
+  Brand-Serie), S52 v1 (1 Stützpunkt pro Flanke = gerader Stern statt Spark-Profil; große Tonerflecken = Kuhflecken),
+  S54 v1 (Schraffur in Sternradien → nah Balken statt Striche). Keine Schmelze, kein Glitch, kein Echo.
+- Recherchiert, nicht umgesetzt: TMNT Mutant Mayhem (Notizheft-Kritzel, Risiko „Dreijähriger“), Puss in Boots (malerisch,
+  auf dem Raster schwer), Mumbattan (Ornament ≈ S19d), Nueva York/Syd Mead (Linien-Gravur grenzt an verworfene Scanlines).
+- `URTEIL` in `lab_spark.py` für S48–S55 ist ein Platzhalter („neu, Vadim hat noch nicht gewählt“).
+
+Quellen (neu): [AWN: Spot + Hobie](https://awn.com/animationworld/unpacking-spot-and-hobies-disruptive-styles-spider-man-across-spider-verse),
+[AWN: sechs Stile](https://www.awn.com/news/spider-man-across-spider-verse-feature-six-different-art-styles),
+[Foundry: Spot-Pipeline](https://foundry.com/insights/film-tv/across-the-spider-verse-nuke-mari-katana),
+[Kirby Krackle](https://en.wikipedia.org/wiki/Kirby_Krackle),
+[Manga-Linien](https://www.japanesewithanime.com/2020/03/line-effects.html),
+[SIGGRAPH: TMNT Mutant Mayhem](https://history.siggraph.org/?p=163057),
+[AWN: Puss in Boots](https://www.awn.com/animationworld/puss-boots-last-wish-returns-its-fairy-tale-illustration-roots).

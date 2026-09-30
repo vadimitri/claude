@@ -1360,6 +1360,264 @@ def c_interferenz_innen(g):
     return np.where(par, ink(d * 0.9, 0.55), bg(g) + 0.12 * glow(d, 0.3))
 
 
+# ---------------------------------------------------------------- Spider-Verse-Serie (1.10., Kick-off-Loop)
+# Alle frontal, silhouettentreu, folgen der Bahn (_local). Inspiration + Quellen: kickoff_loop/ref/spiderverse/README.md.
+
+SV_LABEL_CELLS = 13          # JOIN US ueber der QR-Platte: Versalhoehe 9 + Abstand 4 Zellen (loop.toml [qr])
+ZINE_CUTS = 6                # S52: gerade Schnitte pro halber Flanke (Spitze → Kerbe); 1 = gerader Stern, Kurve weg
+SV_CELL_MIN = 1.3            # kleinste Punkt-/Kreisgroesse in Zellen: darunter zerfaellt ein Kreis auf dem Raster
+
+
+def _cell(g):
+    """Eine Zelle in m-Einheiten (kurze Seite = 1)."""
+    return g.px / g.m
+
+
+def _polar(x0, y0, R, rot, a, dval):
+    """Punkt in Sternkoordinaten → Seite (m): Winkel a relativ zur Drehung (Grad), dval = Anteil des Sternprofils in
+    dieser Richtung (1 = auf dem Umriss). Dreht mit dem Stern."""
+    th = np.radians(rot + a)
+    r = dval * R * star_r(np.cos(th), np.sin(th), rot)
+    return x0 + r * np.cos(th), y0 + r * np.sin(th)
+
+
+def _disk(g, acc, cx, cy, rad, lobes=None):
+    """Kreis (m) in die Maske acc odern, nur im Fenster gerechnet. lobes = (Anzahl, Tiefe, Phase): Tintenklecks statt
+    Kreis (Radius schwankt mit dem Winkel)."""
+    rad = max(rad, SV_CELL_MIN * _cell(g))
+    px = _cell(g)
+    j0, j1 = max(0, int((cx - 1.3 * rad) / px) - 1), min(g.gw, int((cx + 1.3 * rad) / px) + 2)
+    i0, i1 = max(0, int((cy - 1.3 * rad) / px) - 1), min(g.gh, int((cy + 1.3 * rad) / px) + 2)
+    if j0 >= j1 or i0 >= i1:
+        return
+    dx, dy = g.X[i0:i1, j0:j1] - cx, g.Y[i0:i1, j0:j1] - cy
+    r = rad
+    if lobes:
+        k, depth, ph = lobes
+        r = rad * (1 + depth * np.sin(k * np.arctan2(dy, dx) + ph))
+    acc[i0:i1, j0:j1] |= dx * dx + dy * dy < r * r
+
+
+def _qr_zone(g, pad_cells=6):
+    """JOIN US + QR-Platte (unten links, kickoff.layout) plus Rand, in m: dort keine kleinteiligen Details, sonst
+    verschwinden Buchstaben von JOIN US beim Kippen (Befund 1.10.: S50-Linie, S53-Loch unter dem N)."""
+    L, c = g.c.L, _cell(g)
+    label = SV_LABEL_CELLS * c
+    x1 = (L.get("x0", L["m"]) + L["qs"]) / g.m + pad_cells * c
+    y0 = (L["qbot"] - L["qs"]) / g.m - label - pad_cells * c
+    return (g.X < x1) & (g.Y > y0)
+
+
+def _type_zone(g):
+    """Titelblock (SPARK bis Datum, ganze Breite) in m: dort keine Deko ausserhalb der Grundform, sonst sinkt die
+    Lesbarkeit und der Satz wird unruhig (Konstruktionslinien, Halbton-Schein, Schraffur)."""
+    L = g.c.L
+    return g.Y < (L["db"] + 0.6 * L["capd"]) / g.m
+
+
+def _star_noise(g, x, y, rot, sigma, seed):
+    """Weiches Rauschen in Sternkoordinaten (dreht mit dem Stern, steht auf ihm fest), -1..1 grob normiert."""
+    n = gaussian_filter(np.random.default_rng(seed).standard_normal((160, 160)), sigma)
+    n /= 2.5 * n.std()
+    a = np.radians(-rot)
+    u, w = x * np.cos(a) - y * np.sin(a), x * np.sin(a) + y * np.cos(a)       # zurueckgedreht: Muster sitzt auf dem Stern
+    return map_coordinates(n, ((w + 1.6) / 3.2 * 159, (u + 1.6) / 3.2 * 159), order=1, mode="grid-wrap")
+
+
+def c_fehldruck(g):
+    """S48 Fehldruck (ITSV, Miles' Brooklyn): der Stern in zwei Druckplatten, die Farbplatte um ganze Zellen nach unten
+    rechts verrutscht. Versatz = Tiefe wie im Film (Unschaerfe = Plattenversatz): fern 3 Zellen, ganz nah 6. Nur Schwarz-
+    platte = hellste Stufe, Uebereinander = eine Stufe tiefer mit Ben-Day-Schatten (Bayer als Punktraster) auf der
+    lichtabgewandten Seite, nur Farbplatte = Mittelstufe. Der Umriss der Schwarzplatte ist der Stern."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    k = int(np.clip(round(2 + 5 * R), 3, 6))                           # fern 3, nah 6 Zellen (A3: 3-6 mm)
+    d = sd(x, y, rot)
+    key, col = d < 1, sd(x - k * c / R, y - k * c / R, rot) < 1
+    lh = np.hypot(LIGHT[0], LIGHT[1])
+    lit_side = (x * LIGHT[0] + y * LIGHT[1]) / lh                     # > 0: zum Licht (oben links)
+    over = np.where(lit_side > -0.12, (N - 1) / N, (N - 1.5) / N)     # Schatten: Ben-Day, halb Punkte eine Stufe tiefer
+    v = np.select([key & col, key, col], [over, 1.0, (N - 2.5) / N], bg(g) + 0.10 * glow(d, 0.3))
+    g.lit = key & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_krackle(g):
+    """S49 Krackle (Jack Kirby, ITSV-Kollider): um den Stern steht ein Energiesaum in der Mittelstufe, getrennt durch
+    einen dunklen Spalt (die Silhouette bleibt der Stern), und Kirby-Punkte (Trauben schwarzer Kreise) stanzen den
+    Saum aus, dicht an seiner Aussenkante. Saum fern breit, nah schmal (in Seiteneinheiten begrenzt, Titel)."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    gap = 1 + 2.5 * c / R                                              # dunkler Spalt: 2-3 Zellen
+    E = gap + min(0.55, 0.09 / R)                                      # Saum in Sternprofilen
+    dots = np.zeros(d.shape, bool)
+    rng = np.random.default_rng(49)
+    for _ in range(60):                                                # Trauben
+        a, t = rng.uniform(0, 360), rng.uniform(0.45, 1.05)
+        cx, cy = _polar(x0, y0, R, rot, a, gap + (E - gap) * t)
+        size = (E - gap) * R * rng.uniform(0.16, 0.34)
+        for j in range(rng.integers(2, 6)):                            # Hauptpunkt + Trabanten
+            s_ = size * (1 if j == 0 else rng.uniform(0.3, 0.6))
+            o = 0 if j == 0 else size * rng.uniform(1.0, 1.6)
+            b = rng.uniform(0, 2 * np.pi)
+            _disk(g, dots, cx + o * np.cos(b), cy + o * np.sin(b), s_)
+    field = (d >= gap) & (d < E) & ~dots
+    fade = np.clip((E - d) / (E - gap), 0, 1)                           # Saum innen heller
+    v = np.where(d < 1, ink(d, 0.8), np.where(field, (N - 3 + 1.2 * fade) / N, bg(g)))
+    g.lit = (d < 1) | (field & (v >= 0.5))
+    return np.clip(v, 0, 1)
+
+
+def c_fokus(g):
+    """S50 Fokuslinien (Manga shuuchuu-sen, ITSV-Speedlines): Keile aus dem Seitenrand laufen spitz auf den Stern zu und
+    enden in verschiedenem Abstand vor ihm. Sie sparen den Titelblock aus wie Manga-Linien die Sprechblase (Lesbarkeit).
+    JOIN US + QR ebenso. Der Stern: voller Koerper mit dunkler Innenkontur (ausgeschnittene Comicform)."""
+    title(g)
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    rr, ang = np.hypot(g.X - x0, g.Y - y0), np.arctan2(g.Y - y0, g.X - x0)
+    rng = np.random.default_rng(50)
+    lines = np.zeros(d.shape, bool)
+    for a in np.sort(rng.uniform(0, 2 * np.pi, 110)):
+        r0 = R * star_r(np.cos(a), np.sin(a), rot) * rng.uniform(1.3, 2.0)
+        w = c * rng.uniform(0.5, 1.8)                                  # halbe Breite am Rand (m)
+        da = np.abs((ang - a + np.pi) % (2 * np.pi) - np.pi)
+        lines |= (rr > r0) & (da * rr < w * np.clip((rr - r0) / 0.35, 0, 1))
+    L = g.c.L
+    lines &= ~_type_zone(g) & ~_qr_zone(g)                               # Titelblock und JOIN US + QR bleiben frei
+    rim = (d >= 1 - 2 * c / R) & (d < 1)
+    v = np.where(d < 1, np.where(rim, (N - 2) / N, ink(d, 0.8)), np.where(lines, (N - 2) / N, bg(g)))
+    g.lit = (d < 1) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_aquarell(g):
+    """S51 Aquarell (ATSV, Gwens Earth-65): Lasur mit Pigmentrand. Innen eine unruhige Lasur (weiches Rauschen, das auf
+    dem Stern sitzt und mitdreht, Koernung im Bayer), am Umriss sammelt sich das Pigment zur harten, hellsten Kante,
+    innen stehen Rueckfluss-Raender (Blueten) als feine helle Linien. Der Umriss bleibt scharf: nasse Farbe auf trockenem
+    Papier."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    wash = 0.70 + 0.16 * _star_noise(g, x, y, rot, 9, 51) + 0.05 * _star_noise(g, x, y, rot, 1.2, 52)
+    bloom = np.abs(_star_noise(g, x, y, rot, 7, 53) - 0.25) < 0.9 * c / R          # Bluetenrand: knapp 2 Zellen
+    rim = d >= 1 - max(0.05, 2.5 * c / R)
+    v = np.where(rim, 1.0, np.where(bloom & (d < 0.9), 1.0, np.clip(wash, 0.54, 0.9)))
+    v = np.where(d < 1, v, bg(g) + 0.08 * glow(d, 0.25))
+    g.lit = d < 1
+    return np.clip(v, 0, 1)
+
+
+def c_zine(g):
+    """S52 Zine (ATSV, Hobie/Spider-Punk): der Stern mit der Schere aus einer Fotokopie geschnitten. Umriss aus geraden
+    Schnitten (ZINE_CUTS pro Flanke, leicht daneben), Kopierer-Toner (kleine Flecken) und dunkle Kopierkante im hellen
+    Papier, ein Streifen Klebeband ueber einer Spitze (durchscheinend: Schachbrett)."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    rng = np.random.default_rng(52)
+    pts = []
+    for a in np.arange(TIP_DEG, TIP_DEG + 360, 60 / ZINE_CUTS):          # gerade Schnitte, Stuetzpunkte auf dem Profil
+        tip = (a - TIP_DEG) % 60 == 0
+        pts.append(_polar(x0, y0, R, rot, a, 1 if tip else 1 + rng.uniform(-0.03, 0.015)))
+
+    def cut(dx, dy):
+        im = Image.new("1", (g.gw, g.gh), 0)
+        ImageDraw.Draw(im).polygon([((px + dx) / c - 0.5, (py + dy) / c - 0.5) for px, py in pts], fill=1)
+        return np.asarray(im, bool)
+    body = cut(0, 0)
+    free = ~_qr_zone(g)
+    toner = (_star_noise(g, x, y, rot, 0.7, 54) > 0.5) & free           # Kopierer: kleine Tonerflecken
+    edge = body & ~binary_erosion(body) & free                           # Kopierkante: 1 Zelle dunkel am Schnitt
+    a = np.radians(rot + 90)                                             # Klebeband quer ueber die untere Spitze
+    tx, ty = _polar(x0, y0, R, rot, 90, 0.86)
+    u = (g.X - tx) * np.cos(a) + (g.Y - ty) * np.sin(a)
+    w = -(g.X - tx) * np.sin(a) + (g.Y - ty) * np.cos(a)
+    tape = (np.abs(u) < 0.09 * R) & (np.abs(w) < 0.30 * R)
+    checker = (g.c.yy + g.c.xx) % 2 == 0
+    v = np.where(body, np.where(toner | edge, (N - 3) / N, 1.0), bg(g))
+    v = np.where(tape, np.where(checker, (N - 1) / N, (N - 2) / N), v)
+    g.lit = (body | tape) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_spot(g):
+    """S53 Spot (ATSV, The Spot): weisser Gesso-Stern mit schwarzen Tintenloechern (Portale), darunter scheinen die
+    Bleistift-Konstruktionslinien durch (Umkreis, Innenkreis, drei Achsen durch die Spitzen, ueber den Umriss hinaus).
+    Loecher sind Kleckse (Radius schwankt mit dem Winkel), sitzen fest auf dem Stern und drehen mit."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    rr = np.hypot(x, y)
+    w = max(0.006, 0.6 * c / R)                                           # Bleistift: gut 1 Zelle
+    con = (np.abs(rr - 1) < w) | (np.abs(rr - INNER_R) < w)
+    for k in range(3):
+        a = np.radians(rot + TIP_DEG + 60 * k)
+        con |= (np.abs(-x * np.sin(a) + y * np.cos(a)) < w) & (rr < 1.18)
+    con &= ~_type_zone(g)
+    holes = np.zeros(d.shape, bool)
+    rng = np.random.default_rng(53)
+    for a, dv, s in [(0, 0.0, 0.16)] + [(rng.uniform(0, 360), rng.uniform(0.25, 0.8), rng.uniform(0.05, 0.13))
+                                        for _ in range(11)]:
+        cx, cy = _polar(x0, y0, R, rot, a, dv)
+        _disk(g, holes, cx, cy, s * R, (int(rng.integers(3, 6)), 0.12, rng.uniform(0, 6.3)))
+    holes &= (d < 0.92) & ~_qr_zone(g)
+    v = np.where(d < 1, np.where(holes, 0.0, np.where(con, (N - 2) / N, 1.0)),
+                 np.where(con, (N - 3) / N, bg(g) + 0.06 * glow(d, 0.25)))
+    g.lit = (d < 1) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_skizze(g):
+    """S54 Skizze (ATSV, Leonardos Vulture aus dem Renaissance-Skizzenbuch): der Stern als Pergament mit Federzeichnung.
+    Dunkle Kontur, Schraffur auf der lichtabgewandten Seite (45 Grad, im tiefen Schatten gekreuzt), Konstruktion
+    (Umkreis, Achsen) laeuft hell ueber den Umriss hinaus auf den dunklen Grund."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    rr = np.hypot(x, y)
+    w = max(0.006, 0.55 * c / R)
+    a = np.radians(-rot)
+    u, t = x * np.cos(a) - y * np.sin(a), x * np.sin(a) + y * np.cos(a)
+    sp = 4 * c / R                                                         # Strichabstand 4 Zellen (Feder auf Papier)
+    lh = np.hypot(LIGHT[0], LIGHT[1])
+    lit_side = (x * LIGHT[0] + y * LIGHT[1]) / lh
+    h1 = ((u + t) / np.sqrt(2) / sp) % 1 < 0.3
+    h2 = ((u - t) / np.sqrt(2) / sp) % 1 < 0.3
+    hatch = ((h1 & (lit_side < 0.0)) | (h2 & (lit_side < -0.35))) & ~_qr_zone(g)
+    outline = d >= 1 - 2 * c / R                                          # Kontur 2 Zellen
+    con = np.abs(rr - 1.0) < w
+    for k in range(3):
+        b = np.radians(rot + TIP_DEG + 60 * k)
+        con |= (np.abs(-x * np.sin(b) + y * np.cos(b)) < w) & (rr < 1.25)
+    con &= ~_type_zone(g)
+    outline &= ~_type_zone(g)
+    hatch &= ~_type_zone(g)
+    v = np.where(d < 1, np.where(outline | hatch, (N - 4) / N, (N - 1) / N),
+                 np.where(con, (N - 3) / N, bg(g)))
+    g.lit = (d < 1) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_halbton(g):
+    """S55 Halbton (ITSV, Ben-Day als Licht): ein echtes Druckraster (runde Punkte, 45 Grad, fest auf der SEITE, nicht
+    auf dem Stern): der Stern fliegt unter dem Raster durch wie ein Motiv unter der Rasterfolie. Punktgroesse = Helligkeit,
+    innen verschmelzen die Punkte zur Flaeche. Aussen ein Halbton-Schein. Keine Bayer-Mischung: nur flache Stufen."""
+    x0, y0, R, rot, x, y = _local(g)
+    N = g.N
+    d = sd(x, y, rot)
+    p = 5.0                                                                # Rasterweite in Zellen
+    uu, ww = (g.c.xx - g.c.yy) / np.sqrt(2) / p, (g.c.xx + g.c.yy) / np.sqrt(2) / p
+    dist = p * np.hypot(uu - np.round(uu), ww - np.round(ww))              # Abstand zum naechsten Punktmittelpunkt (Zellen)
+    tone = np.where(d < 1, 0.35 + 0.65 * np.clip(1 - d, 0, 1) ** 0.6, 0.45 * glow(d, 0.28))
+    dot = dist < p * np.sqrt(np.clip(tone, 0, 1) / np.pi) * 1.25
+    v = np.where(d < 1, np.where(dot, 1.0, (N - 2) / N),
+                 np.where(dot & (tone > 0.04) & ~_type_zone(g), (N - 3) / N, bg(g)))
+    g.lit = (d < 1) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
 CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) stehen unter ihrem Stamm
     ("S13", c_sternkind, "Sternkind", "Jede Spitze gebiert einen kleineren Stern, der nach aussen weiterwaechst: Stern-Koch-Kurve."),
     ("S14", c_attraktor, "Sternstaub", "Chaos-Spiel-Attraktor aus zwoelf Sternpunkten, leicht verdreht: der Stern als Staubgalaxie."),
@@ -1410,6 +1668,14 @@ CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) steh
     ("S47", c_praegung, "Praegung", "Das XOR-Nest als Hochdruck: erhabene Platten mit Lichtkante und Schatten."),
     ("S31g", c_lampe, "Lampe", "Der Stern ist die Lampe: Lichtbahnen aus den Spitzen, Titelschatten, Umriss bleibt."),
     ("S18d", c_interferenz_innen, "Moire im Stern", "Zwei Hoehenlinien-Sterne per XOR, nur in der Silhouette, harter Rand."),
+    ("S48", c_fehldruck, "Fehldruck", "ITSV Brooklyn: zwei Druckplatten, Farbplatte verrutscht (fern 2, nah 4 Zellen), Ben-Day-Schatten."),
+    ("S49", c_krackle, "Krackle", "Jack Kirby / ITSV-Kollider: heller Energiesaum, schwarze Kirby-Punkte stanzen den Raum aus."),
+    ("S50", c_fokus, "Fokuslinien", "Manga shuuchuu-sen / ITSV-Speedlines: Keile vom Rand auf den Stern, Titelblock bleibt frei."),
+    ("S51", c_aquarell, "Aquarell", "ATSV Gwen (Earth-65): Lasur mit Pigmentrand und Rueckfluss-Blueten, scharfer Umriss."),
+    ("S52", c_zine, "Zine", "ATSV Hobie: aus der Fotokopie geschnitten, Toner, Klebeband, harter Schlagschatten."),
+    ("S53", c_spot, "Spot", "ATSV The Spot: Gesso-Stern mit Tintenloechern, Bleistift-Konstruktion scheint durch."),
+    ("S54", c_skizze, "Skizze", "ATSV Leonardo-Vulture: Pergament, Federschraffur, Konstruktion ueber den Umriss hinaus."),
+    ("S55", c_halbton, "Halbton", "ITSV Ben-Day: echtes Druckraster fest auf der Seite, der Stern fliegt darunter durch."),
 ]
 BY = {c[0]: c for c in CANDS}
 CMP = {"S26v1": c_xortitel_alt, "S30v1": c_versatz_alt, "S31b2": c_lichtfall_kurz}   # alte Fassungen, nur Vergleich
@@ -1469,6 +1735,8 @@ URTEIL.update({"S36": (1, "raus", "Vadim 30.9.: schmilzt, sieht scheisse aus."),
                "S47": (4, "Loop", "Nest als Praegung: S7 mit Licht und Schatten an jeder Plattenkante."),
                "S31g": (4, "Loop", "Gegenlicht, das die Silhouette haelt: Strahlen aus den Spitzen, Titel steht hell davor."),
                "S18d": (3, "Loop", "Moire nur im Stern: S18 ohne die Titel-Zerstoerung.")})
+# Spider-Verse-Serie 1.10. (Sterne-Fork, Vadim: "Spider-Verse-Inspo, coole Sparks"): meine Sichtung, Vadim waehlt noch
+URTEIL.update({c: (3, "Loop", "neu, Vadim hat noch nicht gewaehlt.") for c in "S48 S49 S50 S51 S52 S53 S54 S55".split()})
 KEPT =[c for c in BY if URTEIL[c][1] != "raus"]
 
 # Kick-off-Sichtung 2026-09-25 nachts (Vadim)

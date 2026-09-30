@@ -22,9 +22,9 @@ Aufbau dieser Datei (von oben nach unten):
   Konfiguration   load()                    loop.toml lesen und pruefen
   Farbe           palette()                 Farbreise: Frame-Nummer → gemischte Palette (OKLab)
   Geometrie       star_at()                 Frame-Nummer → Lage des Sterns auf der Bumerang-Bahn
-  Plakatsatz      layout(), type_layers()   Satz des Loop-Plakats, QR als Caption-Box (ersetzt kickoff.type_layers)
+  Plakatsatz      layout(), type_layers()   Satz des Loop-Plakats, QR glueht ein (qr_glow; ersetzt kickoff.type_layers)
   Rendern         frame(), frames()         ein Plakat / alle Plakate als Bild, mit Cache und QR-Check
-  Varianten       variants()                Details zum Abstimmen nebeneinander
+  Boegen          variants(), stars()       QR-Varianten / Sternstile nebeneinander zum Auswaehlen
 Video, Endkarte, Musik (Song-Ausschnitt), Blitz-Check stehen in kickoff_loop_video.py.
 """
 import colorsys
@@ -378,8 +378,8 @@ def line_masks(c, lines, centered=False):
 
 def type_layers(c):
     """Satz des Loop-Plakats. Raster und Groessen aus kickoff.layout;
-    neu gegenueber kickoff.type_layers: Verlauf pro Zeile, SPARK waagerecht zentriert, keine Kopfzeile, QR als Caption-Box."""
-    L, px, lp = c.L, c.px, c.st["loop"]
+    neu gegenueber kickoff.type_layers: Verlauf pro Zeile, SPARK waagerecht zentriert, keine Kopfzeile, QR glueht (qr_glow)."""
+    lp = c.st["loop"]
     shape = (c.gh, c.gw)
     n0 = len(c.layers)
     show = (lp["digital"] or {}).get("show")                       # Endkarte: Elemente setzen nacheinander ein

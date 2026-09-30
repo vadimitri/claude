@@ -47,7 +47,8 @@ SPARKS = [("S2", "grad"), ("S7", "nest"), ("S33", "matrjoschka")]
 # Raus (Vadim 26.9.): S19c, Brand-Serie S34 S35 S37 S38 S39 S41 S42 S43. Neu drin: S36 Schmelze, S40 Verkohlung.
 # Neu (30.9., Kick-off-Loop): Licht-Serie S44 Relief, S45 Facette, S46 Stufen, S47 Praegung, S31g Lampe, S18d Moire im Stern.
 LAB = ["S13", "S14", "S18d", "S19d", "S23", "S24", "S26", "S31", "S31b", "S31c", "S31d", "S31e", "S31f", "S31g", "S36", "S40",
-       "S44", "S45", "S46", "S47"]
+       "S44", "S45", "S46", "S47",
+       "S48", "S49", "S50", "S51", "S52", "S53", "S54", "S55"]      # Spider-Verse-Serie 1.10. (ref/spiderverse/README.md)
 OWN = {"S24", "S26", "S31", "S31b", "S31c", "S31d", "S31e", "S31f"}
 # Eigene Platzierung im einzeiligen Satz (x0, y0, R in Bruchteilen von W, H, kurzer Seite): Stern gross genug, dass er den Leerraum fuellt
 OWN_K = {"S26": (0.60, 0.40, 0.80),          # Kippschrift: riesig hinter dem Titel, reicht bis zum QR

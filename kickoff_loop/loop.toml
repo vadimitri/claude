@@ -109,7 +109,8 @@ burst_beats = 0.5          # Ausbruch: so viele Beats vom letzten Plakat bis der
 burst_star = [0.50, 0.46, 1.6]  # Ziel des Ausbruchs: x, y (Bruchteil des 9:16-Bilds), Radius (Bruchteil der Bildbreite)
 impact_frames = 2          # Negativ-Bilder auf dem Hit (24 fps). 1 Blitz, WCAG erlaubt 3 pro Sekunde
 card_star = [0.50, 0.66, 0.62]  # Mitte und aeusserster Stern des Tunnels: x, y, Radius (wie oben)
-card_style = "S7"          # Hypno-Loop (Vadim 30.9.): XOR-Nest als Tunnel, Sterne wachsen stetig aus der Mitte nach aussen
+card_style = "S7"          # PLATZHALTER: Vadim 1.10. "keine Hypno-Endkarte", Endkarte wird am Ende in eigener Session neu
+                           # gemacht. Bis dahin: XOR-Nest als Tunnel, Sterne wachsen stetig aus der Mitte nach aussen
 card_zoom_stars_per_s = 0.9    # so viele neue Sterne pro Sekunde (Tempo des Sogs). Jedes Pixel kippt dabei ~1x/s: kein Blitz
 card_spin_deg_per_s = 12   # langsame Drehung in der Bildebene (frontal, keine Kippung)
 card_fps = 24              # Vadim 30.9.: "Framerate der digitalen Version ganz nice" → fluessig
