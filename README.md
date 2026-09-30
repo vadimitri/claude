@@ -5,7 +5,7 @@ Alles prozedural (Python + ffmpeg). Skripte in `src/`, jede Ausgabe in ihrem eig
 | Ordner | Was | Erzeugt von |
 |---|---|---|
 | `editor/` | **Live-Editor** (Browser, GPU): alle Sterne als Shader, Vorlagen Kick-off/Maker Night/Event/Folie, Formate A3/9x16/16x9/1x1/4x5, Kampagne + Varianten + Balance | `cd editor && npm run dev -- --port 5199` |
-| `kickoff_loop/` | **Kick-off-Loop** (aktuell): 16 Plakate = 16 Frames eines Stop-Motion-Loops, Fotos vom Campus, Zoom ins Digitale. Handbuch `kickoff_loop/CLAUDE.md`, Stellschrauben `kickoff_loop/loop.toml` | `uv run src/kickoff_loop.py preview` |
+| `kickoff_loop/` | **Kick-off-Loop** (aktuell): 32-Frame-Loop, Stern als Bumerang-Ellipse, Farbreise über alle Colorways, Video getrennt von den Campus-Plakaten. Handbuch `kickoff_loop/CLAUDE.md`, Stellschrauben `kickoff_loop/loop.toml` | `uv run src/kickoff_loop.py preview` |
 | `kickoff/` | **Kick-off-Kampagne** 14.10.: bunte Unikat-Plakate ohne Lila, QR eingebettet, Hex-Easter-Egg | `src/kickoff.py` |
 | `styles/` | **Maker-Night-System**: freigegebene Bausteine (Codes D/P/S/F/R), Unikat-Plakate A3, Looks mit Figma-Ebenen, Bewegungstests | `src/styles.py` |
 | `makernight/sparks/` | „Sparks make the night“, v1 + **v2 (Pixelraster, Clash-Bit)** | `src/makernight_sparks.py` |

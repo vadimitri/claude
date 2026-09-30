@@ -9,22 +9,18 @@
 
 [loop]
 # Tempo kommt aus der Musik ([music].grid: Mashup A 81.61 BPM, B 120 BPM). Ein Umlauf = 1 Takt in 16teln.
-frames = 32          # Frames pro Loop. Vadim 1.10.: Farbe C1 (32 Frames, eine Reise), Tempo T16 (16.32/s, 32tel-Triolen
-                     # auf IGOR); der Video-Loop ist von den Plakaten getrennt, leere Frames (Stern hinter dem Kopf) ok
-key_every = 2        # Stationen der Farbreise liegen auf jedem 2. Frame (aus der Plakatzeit, 1.10.: Video getrennt)
+frames = 16          # Frames im Loop = Plakate. Vadim 30.9. (Korrektur): lieber mehrere Durchgaenge als mehr Frames,
+                     # 16 = 1 Takt in 16teln; das Karussell laeuft 3-5-mal durch, der Ausbruch kommt am Ende des letzten
+key_every = 2        # jedes 2. Frame ist ein Aushang (Nummern 1, 3, 5 …: haengt auf dem Campus, muss allein tragen).
+                     # Die anderen sind Fotoframes: nur fuers Video gedruckt, einmal aufgehaengt, fotografiert.
 
 [color]
-# C1 Lange Reise (Vorschau 1.10., Uebergabe 2 "mehr Farbe", Form a): 32 Frames pro Loop, eine Farbreise, alles in OKLab
-# gemischt, kein harter Wechsel. 16 Stationen, eine auf jedem Aushang (Frame 1, 3 … 31), die Fotoframes dazwischen 50 %.
-# Alle 12 dunklen Colorways ausser P6 (Grund dithert zu Lila); 4 kommen zweimal (P13 P17 P14 P10, je >= 4 Stationen
-# Abstand), weil 12 nicht in 32 Frames aufgeht. Jeder Nachbar gegen Lila geprueft (load), Schritte OKLab 0.08-0.25.
-# Papier geht hier NICHT: gemischt mit Dunkel haben Grund und Tinte auf halbem Weg dieselbe Helligkeit (grau, Titel
-# unlesbar); load bricht ab. Papier nur mit hartem Wechsel (C2, C3).
-worlds = [["P11", "P20", "P15", "P13",    # blau: CHERENKOV > IKB 191 > CYANOTYPE > HOLOFOIL          F1-7
-           "P17", "P25", "P26",           # Neon: SIGNAL FLARE > AFTERHOURS > PALETTE ZERO (CGA)      F9-13
-           "P9", "P19", "P18", "P14",     # Glut: RED LASER > CHERRY BOMB > MOLTEN > TOTALITY         F15-21
-           "P10", "P13", "P17", "P14", "P10"]]   # Rueckweg: P1 GREEN > HOLOFOIL > SIGNAL > TOTALITY > P1 GREEN > (P11)
-world_frames = 32    # eine Welt = der ganze Loop ([loop].frames)
+# Farbreise: Colorway-Stationen, gleichmaessig verteilt (bei 32 Frames und 8 Stationen auf Frame 1, 5, 9 … 29,
+# alles Aushaenge). Dazwischen werden die Nachbarn Stufe fuer Stufe in OKLab gemischt: zwei benachbarte Frames
+# unterscheiden sich nur wenig, ueber den Loop wandert die Farbe einmal im Kreis und kommt wieder an.
+# Reihenfolge geprueft (30.9.): keine Mischung wird lila/fliederfarben (Rot direkt neben Blau wuerde es, z. B. P18 → P17).
+# Nur dunkle Gruende: eine Papier-Colorway (P16 P21–P24) mittendrin wuerde auf dem Weg grau.
+stations = ["P11", "P13", "P10", "P19", "P18", "P14", "P20", "P15"]
 steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P6 P9 P26) werden gedoppelt, nicht gemischt
 
 [styles]
@@ -42,31 +38,28 @@ cycle = ["S31g",  # Lampe: der Stern als Lichtquelle, Bahnen aus den Spitzen (Ge
          "S45",   # Facette: Kristall im Cel-Shading, Schatten als Ben-Day-Punktraster       F11-12
          "S47",   # Praegung: das Nest als Hochdruck, Lichtkante + Schatten an jeder Platte  F13-14
          "S2"]    # Verlauf, voller Koerper: F15-16 (Ausbruch ins Digitale)
-hold_frames = 4
+hold_frames = 2
 seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
 
 [spark]
-# Bumerang (Vadim 1.10.): "an den Seiten riesig, in der Mitte nach hinten/kleiner und an der Seite wieder riesig, wie ein
-# Boomerang nach hinten und wieder vorne, elliptisch". Ellipse um den Betrachter, er sitzt nahe dem hinteren Ende: der
-# Stern kommt links riesig herein, fliegt in die Tiefe, kommt rechts riesig zurueck, hinter dem Kopf ist er weg (leere
-# Frames). Die Zeit dort ist echt ("man fuehlt, wenn der Spark nicht genug Zeit hatte die Runde zu machen").
-# Der Stern ist groesser als sein Abstand beim Vorbeiflug (Comic): nur so ist er an den Seiten mehrere Frames riesig.
-# Gerechnet (1.10., 32 Frames): perspektivisch korrekt waere er nur 1 Frame pro Seite gross (Kepler-Varianten B4-B10).
-# Immer frontal, keine Kippung (Vadim 30.9.).
+# Bumerang als Kepler-Ellipse, der Betrachter sitzt im Brennpunkt (Vadim 1.10.: "realistischer", der Stern muss Zeit fuer
+# die Runde haben; "eher elliptisch, dann ist die hinter-Kopf-Zeit reduziert"). Er kommt links von hinten am Ohr vorbei
+# ins Bild, fliegt langsam in die Tiefe (klein), kommt rechts zurueck und verlaesst das Plakat ganz, hinter dem Kopf ist
+# er schnell (Flaechensatz). Frames, in denen er hinter dem Kopf oder ganz neben dem Plakat ist, sind leer.
+# v004 (Vadim 30.9.): der Stern bleibt IMMER frontal, keine Kippung; "kleinere Sparks": fern Radius ~0.20.
 source = "orbit"           # orbit = Bahn wird hier gerechnet (Werte unten) | resolve = Vadims Keyframes aus Resolve
                            # (Projekt SPARK_Kickoff_Loop, Timeline Stern-Bahn; uv run src/kickoff_loop_resolve.py pull)
 vanish = [0.50, 0.50]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
-width = 0.5                # halbe Breite der Ellipse (Tiefe = 1). Schmaler = er fliegt enger an dir vorbei
-ahead = 0.85               # Mitte der Ellipse so weit vor dir (0 = du in der Mitte, hinter dem Kopf so lang wie vorn;
-                           # 0.85 = du sitzt am hinteren Ende, der Weg hinter dem Kopf ist kurz)
-kepler_frac = 0.0          # Tempo: 0 = gleichmaessig auf der Bahn, 1 = Flaechensatz (hinten schnell, fern langsam)
-height = 0.12              # Bahn liegt so weit unter Augenhoehe (Einheit: Tiefe): nah = tiefer im Bild
-lens = 0.62                # Brennweite (kurze Plakatseite pro Einheit Abstand)
-size = 0.66                # Sterngroesse (Einheit: Tiefe). Fern Radius = lens*size/(1+ahead) = 0.22
-plane_roll_deg = 0         # Bahnebene um die Blickachse gedreht: 0 = waagerecht (links rein, rechts raus), 90 = senkrecht
-phase_shift_frames = 0.5   # Bahn um so viele Frames verschieben (gebrochen erlaubt): legt fest, welche Frames leer sind
+ecc = 0.85                  # Exzentrizitaet: 0 = Kreis (hinter dem Kopf so lange wie vorn), 0.7 = hinter dem Kopf ~9 %
+                           # der Runde. Groesser = kuerzer weg, aber der Stern muss kleiner sein (size < 1 - ecc^2)
+height = 0.33              # Bahn liegt so weit unter Augenhoehe (Einheit: grosse Halbachse): nah = tiefer im Bild
+lens = 1.8                # Brennweite (kurze Plakatseite pro Einheit Abstand)
+size = 0.25                # Sterngroesse (Einheit: grosse Halbachse). Fern Radius = lens*size/(1+ecc) = 0.20
+plane_roll_deg = 0
+phase_shift_frames = 0.5     # Bahn um so viele Frames verschieben (gebrochen erlaubt): legt fest, welche Frames leer sind
 rot_start_deg = 0          # Drehung im ersten Frame
-spin_deg = 240             # Eigendrehung pro Umlauf. Vielfache von 60° schliessen nahtlos (6-zackiger Stern)
+spin_deg = 240             # Eigendrehung pro Umlauf (15° pro Frame bei 16: unter 30°, sonst liest das Auge die 6-zackige
+                           # Form rueckwaerts drehend). Vielfache von 60° schliessen nahtlos
 
 [type]
 # Verlauf in den Buchstaben, pro Zeile von der Grundlinie (dunkler) bis zur Versalhoehe (hellste Stufe), in Palettenstufen.

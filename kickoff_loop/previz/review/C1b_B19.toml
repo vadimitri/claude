@@ -9,22 +9,26 @@
 
 [loop]
 # Tempo kommt aus der Musik ([music].grid: Mashup A 81.61 BPM, B 120 BPM). Ein Umlauf = 1 Takt in 16teln.
-frames = 32          # Frames pro Loop. Vadim 1.10.: Farbe C1 (32 Frames, eine Reise), Tempo T16 (16.32/s, 32tel-Triolen
-                     # auf IGOR); der Video-Loop ist von den Plakaten getrennt, leere Frames (Stern hinter dem Kopf) ok
-key_every = 2        # Stationen der Farbreise liegen auf jedem 2. Frame (aus der Plakatzeit, 1.10.: Video getrennt)
+frames = 32 # Frames im Loop = Plakate. Vadim 30.9. (Korrektur): lieber mehrere Durchgaenge als mehr Frames,
+                     # 16 = 1 Takt in 16teln; das Karussell laeuft 3-5-mal durch, der Ausbruch kommt am Ende des letzten
+key_every = 2        # jedes 2. Frame ist ein Aushang (Nummern 1, 3, 5 …: haengt auf dem Campus, muss allein tragen).
+                     # Die anderen sind Fotoframes: nur fuers Video gedruckt, einmal aufgehaengt, fotografiert.
 
 [color]
-# C1 Lange Reise (Vorschau 1.10., Uebergabe 2 "mehr Farbe", Form a): 32 Frames pro Loop, eine Farbreise, alles in OKLab
-# gemischt, kein harter Wechsel. 16 Stationen, eine auf jedem Aushang (Frame 1, 3 … 31), die Fotoframes dazwischen 50 %.
-# Alle 12 dunklen Colorways ausser P6 (Grund dithert zu Lila); 4 kommen zweimal (P13 P17 P14 P10, je >= 4 Stationen
-# Abstand), weil 12 nicht in 32 Frames aufgeht. Jeder Nachbar gegen Lila geprueft (load), Schritte OKLab 0.08-0.25.
-# Papier geht hier NICHT: gemischt mit Dunkel haben Grund und Tinte auf halbem Weg dieselbe Helligkeit (grau, Titel
-# unlesbar); load bricht ab. Papier nur mit hartem Wechsel (C2, C3).
-worlds = [["P11", "P20", "P15", "P13",    # blau: CHERENKOV > IKB 191 > CYANOTYPE > HOLOFOIL          F1-7
-           "P17", "P25", "P26",           # Neon: SIGNAL FLARE > AFTERHOURS > PALETTE ZERO (CGA)      F9-13
-           "P9", "P19", "P18", "P14",     # Glut: RED LASER > CHERRY BOMB > MOLTEN > TOTALITY         F15-21
-           "P10", "P13", "P17", "P14", "P10"]]   # Rueckweg: P1 GREEN > HOLOFOIL > SIGNAL > TOTALITY > P1 GREEN > (P11)
-world_frames = 32    # eine Welt = der ganze Loop ([loop].frames)
+# C1b Spruenge (Vadim 1.10. zu C1: "gerne verrueckter, wir sind zu zahm"): 32 Frames, aber keine Farbreise mehr, sondern
+# 16 Mini-Welten a 2 Frames. Jeder Aushang springt hart in eine neue Colorway, der Fotoframe danach haelt sie.
+# Nachbarn moeglichst gegensaetzlich (Blau > Orange, Rot > Tuerkis), dazwischen drei Papier-Bloecke (hart, nicht
+# gemischt, deshalb kein Grau). 16 von 18 Colorways: ohne P6 (Grund dithert zu Lila) und P15 (fast wie P11/P20).
+# P26 liegt auf kleinem Stern: mit dem grossen S2 am Ende fiel der Titel auf 0.94 (erster C1b-Bogen).
+worlds = [["P11"], ["P18"],            # CHERENKOV > MOLTEN                     F1-4
+          ["P23"], ["P16"],            # Papier: ABSOLUTE ZERO > FLUO PINK      F5-8
+          ["P19"], ["P25"],            # CHERRY BOMB > AFTERHOURS               F9-12
+          ["P20"], ["P26"],            # IKB 191 > PALETTE ZERO (CGA)           F13-16
+          ["P24"], ["P21"],            # Papier: HAZARD > MINT CONDITION        F17-20
+          ["P14"], ["P17"],            # TOTALITY > SIGNAL FLARE                F21-24
+          ["P9"], ["P13"],             # RED LASER > HOLOFOIL                   F25-28
+          ["P22"], ["P10"]]            # Papier: SAFETY ORANGE > P1 GREEN       F29-32
+world_frames = 2     # Frames pro Welt: Aushang + Fotoframe. Plakate = Welten x world_frames = 32 = [loop].frames
 steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P6 P9 P26) werden gedoppelt, nicht gemischt
 
 [styles]
