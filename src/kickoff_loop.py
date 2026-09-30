@@ -64,7 +64,7 @@ STAR_CLEAR = 1.6    # Selbsttest: ab diesem Vielfachen des Sternradius liegt kei
 GLOW_LIGHT_E = 4    # QR-Gluehen "light": exp(-4) = 2 % am Ende von glow_cells, gleich wie gauss dort
 GLOW_SIDE_TOL = 0.6  # Selbsttest: gleicher Abstand, andere Seite der Platte, hoechstens so viele Stufen Unterschied
                     # (Hintergrundverlauf ueber die Plattenhoehe ~0.2 Stufen, Bayer-Rest pro Ring ~0.2)
-KEPLER_ITER = 30   # Newton-Schritte fuer die Kepler-Gleichung; ab e < 0.9 nach ~10 auf Maschinengenauigkeit
+ELLIPSE_SAMPLES = 4001  # Stuetzstellen der Bahn fuer Zeit → Ort (Fehler < 0.1 % eines Frames bei 32 Frames)
 OFF_STAR = (-3.0, -3.0, 0.002)  # leerer Frame: Stern (x, y, Radius) so weit draussen, dass auch kein Schein hereinreicht
 BEHIND_Z = 0.02    # Bahn: Abstand (Bahnradius = 1), ab dem der Stern hinter/neben dem Kopf ist (Projektion 1/z explodiert)
 GLOW_MIN = 0.02     # QR-Gluehen: darunter unsichtbar im 6-stufigen Bayer-Korn (1/5 Stufe Abstand, 16 Schwellen: ~0.01)
@@ -110,9 +110,9 @@ def load(path=CONFIG, music=None):
                        "aendern. Reine Station (P6): Grund dithert Schwarz + #FF55FF zu Lila, nicht verwendbar")
     bad = [s for s in cfg["styles"]["cycle"] if s not in S_CODES]
     assert not bad, f"[styles].cycle: unbekannte Codes {bad}. Erlaubt: {sorted(S_CODES)}"
-    assert 0 <= cfg["spark"]["ecc"] < 1, "[spark].ecc: Exzentrizitaet 0 (Kreis) bis < 1 (Ellipse)"
-    assert cfg["spark"]["size"] < 1 - cfg["spark"]["ecc"] ** 2, \
-        "[spark].size: muss kleiner sein als 1 - ecc^2 (Abstand neben dem Kopf), sonst kommt der Stern nie ganz raus"
+    sp = cfg["spark"]
+    assert 0 <= sp["ahead"] < 1, "[spark].ahead: 0 (Betrachter in der Mitte) bis < 1 (sonst liegt er ausserhalb der Bahn)"
+    assert 0 <= sp["kepler_frac"] <= 1 and sp["width"] > 0, "[spark]: kepler_frac 0..1, width > 0"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
     q = cfg["qr"]
     for key, ok in (("glow_shape", ("round", "square")), ("glow_profile", ("gauss", "light", "linear", "steps"))):
@@ -250,21 +250,16 @@ def station_label(cfg, i):
 def orbit(cfg, phase):
     """Stern auf der Bumerang-Bahn bei `phase` (Frames, darf gebrochen sein): (x, y, Radius, Drehung).
 
-    Kepler-Ellipse mit dem Betrachter im Brennpunkt (Vadim 1.10.: "realistischer", der Stern braucht Zeit fuer die Runde,
-    die Bahn ist elliptisch, dann ist die Zeit hinter dem Kopf kurz). Das Tempo folgt dem Flaechensatz: fern (Aphel,
-    geradeaus) langsam und klein, hinter dem Kopf (Perihel) schnell. Kein Sprung am Neustart, weil die Bahn geschlossen ist
-    und die Zeit gleichmaessig laeuft. Zentralprojektion aufs Plakat (x ~ X/Z, Groesse ~ 1/Z). Hinter dem Kopf oder ganz
-    neben dem Plakat ist der Frame leer (Radius 0). Der Stern bleibt frontal (Vadim 30.9.), er dreht sich nur in der
-    Bildebene (spin_deg). Einheit der Bahn: grosse Halbachse = 1."""
+    Ellipse um den Betrachter (Vadim 1.10.: "wie ein Boomerang nach hinten und wieder vorne, elliptisch"): Tiefe 1,
+    Breite `width`, Mitte `ahead` vor dem Betrachter. Er sitzt nahe dem hinteren Ende, also ist der Weg hinter dem Kopf
+    kurz. Der Stern kommt links riesig herein, fliegt in die Tiefe (klein), kommt rechts riesig zurueck und ist hinter
+    dem Kopf weg. Die Zeit ist echt (Vadim: "man fuehlt, wenn der Spark nicht genug Zeit hatte"): gleichmaessiges
+    Tempo auf der Bahn (kepler_frac 0) oder Flaechensatz um den Betrachter (1, hinten schnell), dazwischen gemischt.
+    Der Stern ist groesser als der Abstand, in dem er vorbeifliegt (Comic, Spider-Verse): nur so ist er an den Seiten
+    mehrere Frames lang riesig. Er verlaesst das Plakat hinter dem Kopf, dort ist der Frame leer (Radius 0). Frontal,
+    dreht sich nur in der Bildebene (spin_deg). Zentralprojektion aufs Plakat (x ~ X/Z, Groesse ~ 1/Z)."""
     sp, n = cfg["spark"], count(cfg)
-    e = sp["ecc"]
-    M = 2 * np.pi * (phase + 0.5 + sp["phase_shift_frames"]) / n   # mittlere Anomalie: laeuft gleichmaessig mit der Zeit
-    E = M
-    for _ in range(KEPLER_ITER):                              # Kepler-Gleichung E - e sin E = M (Newton)
-        E -= (E - e * np.sin(E) - M) / (1 - e * np.cos(E))
-    nu = 2 * np.arctan2(np.sqrt(1 + e) * np.sin(E / 2), np.sqrt(1 - e) * np.cos(E / 2))
-    d = 1 - e * np.cos(E)                                     # Abstand zum Betrachter
-    X, Z = -d * np.sin(nu), -d * np.cos(nu)                   # Perihel hinter dem Kopf, links herum nach vorn
+    X, Z = _ellipse(sp["width"], sp["ahead"], sp["kepler_frac"], (phase + 0.5 + sp["phase_shift_frames"]) / n)
     rot = float(sp["rot_start_deg"] + sp["spin_deg"] * phase / n)
     if Z <= BEHIND_Z:                                         # hinter/neben dem Kopf: kein Stern auf dem Plakat
         return 0.5, 0.5, 0.0, rot
@@ -277,6 +272,19 @@ def orbit(cfg, phase):
     if dx * dx + dy * dy >= r * r:                            # ganz neben dem Plakat: leer, auch kein Schein
         return 0.5, 0.5, 0.0, rot
     return float(x), float(y), float(r), rot
+
+
+def _ellipse(width, ahead, kepler_frac, t):
+    """Punkt (X seitlich, Z vorn) der Bahnellipse zur Zeit t (0..1 = ein Umlauf, 0 = hinter dem Kopf, 0.5 = fern).
+    Zeit = Mischung aus Bogenlaenge (gleiches Tempo) und ueberstrichener Flaeche um den Betrachter (Flaechensatz);
+    numerisch invertiert auf ELLIPSE_SAMPLES Stuetzstellen."""
+    ph = np.linspace(-np.pi, np.pi, ELLIPSE_SAMPLES)          # -pi = hinter dem Kopf, 0 = fern
+    X, Z = width * np.sin(ph), ahead + np.cos(ph)             # links herum nach vorn (wie bisher)
+    arc = np.r_[0, np.cumsum(np.hypot(np.diff(X), np.diff(Z)))]
+    area = np.r_[0, np.cumsum(0.5 * np.abs(X[:-1] * Z[1:] - X[1:] * Z[:-1]))]
+    T = (1 - kepler_frac) * arc / arc[-1] + kepler_frac * area / area[-1]
+    p = np.interp(t % 1, T, ph)
+    return float(width * np.sin(p)), float(ahead + np.cos(p))
 
 
 def star_at(cfg, i):
@@ -716,6 +724,11 @@ def selftest(cfg, i=8):
             assert np.abs(got - station(st[j], cfg["color"]["steps"])).max() <= 1, \
                 f"Welt {w + 1}, Station {st[j]} (Plakat {k + 1}) weicht vom Original ab"
     assert is_lilac(["#A877A6"]) and not is_lilac(palette_hex(cfg, 0)), "Lila-Test erkennt Flieder nicht"
+    if cfg["spark"]["source"] == "orbit":                     # Bahn: geschlossen, links rein, rechts raus (1.10.: Vorzeichen
+        n = count(cfg)                                        # der Ellipse war vertauscht, der Stern kam rechts herein)
+        assert np.allclose(orbit(cfg, n)[:3], orbit(cfg, 0)[:3]), "Bahn schliesst nicht: Sprung am Neustart"
+        seen = [o for o in (orbit(cfg, i) for i in range(n)) if o[2] > 0]
+        assert seen[0][0] < 0.5 < seen[-1][0], "Bahn: Stern soll links hereinkommen und rechts hinaus"
     return f"Selbsttest ok (Frame {i + 1}: Verlauf pro Zeile, QR, Ruhezone, Gluehen geometrisch; Titel fix, Stationen, Lila-Test)"
 
 

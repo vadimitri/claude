@@ -9,18 +9,23 @@
 
 [loop]
 # Tempo kommt aus der Musik ([music].grid: Mashup A 81.61 BPM, B 120 BPM). Ein Umlauf = 1 Takt in 16teln.
-frames = 16          # Frames im Loop = Plakate. Vadim 30.9. (Korrektur): lieber mehrere Durchgaenge als mehr Frames,
+frames = 32 # Frames im Loop = Plakate. Vadim 30.9. (Korrektur): lieber mehrere Durchgaenge als mehr Frames,
                      # 16 = 1 Takt in 16teln; das Karussell laeuft 3-5-mal durch, der Ausbruch kommt am Ende des letzten
 key_every = 2        # jedes 2. Frame ist ein Aushang (Nummern 1, 3, 5 …: haengt auf dem Campus, muss allein tragen).
                      # Die anderen sind Fotoframes: nur fuers Video gedruckt, einmal aufgehaengt, fotografiert.
 
 [color]
-# Farbreise: Colorway-Stationen, gleichmaessig verteilt (bei 32 Frames und 8 Stationen auf Frame 1, 5, 9 … 29,
-# alles Aushaenge). Dazwischen werden die Nachbarn Stufe fuer Stufe in OKLab gemischt: zwei benachbarte Frames
-# unterscheiden sich nur wenig, ueber den Loop wandert die Farbe einmal im Kreis und kommt wieder an.
-# Reihenfolge geprueft (30.9.): keine Mischung wird lila/fliederfarben (Rot direkt neben Blau wuerde es, z. B. P18 → P17).
-# Nur dunkle Gruende: eine Papier-Colorway (P16 P21–P24) mittendrin wuerde auf dem Weg grau.
-stations = ["P11", "P13", "P10", "P19", "P18", "P14", "P20", "P15"]
+# C1 Lange Reise (Vorschau 1.10., Uebergabe 2 "mehr Farbe", Form a): 32 Frames pro Loop, eine Farbreise, alles in OKLab
+# gemischt, kein harter Wechsel. 16 Stationen, eine auf jedem Aushang (Frame 1, 3 … 31), die Fotoframes dazwischen 50 %.
+# Alle 12 dunklen Colorways ausser P6 (Grund dithert zu Lila); 4 kommen zweimal (P13 P17 P14 P10, je >= 4 Stationen
+# Abstand), weil 12 nicht in 32 Frames aufgeht. Jeder Nachbar gegen Lila geprueft (load), Schritte OKLab 0.08-0.25.
+# Papier geht hier NICHT: gemischt mit Dunkel haben Grund und Tinte auf halbem Weg dieselbe Helligkeit (grau, Titel
+# unlesbar); load bricht ab. Papier nur mit hartem Wechsel (C2, C3).
+worlds = [["P11", "P20", "P15", "P13",    # blau: CHERENKOV > IKB 191 > CYANOTYPE > HOLOFOIL          F1-7
+           "P17", "P25", "P26",           # Neon: SIGNAL FLARE > AFTERHOURS > PALETTE ZERO (CGA)      F9-13
+           "P9", "P19", "P18", "P14",     # Glut: RED LASER > CHERRY BOMB > MOLTEN > TOTALITY         F15-21
+           "P10", "P13", "P17", "P14", "P10"]]   # Rueckweg: P1 GREEN > HOLOFOIL > SIGNAL > TOTALITY > P1 GREEN > (P11)
+world_frames = 32    # eine Welt = der ganze Loop ([loop].frames)
 steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P6 P9 P26) werden gedoppelt, nicht gemischt
 
 [styles]
@@ -38,7 +43,7 @@ cycle = ["S31g",  # Lampe: der Stern als Lichtquelle, Bahnen aus den Spitzen (Ge
          "S45",   # Facette: Kristall im Cel-Shading, Schatten als Ben-Day-Punktraster       F11-12
          "S47",   # Praegung: das Nest als Hochdruck, Lichtkante + Schatten an jeder Platte  F13-14
          "S2"]    # Verlauf, voller Koerper: F15-16 (Ausbruch ins Digitale)
-hold_frames = 2
+hold_frames = 4
 seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
 
 [spark]
