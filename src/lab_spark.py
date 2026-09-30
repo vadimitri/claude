@@ -1340,7 +1340,8 @@ def c_lampe(g):
     tt = binary_dilation(g.T, iterations=1)
     emit = np.where(tt, 0.0, np.where(d < 1, 1.0, 0.5 * np.exp(-(d - 1) / 0.15)))
     acc = radial(g, emit, x0, y0, n=120, reach=0.99, decay=0.99, order=1)
-    ref = np.percentile(acc[(d > 1.0) & (d < 1.2)], 90) + 1e-6
+    ring = acc[(d > 1.0) & (d < 1.2)]                   # Saum direkt am Stern; leer, wenn der Stern nur mit einer Spitze
+    ref = (np.percentile(ring, 90) if ring.size else acc.max()) + 1e-6   # hereinragt (Bahn neben dem Plakat)
     rays = np.clip(acc / ref, 0, 1) ** 2.2              # hoher Exponent: Bahnen aus den Spitzen, Kerben bleiben dunkel
     v = bg(g, 0.0, 0.04) + 0.75 * rays
     v = np.where(d < 1, ink(d, 0.8), v)

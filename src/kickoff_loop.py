@@ -64,6 +64,9 @@ STAR_CLEAR = 1.6    # Selbsttest: ab diesem Vielfachen des Sternradius liegt kei
 GLOW_LIGHT_E = 4    # QR-Gluehen "light": exp(-4) = 2 % am Ende von glow_cells, gleich wie gauss dort
 GLOW_SIDE_TOL = 0.6  # Selbsttest: gleicher Abstand, andere Seite der Platte, hoechstens so viele Stufen Unterschied
                     # (Hintergrundverlauf ueber die Plattenhoehe ~0.2 Stufen, Bayer-Rest pro Ring ~0.2)
+KEPLER_ITER = 30   # Newton-Schritte fuer die Kepler-Gleichung; ab e < 0.9 nach ~10 auf Maschinengenauigkeit
+OFF_STAR = (-3.0, -3.0, 0.002)  # leerer Frame: Stern (x, y, Radius) so weit draussen, dass auch kein Schein hereinreicht
+BEHIND_Z = 0.02    # Bahn: Abstand (Bahnradius = 1), ab dem der Stern hinter/neben dem Kopf ist (Projektion 1/z explodiert)
 GLOW_MIN = 0.02     # QR-Gluehen: darunter unsichtbar im 6-stufigen Bayer-Korn (1/5 Stufe Abstand, 16 Schwellen: ~0.01)
 
 P_CODES = {code: val for code, val, _ in K.PAL}         # "P17" → "signal" (nur Kick-off-Colorways, kein Lila)
@@ -94,6 +97,9 @@ def load(path=CONFIG, music=None):
         "[color].stations: jede Station soll auf einem Aushang liegen (Abstand = Vielfaches von key_every)"
     lilac = [i + 1 for i in range(n) if is_lilac(palette_hex(cfg, i))]
     assert not lilac, f"[color].stations: Mischung wird lila auf Frame {lilac} (Rot direkt neben Blau?), Reihenfolge aendern"
+    assert 0 <= cfg["spark"]["ecc"] < 1, "[spark].ecc: Exzentrizitaet 0 (Kreis) bis < 1 (Ellipse)"
+    assert cfg["spark"]["size"] < 1 - cfg["spark"]["ecc"] ** 2, \
+        "[spark].size: muss kleiner sein als 1 - ecc^2 (Abstand neben dem Kopf), sonst kommt der Stern nie ganz raus"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
     q = cfg["qr"]
     for key, ok in (("glow_shape", ("round", "square")), ("glow_profile", ("gauss", "light", "linear", "steps"))):
@@ -204,20 +210,33 @@ def station_label(cfg, i):
 def orbit(cfg, phase):
     """Stern auf der Bumerang-Bahn bei `phase` (Frames, darf gebrochen sein): (x, y, Radius, Drehung).
 
-    Kreisbahn um den Betrachter, im Raum gerechnet: Winkel th laeuft ueber den sichtbaren Bogen (sweep_deg) gleichmaessig,
-    Abstand z = near + depth*cos(th), Zentralprojektion auf das Plakat (x ~ sin(th)/z, Groesse ~ 1/z). Nahe am Betrachter
-    ist er gross, tief und schnell, fern klein und nahe am Fluchtpunkt. Die Frame-Mitten liegen bei (i + 0.5)/n, damit
-    der Schritt ueber den Neustart (hinter dem Kopf) so gross ist wie jeder andere. Der Stern bleibt immer frontal
-    (Vadim 30.9.: keine Kippung), er dreht sich nur in der Bildebene (spin_deg)."""
+    Kepler-Ellipse mit dem Betrachter im Brennpunkt (Vadim 1.10.: "realistischer", der Stern braucht Zeit fuer die Runde,
+    die Bahn ist elliptisch, dann ist die Zeit hinter dem Kopf kurz). Das Tempo folgt dem Flaechensatz: fern (Aphel,
+    geradeaus) langsam und klein, hinter dem Kopf (Perihel) schnell. Kein Sprung am Neustart, weil die Bahn geschlossen ist
+    und die Zeit gleichmaessig laeuft. Zentralprojektion aufs Plakat (x ~ X/Z, Groesse ~ 1/Z). Hinter dem Kopf oder ganz
+    neben dem Plakat ist der Frame leer (Radius 0). Der Stern bleibt frontal (Vadim 30.9.), er dreht sich nur in der
+    Bildebene (spin_deg). Einheit der Bahn: grosse Halbachse = 1."""
     sp, n = cfg["spark"], count(cfg)
-    a, b = sp["sweep_deg"]
-    f = (phase + 0.5) / n
-    w = sp["far_rush_frac"]                                   # fern schneller, nah verweilen (0 = gleichmaessiger Winkel)
-    th = np.radians(a + (b - a) * (f - w * np.sin(2 * np.pi * f) / (2 * np.pi)))
-    z = sp["near"] + sp["depth"] * np.cos(th)
-    x = sp["vanish"][0] + sp["lens"] * np.sin(th) / z
-    y = sp["vanish"][1] + sp["lens"] * POSTER_ASPECT * sp["height"] / z
-    return float(x), float(y), float(sp["lens"] * sp["size"] / z), float(sp["rot_start_deg"] + sp["spin_deg"] * phase / n)
+    e = sp["ecc"]
+    M = 2 * np.pi * (phase + 0.5 + sp["phase_shift_frames"]) / n   # mittlere Anomalie: laeuft gleichmaessig mit der Zeit
+    E = M
+    for _ in range(KEPLER_ITER):                              # Kepler-Gleichung E - e sin E = M (Newton)
+        E -= (E - e * np.sin(E) - M) / (1 - e * np.cos(E))
+    nu = 2 * np.arctan2(np.sqrt(1 + e) * np.sin(E / 2), np.sqrt(1 - e) * np.cos(E / 2))
+    d = 1 - e * np.cos(E)                                     # Abstand zum Betrachter
+    X, Z = -d * np.sin(nu), -d * np.cos(nu)                   # Perihel hinter dem Kopf, links herum nach vorn
+    rot = float(sp["rot_start_deg"] + sp["spin_deg"] * phase / n)
+    if Z <= BEHIND_Z:                                         # hinter/neben dem Kopf: kein Stern auf dem Plakat
+        return 0.5, 0.5, 0.0, rot
+    ro = np.radians(sp["plane_roll_deg"])                   # Bahnebene um die Blickachse gedreht (0 = waagerecht)
+    u, v = X * np.cos(ro) - sp["height"] * np.sin(ro), X * np.sin(ro) + sp["height"] * np.cos(ro)
+    x = sp["vanish"][0] + sp["lens"] * u / Z
+    y = sp["vanish"][1] + sp["lens"] * POSTER_ASPECT * v / Z
+    r = sp["lens"] * sp["size"] / Z
+    dx, dy = max(-x, 0, x - 1), max(-y, 0, y - 1) / POSTER_ASPECT   # Abstand der Mitte zum Plakat (Einheit kurze Seite)
+    if dx * dx + dy * dy >= r * r:                            # ganz neben dem Plakat: leer, auch kein Schein
+        return 0.5, 0.5, 0.0, rot
+    return float(x), float(y), float(r), rot
 
 
 def star_at(cfg, i):
@@ -236,7 +255,11 @@ def poster_style(cfg, i):
     """Stil-Dict fuer styles.render: Palette aus der Farbreise, Stern-Stil aus dem Zyklus, Lage von der Bahn,
     Satz aus diesem Modul."""
     x, y, radius, rot = star_at(cfg, i)
-    st = K.style(palette(cfg, i), S_CODES[style_code(cfg, i)], "riese", star=(x, y, radius), rot=rot,
+    code = style_code(cfg, i)
+    if radius == 0:                                           # leerer Frame: winziger S2-Stern weit neben dem Plakat, so
+        (x, y, radius), code = OFF_STAR, "S2"                 # bleibt jede Stern-/Satzebene definiert (Maske leer). S2,
+                                                              # weil Labor-Stile (S31g) am Stern messen und leer abbrechen
+    st = K.style(palette(cfg, i), S_CODES[code], "riese", star=(x, y, radius), rot=rot,
                  seed=cfg["styles"]["seed"])
     st.update(layout=layout, type_fn=type_layers,
               loop=dict(i=i, n=count(cfg), type=cfg["type"], qr=cfg["qr"], digital=None))

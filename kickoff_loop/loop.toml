@@ -42,23 +42,22 @@ hold_frames = 2
 seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
 
 [spark]
-# Bumerang: der Stern kreist einmal um den Betrachter. Frame 1: er kommt hinten links (am linken Ohr vorbei) ins Bild,
-# fliegt in die Tiefe (wird klein), kehrt um, kommt auf einen zu (wird gross) und verlaesst das Bild rechts.
-# Zwischen dem letzten und dem ersten Frame fliegt er hinter dem Betrachter herum (unsichtbar): der Sprung von rechts
-# nach links IST der Neustart des Karussells. Gerechnet als Kreisbahn im Raum mit Zentralprojektion.
-# v004 (Vadim 30.9.: "kleinere Sparks", Bewegung "cool", aber der Stern bleibt IMMER frontal, keine Kippung):
-# fern jetzt Radius 0.20 statt 0.54 (die kleinen Frames sind Fotoframes: gedruckt fuers Video, nicht zum Aushaengen).
+# Bumerang als Kepler-Ellipse, der Betrachter sitzt im Brennpunkt (Vadim 1.10.: "realistischer", der Stern muss Zeit fuer
+# die Runde haben; "eher elliptisch, dann ist die hinter-Kopf-Zeit reduziert"). Er kommt links von hinten am Ohr vorbei
+# ins Bild, fliegt langsam in die Tiefe (klein), kommt rechts zurueck und verlaesst das Plakat ganz, hinter dem Kopf ist
+# er schnell (Flaechensatz). Frames, in denen er hinter dem Kopf oder ganz neben dem Plakat ist, sind leer.
+# v004 (Vadim 30.9.): der Stern bleibt IMMER frontal, keine Kippung; "kleinere Sparks": fern Radius ~0.20.
 source = "orbit"           # orbit = Bahn wird hier gerechnet (Werte unten) | resolve = Vadims Keyframes aus Resolve
                            # (Projekt SPARK_Kickoff_Loop, Timeline Stern-Bahn; uv run src/kickoff_loop_resolve.py pull)
 vanish = [0.50, 0.50]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
-height = 0.33              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild. 0.22 hatte
-                           # Spitzen im Datum (Frame 3: 0.94), 0.33: alle 48 Frames >= 0.96 (Stand 30.9., 48 Frames)
-near = 0.0                 # Abstand Bahnmitte → Betrachter (Bahnradius = 1). Kleiner = er kommt naeher ran
-depth = 1.0                # Tiefe der Bahn (Ellipse), groesser = fliegt weiter weg
-lens = 0.15                # Brennweite (kurze Plakatseite pro Einheit Abstand)
-size = 1.35                # Sterngroesse in Bahneinheiten. Ergebnis: Radius 0.20 (fern) bis 0.92 (nah)
-sweep_deg = [-78, 73]      # sichtbarer Bogen (0 = geradeaus, fern). Der Rest passiert hinter dem Kopf
-far_rush_frac = 0.7        # fern schneller, nah verweilen: 0 = gleichmaessig, 0.7 = nah halbes Tempo, fern 1.7-fach
+ecc = 0.7                  # Exzentrizitaet: 0 = Kreis (hinter dem Kopf so lange wie vorn), 0.7 = hinter dem Kopf ~9 %
+                           # der Runde. Groesser = kuerzer weg, aber der Stern muss kleiner sein (size < 1 - ecc^2)
+height = 0.33              # Bahn liegt so weit unter Augenhoehe (Einheit: grosse Halbachse): nah = tiefer im Bild
+lens = 0.74                # Brennweite (kurze Plakatseite pro Einheit Abstand)
+size = 0.46                # Sterngroesse (Einheit: grosse Halbachse). Fern Radius = lens*size/(1+ecc) = 0.20
+plane_roll_deg = 0         # Bahnebene um die Blickachse gedreht: 0 = waagerecht (links rein, rechts raus), 90 = senkrecht
+                           # (unten rein, oben raus), dazwischen diagonal
+phase_shift_frames = 0     # Bahn um so viele Frames verschieben (gebrochen erlaubt): legt fest, welche Frames leer sind
 rot_start_deg = 0          # Drehung im ersten Frame
 spin_deg = 240             # Eigendrehung pro Umlauf (15° pro Frame bei 16: unter 30°, sonst liest das Auge die 6-zackige
                            # Form rueckwaerts drehend). Vielfache von 60° schliessen nahtlos
