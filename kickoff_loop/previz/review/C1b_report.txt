@@ -1,0 +1,25 @@
+C1b · 32 Plakate = 16 Aushaenge + 16 Fotoframes · 16 Welt(en) a 2 Frames · Bahn und Stile alle 32 Frames
+Welten: W1 P11 (2 Frames je Station) | W2 P18 (2 Frames je Station) | W3 P23 (2 Frames je Station) | W4 P16 (2 Frames je Station) | W5 P19 (2 Frames je Station) | W6 P25 (2 Frames je Station) | W7 P20 (2 Frames je Station) | W8 P26 (2 Frames je Station) | W9 P24 (2 Frames je Station) | W10 P21 (2 Frames je Station) | W11 P14 (2 Frames je Station) | W12 P17 (2 Frames je Station) | W13 P9 (2 Frames je Station) | W14 P13 (2 Frames je Station) | W15 P22 (2 Frames je Station) | W16 P10 (2 Frames je Station)
+QR lesbar: 32/32
+Lesbarkeit Titel+Datum: min 0.95, 31/32 in Stufe A  ! unter A: 03 (0.95)
+Lesbarkeit JOIN US: min 0.94 (dunkel 0.98, Papier 0.94)
+Lila: ok (load prueft jedes Plakat, sonst gaebe es keinen Bogen)
+Blitz, Plakat bildfuellend, 8 Plakate/s, 2 Durchgaenge: ok · allgemein: schlimmste Sekunde bei 3.1 s 20 % der Flaeche ueber 3 Blitze/s (Grenze 25 %), max. 8 Blitze/s an einer Stelle · rot: 0 % der Flaeche (bei 1.0 s), max. 4 rote Blitze/s an einer Stelle
+Harte Weltwechsel (Helligkeit vorher → nachher, Flaeche mit Blitz-Sprung, Flaeche mit Rot-Uebergang):
+  W1 > W2  Plakat 02 > 03  0.18 → 0.19  Sprung  12 %  Rot  53 %
+  W2 > W3  Plakat 04 > 05  0.18 → 0.72  Sprung  92 %  Rot  20 %
+  W3 > W4  Plakat 06 > 07  0.71 → 0.54  Sprung  84 %  Rot   0 %
+  W4 > W5  Plakat 08 > 09  0.55 → 0.10  Sprung  91 %  Rot  78 %
+  W5 > W6  Plakat 10 > 11  0.10 → 0.07  Sprung  13 %  Rot  83 %
+  W6 > W7  Plakat 12 > 13  0.07 → 0.08  Sprung  11 %  Rot   0 %
+  W7 > W8  Plakat 14 > 15  0.08 → 0.08  Sprung   9 %  Rot   0 %
+  W8 > W9  Plakat 16 > 17  0.08 → 0.70  Sprung  94 %  Rot   1 %
+  W9 > W10  Plakat 18 > 19  0.70 → 0.77  Sprung   4 %  Rot   0 %
+  W10 > W11  Plakat 20 > 21  0.76 → 0.07  Sprung  95 %  Rot   0 %
+  W11 > W12  Plakat 22 > 23  0.07 → 0.08  Sprung   3 %  Rot   0 %
+  W12 > W13  Plakat 24 > 25  0.08 → 0.06  Sprung  11 %  Rot   5 %
+  W13 > W14  Plakat 26 > 27  0.06 → 0.10  Sprung  15 %  Rot   9 %
+  W14 > W15  Plakat 28 > 29  0.11 → 0.45  Sprung  88 %  Rot   0 %
+  W15 > W16  Plakat 30 > 31  0.44 → 0.18  Sprung  93 %  Rot   0 %
+  W16 > W1  Plakat 32 > 01  0.19 → 0.18  Sprung  40 %  Rot   0 %
+  zum Vergleich, groesster Wechsel innerhalb einer Welt: Plakat 05 > 06  0.72 → 0.71  Sprung 14 %  Rot 0 %

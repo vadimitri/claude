@@ -89,11 +89,26 @@ def load(path=CONFIG, music=None):
     if "stations" in col:                                  # eine Welt ueber den ganzen Loop (Stand bis 1.10.)
         col.update(worlds=[col["stations"]], world_frames=n)
     assert "world_frames" in col, "[color].worlds braucht world_frames (Frames pro Welt)"
+    col.setdefault("mix", "oklab")                         # ohne Angabe: wie bis 1.10. (gerade Linie in OKLab)
+    col.setdefault("chroma_boost_frac", 0.0)
+    col.setdefault("split_level", None)
+    assert col["mix"] in ("oklab", "rainbow"), "[color].mix: oklab | rainbow"
+    if col["mix"] == "rainbow":
+        lo, hi = col.get("rainbow_avoid_hue_deg", (None, None))
+        assert lo is not None and 0 <= lo < hi <= 360, \
+            "[color].mix = rainbow braucht rainbow_avoid_hue_deg = [von, bis] (OKLCh-Farbton, den der Weg nicht kreuzt)"
+    assert col["chroma_boost_frac"] >= 0, "[color].chroma_boost_frac: 0 = aus, 0.3 = Mitte der Mischung 30 % bunter"
+    split = any("/" in p for st in col["worlds"] for p in st)
+    assert not split or (type(col["split_level"]) is int and 0 < col["split_level"] < col["steps"]), \
+        f"[color]: Split-Stationen (\"P11/P18\") brauchen split_level, ganze Stufe 1..{col['steps'] - 1}"
     wf, key = col["world_frames"], cfg["loop"]["key_every"]
     for w, st in enumerate(col["worlds"]):
         where = f"[color] Welt {w + 1} {st}"
-        bad = [p for p in st if p not in P_CODES]
-        assert st and not bad, f"{where}: unbekannte oder lila Codes {bad}. Erlaubt: {sorted(P_CODES)}"
+        bad = [p for p in st if len(p.split("/")) > 2 or any(q not in P_CODES for q in p.split("/"))]
+        assert st and not bad, (f"{where}: unbekannte oder lila Codes {bad}. Erlaubt: {sorted(P_CODES)}, "
+                                "Split-Tone als \"Grund/Licht\", z. B. \"P11/P18\"")
+        bad = [p for p in st if len({is_paper(q) for q in p.split("/")}) > 1]
+        assert not bad, f"{where}: Split {bad} kreuzt Papier mit Dunkel (Licht und Grund waeren gleich hell)"
         assert wf % len(st) == 0, f"{where}: {wf} Frames pro Welt nicht durch {len(st)} Stationen teilbar"
         assert (wf // len(st)) % key == 0, (f"{where}: jede Station soll auf einem Aushang liegen, Abstand {wf // len(st)}"
                                             f" Frames ist kein Vielfaches von key_every {key}")
@@ -102,9 +117,12 @@ def load(path=CONFIG, music=None):
                                  "werden auf dem Weg grau (Grund und Tinte gleich hell). Papier in eine eigene Welt")
     assert posters(cfg) % n == 0, (f"[color]: {len(col['worlds'])} Welten x {wf} Frames = {posters(cfg)} Plakate, kein "
                                    f"Vielfaches von [loop].frames {n}: Bahn und Stile sprangen am Neustart")
-    lilac = [f"{i + 1} ({station_label(cfg, i)})" for i in range(posters(cfg)) if is_lilac(palette_hex(cfg, i))]
-    assert not lilac, (f"[color]: lila auf Plakat {', '.join(lilac)}. Mischung: Rot direkt neben Blau? Reihenfolge "
-                       "aendern. Reine Station (P6): Grund dithert Schwarz + #FF55FF zu Lila, nicht verwendbar")
+    seam = slice(col["split_level"] - 1, col["split_level"]) if split else slice(0, 0)   # Naht Grund | Licht
+    lilac = [f"{i + 1} ({station_label(cfg, i)})" for i in range(posters(cfg))
+             if is_lilac(palette_hex(cfg, i)) or is_lilac(dither_mids(palette_hex(cfg, i))[seam])]
+    assert not lilac, (f"[color]: lila auf Plakat {', '.join(lilac)} (Palette oder Korn zwischen zwei Stufen). Mischung: "
+                       "Rot direkt neben Blau? Reihenfolge aendern. Split: blauer Grund unter rotem Licht wird im Korn "
+                       "lila. Reine Station P6: Grund dithert Schwarz + #FF55FF zu Lila, nicht verwendbar")
     bad = [s for s in cfg["styles"]["cycle"] if s not in S_CODES]
     assert not bad, f"[styles].cycle: unbekannte Codes {bad}. Erlaubt: {sorted(S_CODES)}"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
@@ -172,17 +190,67 @@ def from_oklab(lab):
     return np.round(np.where(lin <= 0.0031308, lin * 12.92, 1.055 * lin ** (1 / 2.4) - 0.055) * 255)
 
 
+RAINBOW_GREY_CHROMA = 0.03   # OKLab-Buntheit, unter der eine Stufe keinen verlaesslichen Farbton hat (Weiss, Schwarz):
+                             # sie nimmt den der Gegenseite (sonst dreht Weiss > Gelb einmal um den Kreis)
+RAINBOW_SAMPLES = 36         # Stuetzstellen, an denen ein Farbton-Weg auf das Lila-Band geprueft wird (10° Abstand)
+
+
 def is_paper(p):
-    """Papier-Colorway: der Grund (Stufe 0) ist heller als die Tinte (letzte Stufe), z. B. P16 P21-P24."""
-    pal = S.hexpal(P_CODES[p]) @ LUMA
+    """Papier-Colorway: der Grund (Stufe 0) ist heller als die Tinte (letzte Stufe), z. B. P16 P21-P24.
+    Split-Station "P23/P16": zaehlt der Grund."""
+    pal = S.hexpal(P_CODES[p.split("/")[0]]) @ LUMA
     return bool(pal[0] > pal[-1])
 
 
-def station(p, steps):
+def station(p, steps, split_level=None):
     """Palette einer Station auf `steps` Stufen: kuerzere Paletten (CGA, 4 Stufen) werden gedoppelt, nicht gemischt,
-    damit die reine Station genau so aussieht wie ihr Original."""
+    damit die reine Station genau so aussieht wie ihr Original.
+    Split-Tone "P11/P18" (Vadim 1.10.: "interdimensional"): Stufen unter split_level aus P11 (Grund, Schatten), ab
+    split_level aus P18 (Licht, Tinte). Das Korn zwischen den beiden Haelften mischt die Welten im Bild."""
+    if "/" in p:
+        ground, light = p.split("/")
+        return np.concatenate([station(ground, steps)[:split_level], station(light, steps)[split_level:]])
     pal = S.hexpal(P_CODES[p])
     return pal[np.round(np.arange(steps) * (len(pal) - 1) / (steps - 1)).astype(int)]
+
+
+def rainbow(a, b, f, avoid):
+    """Mischung in OKLCh statt OKLab, je Stufe: Helligkeit und Buntheit linear, der Farbton dreht um den Farbkreis, in
+    die Richtung, die das Band avoid (OKLCh-Grad, Maker-Night-Lila) nicht kreuzt; kreuzen beide oder keine, die kuerzere.
+    Blau > Rot laeuft so ueber Tuerkis, Gruen, Gelb (Regenbogen) statt durch Lila oder Grau."""
+    lch = lambda x: (x[:, 0], np.hypot(x[:, 1], x[:, 2]), np.degrees(np.arctan2(x[:, 2], x[:, 1])) % 360)  # noqa: E731
+    (La, Ca, ha), (Lb, Cb, hb) = lch(a), lch(b)
+    ha, hb = np.where(Ca < RAINBOW_GREY_CHROMA, hb, ha), np.where(Cb < RAINBOW_GREY_CHROMA, ha, hb)
+    up = (hb - ha) % 360                                           # Weg mit wachsendem Winkel, 0..360
+    s = np.linspace(0, 1, RAINBOW_SAMPLES + 1)[:, None]
+    cross = lambda d: ((((ha + d * s) % 360) >= avoid[0]) & (((ha + d * s) % 360) <= avoid[1])).any(0)  # noqa: E731
+    cu, cd = cross(up), cross(up - 360)
+    d = np.where(cu == cd, np.where(up <= 180, up, up - 360), np.where(cu, up - 360, up))
+    h, C, L = np.radians(ha + d * f), Ca + (Cb - Ca) * f, La + (Lb - La) * f
+    return np.stack([L, C * np.cos(h), C * np.sin(h)], -1)
+
+
+def mix_lab(a, b, t, per, col):
+    """Zwei Stationspaletten (OKLab, je Stufe) bei Schritt t von per mischen.
+      mix = oklab    gerade Linie in OKLab (Stand 30.9.)  |  rainbow  um den Farbkreis (rainbow)
+      chroma_boost_frac  Buntheit in der Mitte der Mischung hoeher (sin-Buckel: 0 an den Stationen, die bleiben exakt)."""
+    if col["mix"] == "oklab" and not col["chroma_boost_frac"]:
+        return a + (b - a) * t / per                               # genau wie bisher (bitgleich)
+    f = t / per
+    m = a + (b - a) * f if col["mix"] == "oklab" else rainbow(a, b, f, col["rainbow_avoid_hue_deg"])
+    m[:, 1:] *= 1 + col["chroma_boost_frac"] * np.sin(np.pi * f)
+    return m
+
+
+def dither_mids(hexes):
+    """Was das Bayer-Korn zwischen zwei benachbarten Stufen zeigt: ihr Mittel in linearem Licht (das Auge mittelt
+    Licht). Blau neben Rot ist einzeln nicht lila, im Korn schon. load prueft damit nur die Naht einer Split-Station:
+    innerhalb einer Colorway ist das Korn gewollt (P17 Blau | Orange, P16 Pink | Blau schlagen hier an)."""
+    rgb = np.array([[int(h[j:j + 2], 16) for j in (1, 3, 5)] for h in hexes]) / 255
+    lin = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+    mid = (lin[1:] + lin[:-1]) / 2
+    srgb = np.where(mid <= 0.0031308, mid * 12.92, 1.055 * mid ** (1 / 2.4) - 0.055)
+    return ["#%02X%02X%02X" % tuple(int(round(v * 255)) for v in c) for c in srgb]
 
 
 def color_pos(cfg, i):
@@ -205,9 +273,9 @@ def palette_hex(cfg, i):
     in OKLab gemischt. OKLab statt RGB, weil gleiche Schritte dort gleich gross aussehen (kein Grau-Loch in der Mitte)."""
     col = cfg["color"]
     _, st, k, t, per = color_pos(cfg, i)
-    a = to_oklab(station(st[k], col["steps"]))
-    b = to_oklab(station(st[(k + 1) % len(st)], col["steps"]))
-    rgb = from_oklab(a + (b - a) * t / per)
+    a = to_oklab(station(st[k], col["steps"], col["split_level"]))
+    b = to_oklab(station(st[(k + 1) % len(st)], col["steps"], col["split_level"]))
+    rgb = from_oklab(mix_lab(a, b, t, per, col))
     return ["#%02X%02X%02X" % tuple(int(v) for v in c) for c in rgb]
 
 
@@ -236,7 +304,8 @@ def station_label(cfg, i):
     "W2 P11>P13 50%"."""
     w, st, k, t, per = color_pos(cfg, i)
     world = f"W{w + 1} " if len(cfg["color"]["worlds"]) > 1 else ""
-    return world + (st[k] if t == 0 else f"{st[k]}>{st[(k + 1) % len(st)]} {round(100 * t / per)}%")
+    nxt = st[(k + 1) % len(st)]
+    return world + (st[k] if t == 0 or nxt == st[k] else f"{st[k]}>{nxt} {round(100 * t / per)}%")
 
 
 # ---------------------------------------------------------------- Geometrie
@@ -690,7 +759,7 @@ def selftest(cfg, i=8):
         w, st, j, t, _ = color_pos(cfg, k)
         if t == 0:
             got = np.array([[int(h[q:q + 2], 16) for q in (1, 3, 5)] for h in palette_hex(cfg, k)])
-            assert np.abs(got - station(st[j], cfg["color"]["steps"])).max() <= 1, \
+            assert np.abs(got - station(st[j], cfg["color"]["steps"], cfg["color"]["split_level"])).max() <= 1, \
                 f"Welt {w + 1}, Station {st[j]} (Plakat {k + 1}) weicht vom Original ab"
     assert is_lilac(["#A877A6"]) and not is_lilac(palette_hex(cfg, 0)), "Lila-Test erkennt Flieder nicht"
     return f"Selbsttest ok (Frame {i + 1}: Verlauf pro Zeile, QR, Ruhezone, Gluehen geometrisch; Titel fix, Stationen, Lila-Test)"

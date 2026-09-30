@@ -1,0 +1,9 @@
+C1c · 32 Plakate = 16 Aushaenge + 16 Fotoframes · 1 Welt(en) a 32 Frames · Bahn und Stile alle 32 Frames
+Welten: P20/P9 → P13/P26 → P20/P18 → P11/P26 → P25/P19 → P26/P15 → P17/P11 → P26/P20 → P19/P10 → P9/P18 → P14/P13 → P26/P25 → P18/P26 → P10/P17 → P20/P9 → P15/P14 → P20/P9
+QR lesbar: 32/32
+Lesbarkeit Titel+Datum: min 0.94, 31/32 in Stufe A  ! unter A: 03 (0.94)
+Lesbarkeit JOIN US: min 0.97 (dunkel 0.97, Papier nan)
+Lila: ok (load prueft jedes Plakat, sonst gaebe es keinen Bogen)
+Blitz, Plakat bildfuellend, 8 Plakate/s, 2 Durchgaenge: ok · allgemein: schlimmste Sekunde bei 6.9 s 7 % der Flaeche ueber 3 Blitze/s (Grenze 25 %), max. 8 Blitze/s an einer Stelle · rot: 0 % der Flaeche (bei 0.0 s), max. 3 rote Blitze/s an einer Stelle
+Harte Weltwechsel (Helligkeit vorher → nachher, Flaeche mit Blitz-Sprung, Flaeche mit Rot-Uebergang):
+  zum Vergleich, groesster Wechsel innerhalb einer Welt: Plakat 32 > 01  0.15 → 0.12  Sprung 40 %  Rot 9 %
