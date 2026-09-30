@@ -2428,6 +2428,11 @@ HAND_EDGE_MAX_CELLS = 20     # Selbsttest S54b: laengste gerade (achsparallele) 
                              # (Abstand 4 Zellen), die zufaellig auf derselben Zeile absetzen; ein Wuerfel ist feldbreit
 
 
+HAND_TEST_STARS = ((-0.13, 0.65, 0.87, 0.0), (0.95, 0.61, 0.64, 225.0))  # Selbsttest Hand: grosser Stern an QR bzw.
+                             # Titel (x, y, Radius, Drehung; Frame 1/16 der Bahn bis 1.10.), fest, damit der Test nicht an
+                             # der Bahn haengt: mit der Ellipse (1.10. abends) sind Frame 1/16 leer, der Test war blind
+
+
 def selftest_hand(codes=("S54", "S54b", "S54c"), frames=(0, 15)):
     """Selbsttest am fertigen Plakat des Loops (Frame 1 und 16: grosser Stern an QR bzw. Titel): Schraffurfelder duerfen
     nicht an einer geraden Kante enden (Vadim 1.10. zu S54: "diese getrennten Wuerfel sehen komisch aus"). Tinte = Zellen
@@ -2440,9 +2445,9 @@ def selftest_hand(codes=("S54", "S54b", "S54c"), frames=(0, 15)):
     got = {}
     for code in codes:
         worst = 0
-        for i in frames:
+        for i, (sx, sy, sr, srot) in zip(frames, HAND_TEST_STARS):
             st = KL.poster_style(cfg, i)
-            st["S"] = "lab:" + code
+            st["S"], st["star"], st["rot"] = "lab:" + code, (sx, sy, sr), srot
             img = KL.frame(cfg, i, style=st).astype(np.float32) @ KL.LUMA
             c = styles.Ctx(st, KL.PREVIEW)
             g = G(st, KL.PREVIEW, c)

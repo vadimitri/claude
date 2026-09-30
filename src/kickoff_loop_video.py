@@ -31,6 +31,10 @@ import styles as S
 BOIL_SEED = 26                       # Boil: fester Zufall, damit jede Vorschau gleich zittert
 VALLEY_UP_DEG = 30                   # Sternprofil: Spitzen bei 30° + 60°k, bei Drehung 30 (mod 60) zeigt ein Tal nach oben
 FLASH_ANALYSIS_PX = (68, 120)        # Blitz-Check auf 1/16: ein Block = 16 px = eine Bayer-Periode am Zoom-Ende (kein Moire)
+RED_SAT_FRAC = 0.8                   # WCAG 2.2 / ISO 9241-391: Zustand "gesaettigtes Rot" ab R/(R+G+B) >= 0.8 (linear)
+RED_MIN_UV = 0.2                     # ... und ein Rot-Uebergang braucht mehr als 0.2 Abstand in der CIE-1976-Farbtafel
+SRGB_XYZ = np.array([[0.4124, 0.3576, 0.1805], [0.2126, 0.7152, 0.0722], [0.0193, 0.1192, 0.9505]], np.float32)  # D65
+WHITE_UV = (0.1978, 0.4683)          # u', v' von D65: Schwarz hat keine Farbart, gilt als unbunt
 
 
 # ---------------------------------------------------------------- Zeitachse und Kamera
@@ -306,24 +310,32 @@ def digital_frames(cfg, tl):
 
 # ---------------------------------------------------------------- Pruefungen
 
+def linear_rgb(img):
+    """sRGB linearisiert 0..1, verkleinert auf FLASH_ANALYSIS_PX."""
+    a = np.asarray(img.resize(FLASH_ANALYSIS_PX, Image.BOX), np.float32) / 255
+    return np.where(a <= 0.04045, a / 12.92, ((a + 0.055) / 1.055) ** 2.4)
+
+
 def luminance(img):
     """Relative Luminanz 0..1 (sRGB linearisiert, Rec. 709), verkleinert auf FLASH_ANALYSIS_PX."""
-    a = np.asarray(img.resize(FLASH_ANALYSIS_PX, Image.BOX), np.float32) / 255
-    lin = np.where(a <= 0.04045, a / 12.92, ((a + 0.055) / 1.055) ** 2.4)
-    return lin @ KL.LUMA
+    return linear_rgb(img) @ KL.LUMA
 
 
-def flash_check(lum, cfg):
-    """WCAG 2.3.1, allgemeine Blitzschwelle, vereinfacht.
+def chroma_state(img):
+    """Fuer die Rot-Regel je Analysepixel [gesaettigt rot 0/1, u', v'] (CIE 1976 UCS), verkleinert wie luminance."""
+    lin = linear_rgb(img)
+    red = lin[..., 0] >= RED_SAT_FRAC * np.maximum(lin.sum(-1), 1e-6)
+    X, Y, Z = np.moveaxis(lin @ SRGB_XYZ.T, -1, 0)
+    den = X + 15 * Y + 3 * Z
+    ok = den > 1e-6
+    u = np.where(ok, 4 * X / np.where(ok, den, 1), WHITE_UV[0])
+    v = np.where(ok, 9 * Y / np.where(ok, den, 1), WHITE_UV[1])
+    return np.stack([red & ok, u, v], -1).astype(np.float32)
 
-    Ein Sprung = Helligkeitsaenderung eines Pixels um mindestens flash_min_delta, wobei das dunklere Bild unter 0.8
-    liegt. Ein Blitz = ein Sprung, der gegen die Richtung des vorigen Sprungs desselben Pixels geht (Paar).
-    Ein Pixel faellt durch, wenn es in irgendeinem 1-s-Fenster mehr als flash_max_per_s Blitze hat. Verstoss, wenn
-    durchgefallene Pixel mehr als flash_max_area_frac des Bildes bedecken. Die Sonderregel fuer rote Blitze fehlt."""
-    ch, fps = cfg["checks"], cfg["video"]["timeline_fps"]
-    d = np.diff(lum, axis=0)
-    darker = np.minimum(lum[1:], lum[:-1])
-    step = (np.sign(d) * ((np.abs(d) >= ch["flash_min_delta"]) & (darker < 0.8))).astype(np.int8)
+
+def _flashes_per_s(step, fps):
+    """Spruenge je Bild und Pixel (+1, -1, 0) → Blitze pro 1-s-Fenster. Ein Blitz = ein Sprung gegen die Richtung des
+    vorigen Sprungs desselben Pixels (Paar gegenlaeufiger Uebergaenge)."""
     T = len(step)
     seen = np.where(step != 0, np.arange(T, dtype=np.int32)[:, None, None], -1)
     last = np.maximum.accumulate(seen, axis=0)             # Index des letzten Sprungs bis einschliesslich t
@@ -331,11 +343,151 @@ def flash_check(lum, cfg):
     prev_sign = np.where(prev >= 0, np.take_along_axis(step, np.maximum(prev, 0), 0), 0)
     flash = (step != 0) & (step == -prev_sign)
     acc = np.concatenate([np.zeros((1,) + flash.shape[1:], np.int32), np.cumsum(flash, 0, dtype=np.int32)])
-    per_s = acc[fps:] - acc[:-fps] if T >= fps else acc[-1:]
+    return acc[fps:] - acc[:-fps] if T >= fps else acc[-1:]
+
+
+def red_steps(chroma):
+    """Rot-Uebergaenge je Bild und Pixel: +1 ins gesaettigte Rot, -1 heraus, wenn sich die Farbart dabei um mehr als
+    RED_MIN_UV aendert (WCAG 2.2 / ISO 9241-391). Beide Zustaende rot oder keiner: kein Rot-Uebergang."""
+    red, uv = chroma[..., 0] > 0.5, chroma[..., 1:]
+    far = np.linalg.norm(np.diff(uv, axis=0), axis=-1) > RED_MIN_UV
+    return ((red[1:].astype(np.int8) - red[:-1].astype(np.int8)) * far).astype(np.int8)
+
+
+def flash_check(lum, cfg, chroma=None):
+    """WCAG 2.3.1, allgemeine Blitzschwelle und (mit chroma) rote Blitze, vereinfacht.
+
+    Ein Sprung = Helligkeitsaenderung eines Pixels um mindestens flash_min_delta, wobei das dunklere Bild unter 0.8
+    liegt. Ein Blitz = ein Sprung, der gegen die Richtung des vorigen Sprungs desselben Pixels geht (Paar).
+    Ein Pixel faellt durch, wenn es in irgendeinem 1-s-Fenster mehr als flash_max_per_s Blitze hat. Verstoss, wenn
+    durchgefallene Pixel mehr als flash_max_area_frac des Bildes bedecken.
+    Rot (chroma aus chroma_state): gleiche Zaehlung ueber red_steps, unabhaengig von der Helligkeit. Ein Wechsel
+    Rot <> gleich helles Grau blitzt nicht allgemein, aber rot (flash_selftest). Gemessen wird ueber das ganze Bild,
+    nicht je 10°-Blickfeld."""
+    ch, fps = cfg["checks"], cfg["video"]["timeline_fps"]
+    d = np.diff(lum, axis=0)
+    darker = np.minimum(lum[1:], lum[:-1])
+    step = (np.sign(d) * ((np.abs(d) >= ch["flash_min_delta"]) & (darker < 0.8))).astype(np.int8)
+    per_s = _flashes_per_s(step, fps)
     area = (per_s > ch["flash_max_per_s"]).mean((1, 2))
     worst = int(area.argmax())
-    return dict(ok=bool(area.max() <= ch["flash_max_area_frac"]), worst_area=float(area.max()),
-                worst_at_s=worst / fps, max_flashes_per_s=int(per_s.max()))
+    out = dict(ok=bool(area.max() <= ch["flash_max_area_frac"]), worst_area=float(area.max()),
+               worst_at_s=worst / fps, max_flashes_per_s=int(per_s.max()))
+    if chroma is not None:
+        rper = _flashes_per_s(red_steps(chroma), fps)
+        rarea = (rper > ch["flash_max_per_s"]).mean((1, 2))
+        out.update(red_ok=bool(rarea.max() <= ch["flash_max_area_frac"]), red_worst_area=float(rarea.max()),
+                   red_worst_at_s=int(rarea.argmax()) / fps, red_max_per_s=int(rper.max()))
+        out["ok"] = out["ok"] and out["red_ok"]
+    return out
+
+
+def flash_text(flash, cfg):
+    """Eine Zeile Befund aus flash_check fuer Reports."""
+    ch = cfg["checks"]
+    s = (f"{'ok' if flash['ok'] else 'VERSTOSS'} · allgemein: schlimmste Sekunde bei {flash['worst_at_s']:.1f} s "
+         f"{flash['worst_area'] * 100:.0f} % der Flaeche ueber {ch['flash_max_per_s']} Blitze/s (Grenze "
+         f"{ch['flash_max_area_frac'] * 100:.0f} %), max. {flash['max_flashes_per_s']} Blitze/s an einer Stelle")
+    if "red_ok" in flash:
+        s += (f" · rot: {flash['red_worst_area'] * 100:.0f} % der Flaeche (bei {flash['red_worst_at_s']:.1f} s), "
+              f"max. {flash['red_max_per_s']} rote Blitze/s an einer Stelle")
+    return s
+
+
+def flash_selftest(cfg):
+    """Selbsttest der Rot-Regel am Bild: 2 s lang reines Rot <> gleich helles Grau im Karusselltempo (8 Wechsel/s).
+    Allgemein ist das kein Blitz (gleiche Luminanz), rot ist es einer auf der ganzen Flaeche. Ohne chroma (der alte
+    flash_check) faellt es nicht auf."""
+    fps = cfg["video"]["timeline_fps"]
+    red = Image.new("RGB", FLASH_ANALYSIS_PX, (255, 0, 0))
+    grey_v = round(255 * (1.055 * float(KL.LUMA[0]) ** (1 / 2.4) - 0.055))      # sRGB-Wert mit der Luminanz von Rot
+    grey = Image.new("RGB", FLASH_ANALYSIS_PX, (grey_v,) * 3)
+    seq = [(red, grey)[(t * 8 // fps) % 2] for t in range(2 * fps)]
+    lum, chroma = np.array([luminance(im) for im in seq]), np.array([chroma_state(im) for im in seq])
+    old, new = flash_check(lum, cfg), flash_check(lum, cfg, chroma)
+    assert old["ok"] and new["max_flashes_per_s"] == 0, "Rot <> Grau: allgemein darf es nicht blitzen (gleiche Luminanz)"
+    assert not new["red_ok"] and new["red_worst_area"] > 0.99, f"Rot-Regel schlaegt nicht an: {new}"
+    return f"Selbsttest ok (Blitz: Rot <> Grau gleicher Luminanz ist allgemein ok, rot {new['red_max_per_s']} Blitze/s)"
+
+
+def world_text(cfg):
+    """Farbreise(n) als Text: "P11 → … → P11" bei einer Welt, sonst je Welt "W1 P23 > P22 (4 Frames je Station)"."""
+    col = cfg["color"]
+    if len(col["worlds"]) == 1:
+        st = col["worlds"][0]
+        return " → ".join(st + st[:1])
+    return " | ".join(f"W{w + 1} {' > '.join(st)} ({col['world_frames'] // len(st)} Frames je Station)"
+                      for w, st in enumerate(col["worlds"]))
+
+
+def carousel_flash(cfg, posters, passes=2):
+    """Blitz-Check der Plakatfolge allein, Plakat bildfuellend (schlimmster Fall: Zoom-Ende), im schnellsten
+    Karusselltempo (meiste Wechsel pro Takt im Musik-Raster; 120 BPM, 16tel: 8 Plakate/s) auf dem Timeline-Raster.
+    Alle Plakate der Reihe nach, passes-mal, damit der Neustart mitzaehlt. Liefert (flash_check, lum, chroma je Plakat)."""
+    bar_s = 16 * cfg["music"]["grid"]["sixteenth_s"]
+    hold = cfg["video"]["timeline_fps"] * bar_s / max(per for per, _ in cfg["video"]["cadence"])
+    ims = [Image.fromarray(p) for p in posters]
+    lum, chroma = [luminance(im) for im in ims], [chroma_state(im) for im in ims]
+    seq = [j for _ in range(passes) for j in range(len(posters))]
+    idx = [j for k, j in enumerate(seq) for _ in range(round((k + 1) * hold) - round(k * hold))]
+    return flash_check(np.array([lum[j] for j in idx]), cfg, np.array([chroma[j] for j in idx])), lum, chroma
+
+
+def switch_jumps(cfg, lum, chroma):
+    """Jeder Plakatwechsel k → k+1 (inkl. Neustart): (k, Weltgrenze ja/nein, mittlere Helligkeit vorher/nachher,
+    Flaechenanteil mit Blitz-Sprung (|delta| >= flash_min_delta, dunkleres Bild < 0.8), Flaechenanteil mit
+    Rot-Uebergang). Ein harter Weltwechsel ist ein einzelner Sprung; zum Blitz wird er erst mit dem Gegensprung."""
+    n, wf = len(lum), cfg["color"]["world_frames"]
+    out = []
+    for k in range(n):
+        a, b = lum[k], lum[(k + 1) % n]
+        jump = ((np.abs(b - a) >= cfg["checks"]["flash_min_delta"]) & (np.minimum(a, b) < 0.8)).mean()
+        red = (red_steps(np.array([chroma[k], chroma[(k + 1) % n]]))[0] != 0).mean()
+        out.append((k, (k + 1) % wf == 0 and len(cfg["color"]["worlds"]) > 1, float(a.mean()), float(b.mean()),
+                    float(jump), float(red)))
+    return out
+
+
+def cta_legibility(cfg, i, img):
+    """Lesbarkeit von JOIN US (kickoff.legible, gleiche Messung wie Titel/Datum) auf Plakat i."""
+    st = KL.poster_style(cfg, i)
+    c = S.Ctx(st, KL.PREVIEW)
+    K._EXTRA["title"] = K._EXTRA["date"] = KL.qr_glow(c, st["loop"]["qr"])[-1][1]
+    return K.legible(img, KL.PREVIEW_CELL_PX)
+
+
+def sheet_report(cfg, posters, qr_ok, legib, name=""):
+    """Befund zu einem Bogen: Plakate, Welten, QR, Lesbarkeit (Titel+Datum, JOIN US), Lila, Blitz im Karusselltempo
+    und jeder harte Weltwechsel einzeln."""
+    n = len(posters)
+    keys = sum(KL.is_key(cfg, i) for i in range(n))
+    cta = [cta_legibility(cfg, i, p) for i, p in enumerate(posters)]
+    paper = [i for i in range(n) if KL.is_paper(KL.color_pos(cfg, i)[1][0])]
+    flash, lum, chroma = carousel_flash(cfg, posters)
+    jumps = switch_jumps(cfg, lum, chroma)
+    inner = max((j for j in jumps if not j[1]), key=lambda j: j[4])
+    below = [f"{i + 1:02d} ({x:.2f})" for i, x in enumerate(legib) if x < K.TIER[0]]
+    lines = [f"{name} · {n} Plakate = {keys} Aushaenge + {n - keys} Fotoframes · {len(cfg['color']['worlds'])} Welt(en) a "
+             f"{cfg['color']['world_frames']} Frames · Bahn und Stile alle {KL.count(cfg)} Frames",
+             f"Welten: {world_text(cfg)}",
+             f"QR lesbar: {sum(qr_ok)}/{n}" + ("" if all(qr_ok) else "  ! nicht: " + " ".join(
+                 f"{i + 1:02d}" for i, ok in enumerate(qr_ok) if not ok)),
+             f"Lesbarkeit Titel+Datum: min {min(legib):.2f}, {sum(x >= K.TIER[0] for x in legib)}/{n} in Stufe A"
+             + (f"  ! unter A: {' '.join(below)}" if below else ""),
+             f"Lesbarkeit JOIN US: min {min(cta):.2f} (dunkel {min((x for i, x in enumerate(cta) if i not in paper), default=1):.2f}"
+             f", Papier {min((cta[i] for i in paper), default=float('nan')):.2f})",
+             "Lila: ok (load prueft jedes Plakat, sonst gaebe es keinen Bogen)",
+             f"Blitz, Plakat bildfuellend, 8 Plakate/s, 2 Durchgaenge: {flash_text(flash, cfg)}",
+             "Harte Weltwechsel (Helligkeit vorher → nachher, Flaeche mit Blitz-Sprung, Flaeche mit Rot-Uebergang):"]
+    for k, world, a, b, jump, red in jumps:
+        if world:
+            w0, w1 = KL.color_pos(cfg, k)[0], KL.color_pos(cfg, (k + 1) % n)[0]
+            lines.append(f"  W{w0 + 1} > W{w1 + 1}  Plakat {k + 1:02d} > {(k + 1) % n + 1:02d}  {a:.2f} → {b:.2f}  "
+                         f"Sprung {jump * 100:3.0f} %  Rot {red * 100:3.0f} %")
+    k, _, a, b, jump, red = inner
+    lines.append(f"  zum Vergleich, groesster Wechsel innerhalb einer Welt: Plakat {k + 1:02d} > {(k + 1) % n + 1:02d}  "
+                 f"{a:.2f} → {b:.2f}  Sprung {jump * 100:.0f} %  Rot {red * 100:.0f} %")
+    return "\n".join(lines) + "\n"
 
 
 # ---------------------------------------------------------------- Vorschau
@@ -400,10 +552,12 @@ def contact_sheet(cfg, posters, qr_ok, legib, stills, path):
 
 
 def sheet(cfg, posters, qr_ok, legib, out, tag=""):
-    """Schnelle Runde (~15 s statt ~2 min): nur Kontaktbogen + Plakat-Loop im Karusselltempo → previz/now/.
-    Fuer Standbild-Entscheidungen; das Video erst mit preview, wenn die Standbilder stehen."""
+    """Schnelle Runde (~15 s statt ~2 min): nur Kontaktbogen + Plakat-Loop im Karusselltempo + report.txt (Befund aus
+    sheet_report) → previz/now/. Fuer Standbild-Entscheidungen; das Video erst mit preview, wenn die Standbilder stehen."""
     os.makedirs(out, exist_ok=True)
     contact_sheet(cfg, posters, qr_ok, legib, [], os.path.join(out, tag + "contact.png"))
+    with open(os.path.join(out, tag + "report.txt"), "w", encoding="utf-8") as f:
+        f.write(sheet_report(cfg, posters, qr_ok, legib, tag.rstrip("_") or "loop.toml"))
     h, w = posters[0].shape[:2]
     bar_s = 16 * cfg["music"]["grid"]["sixteenth_s"]
     fps = max(per for per, _ in cfg["video"]["cadence"]) / bar_s
@@ -474,7 +628,7 @@ def preview(cfg, posters, qr_ok, legib):
     card = fly + cfg["endcard"]["impact_frames"]
     marks = {0: "Start", tl.zoom_end // 2: "Zoom Mitte", tl.zoom_end - 1: "Zoom Ende", tl.zoom_end + fly // 2: "Ausbruch",
              tl.zoom_end + fly: "Impact", tl.zoom_end + card + 2: "Endkarte", tl.total - 1: "Ende"}
-    stills, lum = [], []
+    stills, lum, chroma = [], [], []
     for t in range(tl.total):
         if t < tl.zoom_end:
             sc, roll = camera(cfg, tl, t, h)
@@ -483,13 +637,14 @@ def preview(cfg, posters, qr_ok, legib):
             img = digital[t - tl.zoom_end]
         ff.stdin.write(np.asarray(img).tobytes())
         lum.append(luminance(img))
+        chroma.append(chroma_state(img))
         if t in marks:
             stills.append((f"{marks[t]} {t / tfps:.2f}s", img))
     ff.stdin.close()
     ff.wait()
 
     # 3. Pruefungen, Kontaktbogen, Report
-    flash = flash_check(np.array(lum), cfg)
+    flash = flash_check(np.array(lum), cfg, np.array(chroma))
     end_leg = KL.legibility(digital_style(cfg, (tl.total - tl.zoom_end - 1) / tfps), np.asarray(digital[-1]), "9x16")
     contact_sheet(cfg, posters, qr_ok, legib, stills, os.path.join(out, "contact.png"))
     ground = [float(KL.LUMA @ (np.array([int(c[j:j + 2], 16) for j in (1, 3, 5)]) / 255))
@@ -511,18 +666,14 @@ def preview(cfg, posters, qr_ok, legib):
              f"Video: {tl.total / tfps:.2f} s ({tl.zoom_end / tfps:.1f} Zoom ab 0 s, "
              f"{(tl.total - tl.zoom_end) / tfps:.1f} digital), {size[0]}x{size[1]} @ {tfps} fps,"
              f" echte Fotos: {real}/{n} (Rest simuliert)",
-             f"Farbreise: {' → '.join(cfg['color']['stations'])} → {cfg['color']['stations'][0]} "
-             f"(OKLab, keine Mischung lila: geprueft in load)",
+             f"Farbreise: {world_text(cfg)} (OKLab, keine Mischung lila: geprueft in load)",
              f"QR lesbar: {sum(qr_ok)}/{n}" + ("" if all(qr_ok) else "  ! nicht lesbar: "
                                                 + " ".join(f"{i + 1:02d}" for i, ok in enumerate(qr_ok) if not ok)),
              f"Lesbarkeit Titel+Datum: {sum(x >= K.TIER[0] for x in legib)}/{n} in Stufe A (>= {K.TIER[0]})"
              + ("" if min(legib) >= K.TIER[0] else "  ! unter A: " + " ".join(
                  f"{i + 1:02d}" for i, x in enumerate(legib) if x < K.TIER[0])),
              f"Endkarte: Lesbarkeit Titel+Datum {end_leg:.2f} {tier(end_leg)}",
-             f"Blitz-Check (WCAG 2.3.1, vereinfacht): {'ok' if flash['ok'] else 'VERSTOSS'} · schlimmste Sekunde bei "
-             f"{flash['worst_at_s']:.1f} s: {flash['worst_area'] * 100:.0f} % der Flaeche ueber "
-             f"{cfg['checks']['flash_max_per_s']} Blitze/s (Grenze {cfg['checks']['flash_max_area_frac'] * 100:.0f} %),"
-             f" max. {flash['max_flashes_per_s']} Blitze/s an einer Stelle",
+             f"Blitz-Check (WCAG 2.3.1, vereinfacht): {flash_text(flash, cfg)}",
              "", "Frame  Aushang  Farbe               S     Radius Grund  Lesbarkeit"]
     lines += [f"{i + 1:02d}     {'ja' if KL.is_key(cfg, i) else '  '}       {KL.station_label(cfg, i):<19} "
               f"{KL.style_code(cfg, i):<5} {KL.star_at(cfg, i)[2]:.2f}   {g:.2f}   {x:.2f} {tier(x)}"
