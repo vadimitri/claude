@@ -81,6 +81,14 @@ def load(path=CONFIG):
     assert not lilac, f"[color].stations: Mischung wird lila auf Frame {lilac} (Rot direkt neben Blau?), Reihenfolge aendern"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
     assert cfg["qr"]["halo_dither"] in ("blue", "bayer4"), "[qr].halo_dither: blue | bayer4"
+    sp = cfg["spark"]
+    assert sp["source"] in ("orbit", "resolve"), "[spark].source: orbit | resolve"
+    if sp["source"] == "resolve":
+        path = os.path.join(PROJECT, "star_path.json")
+        assert os.path.exists(path), "[spark].source = resolve, aber star_path.json fehlt: uv run src/kickoff_loop_resolve.py pull"
+        got = json.load(open(path))
+        assert got["frames"] == n, f"star_path.json hat {got['frames']} Frames, [loop].frames = {n}: angleichen"
+        sp["path"] = got["path"]
     m = cfg["music"]
     grid = os.path.join(PROJECT, m["grid"])
     assert os.path.exists(os.path.join(PROJECT, m["file"])) and os.path.exists(grid), \
@@ -191,7 +199,10 @@ def orbit(cfg, phase):
 
 
 def star_at(cfg, i):
-    return orbit(cfg, i)
+    """Lage des Sterns in Frame i: (x, y, Radius, Drehung). [spark].source = "resolve": von Vadim in Resolve
+    gekeyframed (kickoff_loop_resolve.py pull → star_path.json), sonst die gerechnete Bahn (orbit)."""
+    sp = cfg["spark"]
+    return tuple(sp["path"][i]) if sp["source"] == "resolve" else orbit(cfg, i)
 
 
 def style_code(cfg, i):
@@ -377,7 +388,7 @@ def _source_hash():
 
 def render_cached(st, fmt, tag):
     """Bild zu einem Stil-Dict, gecacht nach allem, was es bestimmt (Stil, Lage, Satzwerte, Palette, Quelltext)."""
-    key = json.dumps([fmt, st["P"], S.PALS[st["P"]], st["S"], st["star"], st["rot"], st["seed"],
+    key = json.dumps([fmt, st["P"], S.PALS[st["P"]], st["S"], st["star"], st["rot"], st.get("nest_phase"), st["seed"],
                       st["loop"], _source_hash()], sort_keys=True, default=str)
     path = os.path.join(CACHE, f"{tag}_{hashlib.sha1(key.encode()).hexdigest()[:12]}.png")
     if os.path.exists(path):

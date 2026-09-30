@@ -222,8 +222,9 @@ def digital_style(cfg, dt):
             Beschleunigung), die Lage folgt dem Radius. Er dreht weiter, frontal. Der Satz
             bleibt, wo er auf dem Plakat stand, und kippt auf dem Stern in die Grundfarbe (XOR).
     impact  impact_frames Bilder: das letzte burst-Bild in Negativ (Palette umgedreht, siehe digital_frames).
-    card    Endkarte im 9:16-Satz: der Stern dreht langsam weiter (card_*), gerendert auf Zweiern (card_fps).
-            Titel, Datum und QR setzen nacheinander auf 16teln ein (card_reveal_16ths), nichts steht still."""
+    card    Endkarte im 9:16-Satz: Hypno-Loop. Der Stern wird zum XOR-Nest-Tunnel (card_style), aus der Mitte wachsen
+            stetig neue Sterne nach aussen (card_zoom_stars_per_s), alles frontal, 24 fps. Titel, Datum und QR setzen
+            nacheinander auf 16teln ein (card_reveal_16ths), nichts steht still."""
     e, n = cfg["endcard"], KL.count(cfg)
     W, H = cfg["video"]["size_px"]
     pw, ph = S.SIZES[KL.PREVIEW][:2]
@@ -246,6 +247,8 @@ def digital_style(cfg, dt):
         tq = np.floor(t * e["card_fps"]) / e["card_fps"]                           # auf Zweiern
         cx, cy, cr = e["card_star"]
         star = (cx * W, cy * H, cr * W, rot + spin * e["burst_beats"] * beat_s(cfg) + e["card_spin_deg_per_s"] * tq)
+        st["S"] = KL.S_CODES[e["card_style"]]
+        st["nest_phase"] = e["card_zoom_stars_per_s"] * tq
         six = beat_s(cfg) / 4
         show = [name for name, at in zip(("title", "date", "qr"), e["card_reveal_16ths"]) if t + 1e-6 >= at * six]
         st["loop"] = {**st["loop"], "digital": dict(u=1.0, offset=(ox, oy), star=star, show=show)}
@@ -272,7 +275,8 @@ def digital_frames(cfg, tl):
     """Alle Bilder des Digitalteils (24 fps). Gleiche Stile (Zweier der Endkarte) nur einmal rendern."""
     fps = cfg["video"]["timeline_fps"]
     dts = [k / fps for k in range(tl.total - tl.zoom_end)]
-    key = lambda d: repr(digital_style(cfg, d)["loop"]["digital"]) + digital_phase(cfg, d)[0]    # noqa: E731
+    key = lambda d: repr(digital_style(cfg, d).get("nest_phase")) + repr(digital_style(cfg, d)["loop"]["digital"]) \
+        + digital_phase(cfg, d)[0]                                                                  # noqa: E731
     uniq = {}
     for d in dts:
         uniq.setdefault(key(d), d)

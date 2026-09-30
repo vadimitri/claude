@@ -286,11 +286,14 @@ def spark(c):
         c.star_m = m & shell
         c.add("spark", m, grad)
         return
-    elif S == "nest":                             # XOR-Nest
-        m = np.zeros(d.shape, bool)
-        for k in range(6):
-            dk, _ = star_d(c, cx, cy, R * 0.74 ** k, rot + 30 * k)
+    elif S == "nest":                             # XOR-Nest; nest_phase > 0: Tunnel, die Sterne wachsen stetig nach aussen
+        ph = c.st.get("nest_phase", 0.0)          # (Hypno-Loop). Alle Sterne bleiben im XOR, auch wenn sie das Bild schon
+        m = np.zeros(d.shape, bool)               # fuellen: so kippt die Paritaet nie (Rezept "Infinite Nest tunnel")
+        for k in range(6 if ph == 0 else 12 + int(np.ceil(ph))):      # Tunnel: neue Sterne entstehen winzig (0.74^11)
+            dk, _ = star_d(c, cx, cy, R * 0.74 ** (k - ph), rot + 30 * (k - ph))
             m ^= dk < 1
+        if ph:
+            m &= d < 1                            # Tunnel nur im Fenster des aeussersten Sterns, der Satz bleibt frei
     c.star_m = m
     c.add("spark", m, grad, D=D)
 

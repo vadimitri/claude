@@ -38,6 +38,8 @@ seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakate
 # nach links IST der Neustart des Karussells. Gerechnet als Kreisbahn im Raum mit Zentralprojektion.
 # v004 (Vadim 30.9.: "kleinere Sparks", Bewegung "cool", aber der Stern bleibt IMMER frontal, keine Kippung):
 # fern jetzt Radius 0.20 statt 0.54 (die kleinen Frames sind Fotoframes: gedruckt fuers Video, nicht zum Aushaengen).
+source = "orbit"           # orbit = Bahn wird hier gerechnet (Werte unten) | resolve = Vadims Keyframes aus Resolve
+                           # (Projekt SPARK_Kickoff_Loop, Timeline Stern-Bahn; uv run src/kickoff_loop_resolve.py pull)
 vanish = [0.50, 0.50]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
 height = 0.22              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild
 near = 0.0                 # Abstand Bahnmitte → Betrachter (Bahnradius = 1). Kleiner = er kommt naeher ran
@@ -92,9 +94,11 @@ bars = 2                   # Laenge des Digitalteils in Takten ab dem Hit (Video
 burst_beats = 0.5          # Ausbruch: so viele Beats vom letzten Plakat bis der Stern das Bild fuellt (endet auf dem Hit)
 burst_star = [0.50, 0.46, 1.6]  # Ziel des Ausbruchs: x, y (Bruchteil des 9:16-Bilds), Radius (Bruchteil der Bildbreite)
 impact_frames = 2          # Negativ-Bilder auf dem Hit (24 fps). 1 Blitz, WCAG erlaubt 3 pro Sekunde
-card_star = [0.58, 0.64, 0.80]  # Stern der Endkarte: x, y, Radius (wie oben)
-card_spin_deg_per_s = 30   # Eigendrehung auf der Endkarte
-card_fps = 12              # Endkarte auf Zweiern (12 von 24 fps): gezeichnet, nicht "Video"
+card_star = [0.50, 0.66, 0.62]  # Mitte und aeusserster Stern des Tunnels: x, y, Radius (wie oben)
+card_style = "S7"          # Hypno-Loop (Vadim 30.9.): XOR-Nest als Tunnel, Sterne wachsen stetig aus der Mitte nach aussen
+card_zoom_stars_per_s = 0.9    # so viele neue Sterne pro Sekunde (Tempo des Sogs). Jedes Pixel kippt dabei ~1x/s: kein Blitz
+card_spin_deg_per_s = 12   # langsame Drehung in der Bildebene (frontal, keine Kippung)
+card_fps = 24              # Vadim 30.9.: "Framerate der digitalen Version ganz nice" → fluessig
 card_reveal_16ths = [0, 1, 2]   # Titel, Datum, QR setzen auf diesen 16teln nach dem Impact ein
 
 [music]
