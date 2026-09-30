@@ -54,7 +54,8 @@ seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakate
 source = "orbit"           # orbit = Bahn wird hier gerechnet (Werte unten) | resolve = Vadims Keyframes aus Resolve
                            # (Projekt SPARK_Kickoff_Loop, Timeline Stern-Bahn; uv run src/kickoff_loop_resolve.py pull)
 vanish = [0.50, 0.50]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
-height = 0.28              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild
+height = 0.33              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild. 0.22 hatte
+                           # Spitzen im Datum (Frame 3: 0.94), 0.33: alle 48 Frames >= 0.96
 near = 0.0                 # Abstand Bahnmitte → Betrachter (Bahnradius = 1). Kleiner = er kommt naeher ran
 depth = 1.0                # Tiefe der Bahn (Ellipse), groesser = fliegt weiter weg
 lens = 0.15                # Brennweite (kurze Plakatseite pro Einheit Abstand)
