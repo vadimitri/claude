@@ -1,0 +1,88 @@
+# SPARK Kick-off Loop · alle Stellschrauben an einem Ort.
+# Der Code (src/kickoff_loop*.py) enthaelt keine Gestaltungswerte, nur Logik. Was hier fehlt, ist Systemkonstante
+# und steht in src/styles.py (Paletten, Dither, Pixelraster) oder src/kickoff.py (Satz: Raender, Schriftgroessen).
+#
+# Einheiten stehen im Namen: _s Sekunden · _deg Grad · _frac Bruchteil 0..1 · _px Pixel · _cells Zellen des Pixelrasters
+# (1 Zelle = 1 "8-Bit-Pixel", auf dem A3-Druck 12 px = 1 mm, in der Vorschau 4 px).
+# Plakatgeometrie: x/y = Bruchteil von Plakatbreite/-hoehe, Groessen = Bruchteil der kurzen Plakatseite.
+# Nach jeder Aenderung:  uv run src/kickoff_loop.py preview   → kickoff_loop/previz/vNNN/ (alte Versionen bleiben liegen)
+
+[loop]
+# Jedes Plakat ist genau ein Einzelbild des Loops: Plakat 01..N = Frame 01..N. Die Liste steht unten in [posters].
+# Wie schnell die Plakate wechseln, steht in [video].cadence, immer auf dem Taktraster dieses Tempos.
+bpm = 120            # Tempo der Musik (4/4). 1 Takt = 2 s; 16 Plakate in 16teln = genau 1 Takt pro Loop.
+
+[spark]
+# Der Stern hat auf allen Plakaten dieselbe Silhouette, nur Stil (S) und Colorway (P) wechseln: jede Karte eine Dimension.
+# Ueber einen Durchlauf waechst und dreht er sich, dann faengt er von vorn an: das Karussell.
+center = [0.58, 0.76]      # Sternmitte (x, y) auf dem Plakat. Tief genug, dass Datum + Titel lesbar bleiben (Stufe A)
+size_start = 0.30          # Radius Mitte → Spitze im ersten Frame
+size_end = 0.90            # Radius im letzten Frame (danach Sprung zurueck auf size_start = sichtbarer Neustart)
+rot_start_deg = 14         # Drehung im ersten Frame
+turn_deg = 72              # Drehung ueber den ganzen Loop. 72° = genau eine Zacke: die Drehung schliesst sich nahtlos
+growth = "ease_out"        # Wachstumskurve: linear | ease_in | ease_out | ease_in_out | pulse (waechst und schrumpft, kein Sprung)
+
+[posters]
+seed = 3                   # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten, damit nur Stil und Farbe springen.
+# [Colorway, Stern-Stil] je Plakat, ab Frame 01. Codes wie in styles/index.html; kein Lila (gehoert der Maker Night).
+# Stile nur mit stabiler Silhouette: S2 S7 S33 S19d S23 S26 S36 (Test 30.9.). S14 S24 S40 und S31–S31d brechen sie.
+# Die hellen Papier-Colorways (P16 P22 P23) stehen als Block am Ende: nur zwei Hell/Dunkel-Spruenge pro Loop (Blitz-Check).
+frames = [
+  ["P11", "S7"],    # 01 CHERENKOV
+  ["P25", "S33"],   # 02 AFTERHOURS
+  ["P10", "S19d"],  # 03 P1 GREEN
+  ["P13", "S2"],    # 04 HOLOFOIL
+  ["P9",  "S7"],    # 05 RED LASER
+  ["P18", "S36"],   # 06 MOLTEN
+  ["P14", "S23"],   # 07 TOTALITY
+  ["P19", "S33"],   # 08 CHERRY BOMB
+  ["P17", "S2"],    # 09 SIGNAL FLARE
+  ["P20", "S7"],    # 10 IKB 191
+  ["P26", "S19d"],  # 11 PALETTE ZERO
+  ["P6",  "S33"],   # 12 MODE 04H
+  ["P15", "S23"],   # 13 CYANOTYPE
+  ["P16", "S2"],    # 14 FLUO PINK
+  ["P22", "S7"],    # 15 SAFETY ORANGE
+  ["P23", "S33"],   # 16 ABSOLUTE ZERO
+]
+
+[type]
+# Kopfzeile links, ersetzt das Hex-Raetsel. {i} = Plakatnummer, {n} = Anzahl. "" = leer lassen.
+meta_left = "FRAME {i:02d}/{n:02d}"
+# Verlauf in den Buchstaben, pro Zeile von der Grundlinie (dunkler) bis zur Versalhoehe (hellste Stufe).
+# Gemessen in Palettenstufen: 1.0 = genau eine Stufe, flaechig an beiden Enden, ohne Plateau in der Mitte.
+# 1.4 = Umfang der alten Plakate (0.70 → 0.98): kreuzt eine Stufe und bekommt dort ein flaches Band.
+text_gradient_steps = 1.0
+
+[qr]
+# card = JOIN US und QR auf einer Karte (hellste Stufe, harte Kante, kein Halo), Schrift + Module in der dunkelsten Stufe
+# band = QR-Platte hell, darueber ein Band in Plattenbreite in der dunkelsten Stufe, JOIN US hell darin
+style = "card"
+label_pad_cells = 3        # Luft um JOIN US (oben bis Kartenkante, unten bis zur QR-Platte)
+keyline_cells = 1          # Rand in Grundfarbe um die Karte: trennt sie vom Stern, auf dem Grund unsichtbar
+
+[video]
+size_px = [1080, 1920]     # Ausgabe Breite x Hoehe (9:16 fuer Reel/Story)
+timeline_fps = 24          # Resolve-Timeline
+start_poster_frac = 0.38   # Plakathoehe / Bildhoehe am Anfang: Umgebung (Campus) gut sichtbar, Plakat ~18 % der Flaeche
+end_cell_px = 4            # Zoom-Ende: 1 Plakatzelle = 4 Ausgabepixel (R3 wie das ganze System) → pixelgenauer Wechsel
+                           # ins Digitale. Plakat ist dann 1168 px breit, 44 px Anschnitt je Seite liegen im 7-%-Rand.
+# Das Karussell: [Plakatwechsel pro Takt, Anzahl Takte] je Abschnitt, nacheinander. 16 = 16tel (8 fps bei 120 BPM),
+# 8 = Achtel (4 fps), 4 = Viertel, 2 = Halbe. Es bremst, waehrend die Kamera naeher kommt, und bleibt am Ende stehen:
+# das baut Spannung auf und haelt den Blitz-Check ein (Plakat bildfuellend + 8 fps = 60 % Blitzflaeche, 4 fps = 8 %).
+cadence = [[16, 2], [8, 1], [4, 1], [2, 1]]
+hold_bars = 1              # Takte ohne Zoom am Anfang (der Loop laeuft schon)
+zoom_curve = "ease_in_out" # linear | ease_in | ease_out | ease_in_out (auf exponentiellem Zoom: gleichmaessig empfundenes Tempo)
+zoom_stepped = false       # true = Kamera springt nur mit den Plakaten (reines Stop-Motion), false = faehrt fluessig
+endcard_s = 4.0            # digitale Endkarte nach dem Zoom (v0: Platzhalter = letztes Plakat, digital)
+
+[simulation]
+# Nur fuer die Vorschau, solange es keine Fotos gibt: erfundene Waende statt Campus + Restfehler der Entzerrung.
+jitter_px = 5              # Versatz des Plakats von Foto zu Foto nach dem Entzerren (Pixel im Endbild)
+jitter_rot_deg = 0.35      # Restdrehung von Foto zu Foto
+
+[checks]
+# Gates: Verstoesse stehen im report.txt der Version, die Vorschau wird trotzdem gebaut.
+flash_max_per_s = 3        # WCAG 2.3.1: hoechstens 3 Blitze pro Sekunde (Blitz = Paar gegenlaeufiger Helligkeitsspruenge)
+flash_min_delta = 0.10     # Helligkeitssprung (relative Luminanz 0..1), ab dem ein Wechsel zaehlt
+flash_max_area_frac = 0.25 # Flaechenanteil des Bildes, ab dem blitzende Pixel als Verstoss gelten

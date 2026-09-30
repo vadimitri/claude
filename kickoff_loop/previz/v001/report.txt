@@ -1,0 +1,24 @@
+Version v001 · 2026-09-30 20:58 · 24 s Renderzeit
+Karussell: 16 Plakate, 2x16tel → 1x8tel → 1x4tel → 1x2tel (Takte x Wechsel) bei 120 BPM, Loop im schnellsten Tempo 2.00 s = 4 Schlaege
+Video: 14.00 s (2.0 stehend, 8.0 Zoom, 4.0 Endkarte), 1080x1920 @ 24 fps, bleibt stehen auf Plakat 14, echte Fotos: 0/16 (Rest simuliert)
+QR lesbar: 16/16
+Lesbarkeit Titel+Datum: 9/16 in Stufe A (>= 0.95)  ! unter A: 10 11 12 13 14 15 16
+Blitz-Check (WCAG 2.3.1, vereinfacht): ok · schlimmste Sekunde bei 3.0 s: 25 % der Flaeche ueber 3 Blitze/s (Grenze 25 %), max. 8 Blitze/s an einer Stelle
+
+Plakat  P    S     Codename          Grund  Lesbarkeit
+01      P11  S7    CHERENKOV         0.01   0.97 A
+02      P25  S33   AFTERHOURS        0.02   0.98 A
+03      P10  S19d  P1 GREEN          0.03   0.97 A
+04      P13  S2    HOLOFOIL          0.03   0.97 A
+05      P9   S7    RED LASER         0.02   0.97 A
+06      P18  S36   MOLTEN            0.02   0.96 A
+07      P14  S23   TOTALITY          0.02   0.97 A
+08      P19  S33   CHERRY BOMB       0.02   0.96 A
+09      P17  S2    SIGNAL FLARE      0.03   0.95 A
+10      P20  S7    IKB 191           0.04   0.92 B
+11      P26  S19d  PALETTE ZERO      0.00   0.91 B
+12      P6   S33   MODE 04H          0.00   0.93 B
+13      P15  S23   CYANOTYPE         0.16   0.93 B
+14      P16  S2    FLUO PINK         0.89   0.90 B
+15      P22  S7    SAFETY ORANGE     0.91   0.94 B
+16      P23  S33   ABSOLUTE ZERO     0.98   0.92 B
