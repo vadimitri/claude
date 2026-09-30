@@ -3,85 +3,68 @@
 Session-Start: diese Datei (zuerst **Übergabe**), dann `loop.toml`, dann `uv run src/kickoff_loop.py sheet` (zeigt den
 Stand in ~10 s). Regeln fürs ganze Pack (Ordner, Code, Git): `../CLAUDE.md`. Designsystem und Verworfenes: Skill `spark-motion`.
 
-## Übergabe 1.10. — hier weitermachen
+## Übergabe 1.10. abends — hier weitermachen
 
-**Stand:** QR glüht (R2 Licht) ✓ · 8 Sterne gewählt ✓ · 16 Frames pro Loop, 3–5 Durchgänge ✓ · Zeitachse folgt dem
-Musik-Raster ✓ · schnelle Befehle `sheet`/`stars`/`variants` ✓. Letzte Videos: `previz/v006` (Musik A), `v007` (Musik B).
+**Große Entscheidung:** Die echten Plakate sind **komplett vom Video getrennt**. Für den Video-Loop gelten die
+Druck-Regeln nicht mehr: kein Wechsel Aushang/Fotoframe, kein Frame muss allein tragen, leere Frames sind ok, nichts wird
+pro Frame fotografiert. Die Campus-Plakate werden separat gemacht (Konzept offen, siehe Offen).
 
-**Vadims Feedback zu v006/v007, in dieser Reihenfolge.** Erst die Animation, dann die Musik, die Endkarte ganz am Ende:
+**Gewählt (Vadim):**
+- **Farbe C1**: 32 Frames pro Loop, eine gemischte Farbreise über alle dunklen Colorways außer P6.
+  Vorlage: `previz/review/C1.toml`. Vadim will das aber „verrückter, wir sind zu zahm". Der Farb-Agent hat dazu
+  C1b/C1c/C1d gebaut (Branch `worktree-agent-a32df95e98bda0733`, Bögen in `previz/review/`), Urteil offen.
+- **Tempo T16**: 16.32 Plakate/s = 32tel-Triolen auf IGOR (81.6 BPM). Ein Loop (32 Frames) = 1⅓ Takte, also
+  3 Loops = 4 Takte. Der Neustart liegt nur jeden 3. Loop auf der Eins. Vergleich: `previz/review/tempo_T*.mp4`
+  (alle Bahnen nebeneinander, IGOR ab 22.435 s darunter).
+- **Bahn: Ellipse um den Betrachter**, Stern an den Seiten riesig, in der Mitte klein. Hinter dem Kopf ist er
+  weg, und zwar so lange, wie es sich echt anfühlt. `orbit()` mit `width`/`ahead`/`kepler_frac`, siehe `[spark]`.
+  **Welche Variante, ist offen**: B15–B20 (`previz/review/C1_B*.toml`, Bögen + `tempo_T16.mp4`). B18 = B15 mit
+  angehobener Bahn, dort bleiben die Riesen seitlich im Bild statt unten herauszufallen.
+- **Sterne**: S50 kommt rein. S51 → S51b. S48 (→ S48b/c, chromatische Aberration) und S54 (→ S54b, Handskizze) sind
+  überarbeitet. Bögen `previz/review/S_rework_1.png`, `S_rework_2*.png`, Branch `worktree-agent-ad5a3c216a0aab393`.
+  Urteil zur Überarbeitung offen.
 
-1. **Der Loop ist nicht clean.** Im Video ist der Stern im ersten Frame schon groß links da und im letzten noch groß rechts.
-   Er ist nie ganz außerhalb des Plakats, der Neustart springt von rechts nach links. Ziel: ein vollständiger Bumerang. Der
-   Stern kommt von außerhalb ins Plakat und verlässt es wieder ganz.
-   - Befund: `[spark].sweep_deg = [-78, 73]` ist nur der sichtbare Bogen. Frame 1 und 16 liegen darin schon groß am Rand,
-     den Weg „hinter dem Kopf" gibt es als Frame gar nicht.
-   - Wege: den Bogen verlängern, bis Frame 1/16 fast leer sind (nur eine Spitze ragt herein), oder eigene Ein-/Austritts-Frames.
-   - Beachten: Ein Aushang (ungerade Nummer) ohne Stern trägt allein nicht. Also die leeren Frames auf Fotoframes legen.
-   - Frame 2 liegt heute bei Lesbarkeit 0.95: eine Sternspitze sticht durch „KICK-OFF / 14.". Das auch über die Bahn lösen,
-     nicht über die Stile (Befund des Sterne-Agenten).
-   - Arbeiten mit `sheet` (Kontaktbogen + Plakat-Loop) und erst dann `preview`.
-2. **Mehr Farbe, „es soll sich interdimensional anfühlen".** Vadim findet alle Colorways cool und will jede drin haben. Er
-   meint, mit mehr Frames könne man sich mehr Farben erlauben.
-   - Heute sind 8 Stationen drin, alle dunkel: P11 P13 P10 P19 P18 P14 P20 P15.
-   - Nicht drin, dunkel: P6 CGA, P9 RED LASER, P17 SIGNAL FLARE, P25 AFTERHOURS, P26 PALETTE ZERO.
-   - Nicht drin, hell (Papier): P16 FLUO PINK, P21 MINT, P22 SAFETY ORANGE, P23 ABSOLUTE ZERO, P24 HAZARD.
-   - Fallen:
-     - Hell zwischen Dunkel gemischt wird grau (Entscheidung 30.9.).
-     - Manche OKLab-Mischungen werden lila (`is_lilac` in `load`).
-     - Wechselt die Palette in jedem Frame bei 8 fps, blitzt es (Skill-Gotcha: 60 % der Fläche, Grenze 25 %, `flash_check`).
-     - CGA-Paletten P6/P26 haben nur 4 Stufen und werden gedoppelt.
-   - **Vor dem Bauen Vadim fragen, welche Form er meint:**
-     - (a) mehr Frames pro Loop (z. B. 32 Frames = 16 Stationen), oder
-     - (b) jeder Durchgang ist eine andere „Dimension": gleiche Bahn, eigenes Farbset. Zwischen den Durchgängen wird hart
-       gewechselt, nicht gemischt, damit geht auch Hell ↔ Dunkel ohne Grau. Das ergibt mehr Plakate (4 × 16). (b) passt
-       zu Spider-Verse, dort hat jede Welt ihre eigene Grafik.
-   - Im README steht außerdem die Idee des Sterne-Agenten, jeden Stil an eine Welt/Colorway zu koppeln.
-3. **Musik: nur IGOR, Custom-Mashup.** Der Maker-Night-Beat bleibt exklusiv für die Maker Night und fliegt aus dem Kick-off.
-   Stattdessen ein eigenes Mashup aus IGOR'S THEME: Wo die Drums kommen, machen wir etwas Eigenes. **Erst, wenn die
-   Animation fertig ist.**
-   - Code: `src/kickoff_loop_music.py`. Es baut heute A/B mit Maker-Night-Drop; dieser Teil und `[mashup]` für die Maker
-     Night fliegen raus.
-   - Das Raster-Format bleibt: Die Timeline liest `sixteenth_s`, `carousel_bars`, `hits_s`, `burst_s`, `impact_s` und
-     `end_s` aus dem JSON (`GRID_KEYS` in `kickoff_loop.py`).
-4. **Endkarte ganz am Ende neu, in einer eigenen Session.** Vadim: keine Hypno-Endkarte. Die Varianten H1–H5 (Taktsog,
-   Palettenringe, Gegenlauf) fand er „schrecklich", sie sind gebaut und wieder gelöscht. Die jetzige Endkarte (Nest-Tunnel)
-   ist Platzhalter.
+**Als Nächstes, in dieser Reihenfolge:**
+1. Beide Agent-Branches mergen (`git merge worktree-agent-…`). Der Welten-Code des Farb-Agenten ist schon drin
+   (Commit 7e65046). In `lab_spark.py/c_lampe` hat der Hauptzweig eine Zeile geändert (leerer Saum).
+2. Vadim wählt B (B15–B20) und die Farbvariante (C1/C1b–d) und die Sterne. Dann in `loop.toml` übernehmen:
+   `[loop].frames = 32`, `[color]` aus der Farbvariante, `[spark]` aus B, `[styles].hold_frames = 4`.
+3. **Leere Frames im Code nachziehen**, bevor `preview` läuft:
+   - `kickoff_loop_video.digital_style` nimmt `star_at(n - 1)`. Ist der letzte Frame leer (Radius 0), teilt
+     `1 / r0` durch null. Der Ausbruch muss vom **letzten Frame mit Stern** starten, das Karussell dort enden.
+   - Stile nur auf Frames mit Stern verteilen: Heute bekommen leere Frames einen Stil, der dann fehlt.
+   - Leere Frames rendern heute einen winzigen S2-Stern außerhalb (`OFF_STAR`), weil Labor-Stile am Stern messen.
+4. Lesbarkeit der Riesenframes: B17–B20 liegen bei 0.90–0.93, der Riesenstern liegt über SPARK/KICK-OFF. Über Bahn
+   oder Satz lösen, Gate bleibt 0.95.
+5. Zeitachse auf T16: Das Musik-Raster kennt nur 16tel-Teiler (`load`: `16 % per`). 32tel-Triolen = 24 Wechsel pro
+   Takt, `carousel_bars` und die Prüfung müssen das können. Blitz-Check bei 16 Plakaten/s neu messen (C1 wechselt
+   die Farbe jedes Frame).
+6. Musik nur IGOR (alte Übergabe 3) und Endkarte neu (alte Übergabe 4) sind unverändert offen.
 
-**Liegt offen, noch ohne Urteil von Vadim:**
-- **Neue Sterne S48–S55** (Sterne-Agent, Recherche Spider-Verse ITSV/ATSV + Manga/Comic): Bogen `previz/variants/stars_neu.png`,
-  je Code Idee/Quelle/Lesbarkeit in `ref/spiderverse/README.md`, Abschnitt „Neue Sterne (1.10., Agent)". Alle folgen der Bahn,
-  QR 16/16. Agent-Sichtung: S50 Fokuslinien, S55 Halbton, S53 Spot am stärksten. Vadim wählen lassen, dann `[styles].cycle`.
-- **Boil** (Test): `uv run src/kickoff_loop.py boil` → `previz/now/boil.mp4`, Digitalteil ohne | mit. Der Stern springt auf
-  Zweiern 1 Zelle, das Bayer-Korn wandert mit (`[endcard].boil_*`, `styles.dither(shift=…)`). Das hängt an der neuen Endkarte,
-  also ohne Vadims Ja nicht weiterbauen.
-
-**Arbeitsweise, die funktioniert hat** (Vadim will sofort Feedback, „schnelle Iteration"):
-- Standbilder vor Video. `sheet` braucht ~10 s, `variants`/`stars` ~15–25 s. `preview` (~1 min) erst nach Abnahme.
-- Ergebnis immer mit `open` zeigen, Varianten mit Code beschriften (G1…, R2…). Vadim antwortet mit Codes („R2 Licht").
-- Unabhängiges parallel an Subagenten geben, mit klaren Dateigrenzen: Musik → `kickoff_loop_music.py`, Stile → `lab_spark.py`.
-- Vor Vorschlägen die Verworfen-Liste im Skill `spark-motion` lesen: S15–S28 waren schon raus und wurden trotzdem vorgeschlagen.
-- Ein Selbsttest muss am alten Fehler nachweislich anschlagen. Dazu den Fehler kurz einbauen und den Test laufen lassen. Beim
-  Glühen war der erste Test blind dafür.
+**Arbeitsweise heute (hat getragen):** Varianten als vollständige TOML-Kopie in `previz/review/`, gerendert mit
+`sheet <datei>.toml` (~10 s, öffnet Bogen + Loop). Vadim schaut im Finder und antwortet mit Codes. Veraltetes kommt
+nach `previz/review/alt/`, nicht löschen. Agenten in eigenen Worktrees, Stände per Patch/Merge herüberholen.
+Befund zuerst rechnen, dann rendern: Die Bahn-Suche lief als Skript über die Parameter (sichtbarer Anteil,
+Radius pro Frame, leere Frames). Das ging schneller als Bögen raten.
 
 **Stern-Editor in Resolve** (Details `resolve/EDITOR.md`): Projekt `SPARK_Kickoff_Loop`, Timeline `Stern-Bahn`, 1 Timeline-Frame
 = 1 Plakat-Frame. `push`/`pull`/`check` laufen, sind aber am Bild noch nicht bestätigt. **Die Frame-Zahl ist jetzt 16:** vor der
 Nutzung `push --force` (überschreibt Keys). Resolve ist Editor und Schnitt, Python bleibt Renderer (nur Python hält Pixelraster,
 Bayer und Palette exakt).
 
-## Vision (Stand 1.10.)
+## Vision (Stand 1.10. abends)
 
-- Die Plakate **sind** die Animation: 16 Frames = ein Loop = 1 Takt in 16teln. Ungerade Nummern sind **Aushänge** (hängen auf dem
-  Campus, 8 Stück), gerade sind **Fotoframes** (nur fürs Video gedruckt und fotografiert, „fake it till we make it").
-- **Bumerang**: Der Stern fliegt einmal um den Betrachter, groß links rein, klein in die Tiefe, groß rechts raus. Er ist **immer
-  frontal** (keine Kippung, keine Achsdrehung, „absolute Katastrophe") und dreht sich nur in der Bildebene. Offen: Er soll
-  vollständig raus und rein (Übergabe 1).
-- **Farbe**: interdimensional, möglichst alle Colorways (Übergabe 2). Benachbarte Frames bleiben nah beieinander.
+- **Video-Loop und Plakate sind getrennt.** Der Loop ist reines Video (32 Frames, T16), die Campus-Plakate kommen eigens.
+- **Bumerang als Ellipse**: Der Stern kommt links riesig herein (von hinten am Ohr vorbei), fliegt in die Tiefe (klein),
+  kommt rechts riesig zurück und ist hinter dem Kopf weg. Die Zeit dort ist echt. Er ist **immer frontal** (keine Kippung,
+  „absolute Katastrophe") und dreht sich nur in der Bildebene.
+- **Farbe**: interdimensional, möglichst alle Colorways (C1: eine Reise über 32 Frames), gern verrückter.
 - **Titelblock steht**: SPARK + KICK-OFF + Datum in jedem Frame exakt gleich.
 - **QR glüht ein**: helle Platte mit 1 Modul Ruhezone, Lichtabfall ins Plakat. JOIN US frei, kippt pro Buchstabe hell/dunkel.
-- **8 Sternstile** im Zyklus (Stil wechselt alle 2 Frames, Aushang + Fotoframe teilen ihn), letzter Frame voller Körper (S2).
-- **Video**: Das Karussell läuft 3–5-mal durch. Die Kamera zoomt vom ersten Frame an, rollt leicht und stößt auf den Hits nach
-  vorn. Am Ende des letzten Durchgangs **bricht der Stern aus dem Papier** (24 fps statt Stop-Motion), auf dem Drop kommt der
-  **Impact** (Negativ), dann die Endkarte (neu, Übergabe 4). Musik: nur IGOR, Custom-Mashup (Übergabe 3).
+- **8 Sternstile** im Zyklus (+ S50, S51b …), letzter Frame mit Stern voller Körper (S2) für den Ausbruch.
+- **Video**: Das Karussell läuft mehrmals durch, die Kamera zoomt, rollt leicht und stößt auf den Hits nach vorn. Am Ende
+  **bricht der Stern aus dem Papier** (24 fps), auf dem Drop kommt der **Impact** (Negativ), dann die Endkarte (neu).
+  Musik: nur IGOR, Custom-Mashup.
 - Inspiration: Spider-Man ITSV/ATSV (`ref/spiderverse/README.md`): Wechsel der Bildrate, Impact-Frame, Farbversatz statt Blur,
   jede Welt ihre eigene Grafik.
 
@@ -111,6 +94,7 @@ Bayer und Palette exakt).
 | Befehl | Ergebnis | Dauer |
 |---|---|---|
 | `uv run src/kickoff_loop.py sheet` | **schnelle Runde**: Kontaktbogen + Plakat-Loop → `previz/now/`, öffnet beides | ~10 s |
+| `uv run src/kickoff_loop.py sheet kickoff_loop/previz/review/X.toml` | dasselbe für eine Variante (volle Kopie der `loop.toml`) → `previz/review/X_contact.png`, `X_loop.mp4` | ~10 s |
 | `uv run src/kickoff_loop.py stars [S..]` | Sterne-Bogen: jeder Stil an 3 Bahnstellen, Lesbarkeit → `previz/variants/stars.png` | ~25 s |
 | `uv run src/kickoff_loop.py variants 1 9` | QR-Varianten (`VARIANTS` im Code) → `previz/variants/qr_sheet.png` + `frameNN.png` | ~15 s |
 | `uv run src/kickoff_loop.py test [N..]` | Selbsttest am fertigen Bild (Standard Frames 3, 7, 9) | ~5 s |
@@ -138,6 +122,7 @@ Frames sind nach Inhalt gecacht (`_cache/`, Schlüssel inkl. Hash aller `src/*.p
 | `previz/vNNN/` | Vorschau-Versionen; `report.txt` + `loop.toml` im Git, Medien nicht | teils |
 | `previz/now/` | Kratzfläche der schnellen Befehle (`sheet`, `boil`), wird überschrieben | nein |
 | `previz/variants/` | Bögen zum Entscheiden (`qr_sheet`, `stars`, `stars_neu`) | nein |
+| `previz/review/` | **aktuelle Varianten** für Vadim: `<Code>.toml` (im Git) + Bogen/Loop, `tempo_T*.mp4`, `S_rework_*`; Veraltetes in `alt/` | toml ja |
 | `previz/music/` | Hörversionen (m4a) + `report.txt` (Befunde Musik) | report ja |
 | `photos/raw/`, `photos/aligned/NN.png` | Fotos, entzerrt (ersetzen in der Vorschau automatisch die Simulation) | nein |
 | `print/`, `_cache/` | Druckdateien, gerenderte Frames | nein |
@@ -152,6 +137,12 @@ Sterne: S2/S7/S33 in `src/styles.py`, Labor-Stile (S18d S19d S23 S31g S44–S55 
 
 | Datum | Entscheidung | Warum |
 |---|---|---|
+| 1.10. | **Plakate und Video getrennt** | Vadim: „wir trennen echte Plakate vom Video komplett, also lösen sich da einige constraints". Leere Frames ok („drucke ja sowieso einige Plakate nur für das Video") |
+| 1.10. | **Bahn: Ellipse** (`width`, `ahead`, `kepler_frac`), Stern größer als sein Vorbeiflug-Abstand | Befund (Skript, 32 Frames): perspektivisch korrekt (Kepler, B4–B10) ist der Stern nur 1 Frame pro Seite groß, eine gleichmäßige Kreisbahn läuft 6–8 von 16 Frames leer. Vadim: „an den Seiten riesig … elliptisch" und „man fühlt, wenn der Spark nicht genug Zeit hatte" → Comic-Größe, echte Zeit |
+| 1.10. | ~~B9/B10~~ (größer über Brennweite) verworfen | Vadim: „sieht praktisch flach aus". Tiefe = Größenverhältnis nah/fern, dort nur ×2.5 statt ×4 und mehr |
+| 1.10. | ~~Bahn diagonal/senkrecht (B11–B13), Tiefenbumerang (B14)~~ | Vadim: „wir bleiben beim normalen Loop". `plane_roll_deg` bleibt als Regler (0) |
+| 1.10. | **Farbe C1** (32 Frames, eine Reise), nicht C2 (Welt pro Durchgang) / C3 (4 Welten im Loop) | Vadim: „C1 am besten, gerne verrückter". P6 fliegt raus: sein Magenta dithert mit Schwarz zu Lila (Farb-Agent, `load` prüft jetzt jedes Plakat) |
+| 1.10. | **Tempo T16** = 16.32 Plakate/s (32tel-Triolen auf IGOR) | aus T8/T12/T16/T24 mit IGOR darunter (`previz/review/tempo_T*.mp4`) |
 | 1.10. | **QR glüht, R2 Licht**: Ruhezone 1 Modul (`quiet_cells` 2), Lichtabfall exponentiell über 12 Zellen, rund, JOIN US frei 4 Zellen darüber, kippt pro Buchstabe | Vadim wählte aus G1–G6 und dann R2–R6 („nicht so viel Padding"). Befund: Die Gauß-Kuppe liest sich als Box mit Saum, der Lichtabfall als Glühen. QR 16/16 lesbar auch mit 1 Modul, weil das Glühen hell ist |
 | 1.10. | Selbsttest Glühen: pro Abstandsring nach außen nie heller (über 4 Ringe gemittelt, Bayer-Periode) **und alle Seiten gleich hell** | Der Ringtest allein ließ den verbeulten v003-Hof durch. Der Seitenvergleich schlägt an: 1.0–1.6 Stufen gegen eine Grenze von 0.6 |
 | 1.10. | **16 Frames** pro Loop (8 Aushänge + 8 Fotoframes), Drehung 240° pro Loop (15°/Frame) | Vadim: „mehrere Durchgänge statt mehr Frames". Unter 30°/Frame, sonst liest das Auge die Drehung rückwärts |
@@ -199,13 +190,15 @@ Sterne: S2/S7/S33 in `src/styles.py`, Labor-Stile (S18d S19d S23 S31g S44–S55 
 
 ## Offen, in dieser Reihenfolge
 
-0. **Übergabe 1–4** oben: Loop clean (Bahn), Farbe interdimensional (erst Form klären), Musik nur IGOR, Endkarte neu.
-1. Neue Sterne S48–S55 von Vadim bewerten lassen, `URTEIL` in `lab_spark.py` nachziehen.
-2. Ort (`kickoff.COPY["where"]`) fehlt noch (für die Endkarte).
-3. `print` + **Testdruck** von 2–3 Extremen (großer Stern angeschnitten, ferner Stern, S45 Ben-Day-Raster).
-4. `align`: Fotos entzerren (Merkmalsabgleich gegen den Render, Homographie; Rückfall: 4 Ecken von Hand).
-5. Resolve-Schnitt aus `resolve/` (Platten → echte Fotos, Relink über gleiche Dateinamen).
-6. 9:16-Sicherheitszonen (die Reels-UI deckt unten/rechts ab) für die Endkarte prüfen.
+0. **Übergabe oben**, Schritte 1–6.
+1. **Campus-Plakate** als eigenes Konzept. Denkbar: die stärksten Loop-Frames als Aushänge, ohne Parität und ohne Fotoframes.
+   Plätze laut Vadim: 18 × A4 hoch, 56 × A3 hoch, 10 × A4 quer.
+2. Ort (`kickoff.COPY["where"]`) fehlt noch (für Endkarte und Plakate).
+3. `print` + Testdruck der Extreme, sobald die Plakate stehen.
+4. Resolve-Schnitt aus `resolve/`. Der Stern-Editor (`kickoff_loop_resolve.py`) nutzt `orbit()`, leere Frames (Radius 0)
+   dort noch nicht geprüft.
+5. 9:16-Sicherheitszonen (die Reels-UI deckt unten/rechts ab) für die Endkarte prüfen.
+6. `align` (Fotos entzerren) nur noch, falls das Video doch echte Fotos zeigt.
 
 ## Bekannte Grenzen
 
