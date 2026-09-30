@@ -185,7 +185,7 @@ def digital_style(cfg, dt):
     W, H = cfg["video"]["size_px"]
     pw, ph = S.SIZES[KL.PREVIEW][:2]
     ox, oy = digital_offset(cfg)
-    x, y, r, rot = KL.star_at(cfg, n - 1)
+    x, y, r, rot, _ = KL.star_at(cfg, n - 1)
     a = np.array([ox + x * pw, oy + y * ph, np.log(r * pw)])
     ex, ey, er = e["star_end"]
     b = np.array([ex * W, ey * H, np.log(er * W)])

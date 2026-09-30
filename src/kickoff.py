@@ -181,6 +181,8 @@ def spark(c):
         cx, cy, R, _ = c.L["star"]
         g.K = (cx / g.m, cy / g.m, R / g.m)
         g.rot = c.st.get("rot")
+        dx, dy = S.tilt(c.st, g.X - g.K[0], g.Y - g.K[1])        # Kippung der Sternscheibe (styles.tilt) um ihre Mitte
+        g.X, g.Y = g.K[0] + dx, g.K[1] + dy
     elif code[4:] in OWN_K:
         fx_, fy, fr = OWN_K[code[4:]]
         g.K = (fx_ * c.W / g.m, fy * c.H / g.m, fr)

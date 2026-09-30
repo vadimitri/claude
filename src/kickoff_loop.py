@@ -168,19 +168,28 @@ def station_label(cfg, i):
 # ---------------------------------------------------------------- Geometrie
 
 def orbit(cfg, phase):
-    """Stern auf der Bumerang-Bahn bei `phase` (Frames, darf gebrochen sein): (x, y, Radius, Drehung) in Plakateinheiten.
+    """Stern auf der Bumerang-Bahn bei `phase` (Frames, darf gebrochen sein): (x, y, Radius, Drehung, Kippung).
 
     Kreisbahn um den Betrachter, im Raum gerechnet: Winkel th laeuft ueber den sichtbaren Bogen (sweep_deg) gleichmaessig,
     Abstand z = near + depth*cos(th), Zentralprojektion auf das Plakat (x ~ sin(th)/z, Groesse ~ 1/z). Nahe am Betrachter
     ist er gross, tief und schnell, fern klein und nahe am Fluchtpunkt. Die Frame-Mitten liegen bei (i + 0.5)/n, damit
-    der Schritt ueber den Neustart (hinter dem Kopf) so gross ist wie jeder andere."""
+    der Schritt ueber den Neustart (hinter dem Kopf) so gross ist wie jeder andere.
+    Der Stern ist eine flache Scheibe (styles.tilt): sie dreht sich in sich (spin_deg) und ueberschlaegt sich dabei
+    tumble_turns mal um eine Achse, die selbst wandert (axis_*). Die Verkuerzung k = cos(Ueberschlag) laesst den Stern
+    schmal werden, kippen und mit der Rueckseite wiederkommen: so liest sich die flache Form als Koerper im Raum."""
     sp, n = cfg["spark"], count(cfg)
     a, b = sp["sweep_deg"]
-    th = np.radians(a + (b - a) * (phase + 0.5) / n)
+    f = (phase + 0.5) / n
+    w = sp["far_rush_frac"]                                   # fern schneller, nah verweilen (0 = gleichmaessiger Winkel)
+    th = np.radians(a + (b - a) * (f - w * np.sin(2 * np.pi * f) / (2 * np.pi)))
     z = sp["near"] + sp["depth"] * np.cos(th)
     x = sp["vanish"][0] + sp["lens"] * np.sin(th) / z
     y = sp["vanish"][1] + sp["lens"] * POSTER_ASPECT * sp["height"] / z
-    return float(x), float(y), float(sp["lens"] * sp["size"] / z), float(sp["rot_start_deg"] + sp["spin_deg"] * phase / n)
+    k = np.cos(np.radians(sp["tumble_start_deg"] + 360 * sp["tumble_turns"] * f))
+    k = np.copysign(max(abs(k), sp["thin_min_frac"]), k)
+    axis = sp["axis_start_deg"] + sp["axis_turn_deg"] * f
+    return (float(x), float(y), float(sp["lens"] * sp["size"] / z), float(sp["rot_start_deg"] + sp["spin_deg"] * phase / n),
+            (float(axis), float(k)))
 
 
 def star_at(cfg, i):
@@ -201,8 +210,8 @@ def style_code(cfg, i):
 def poster_style(cfg, i):
     """Stil-Dict fuer styles.render: Palette aus der Farbreise, Stern-Stil aus dem Zyklus, Lage von der Bahn,
     Satz aus diesem Modul."""
-    x, y, radius, rot = star_at(cfg, i)
-    st = K.style(palette(cfg, i), S_CODES[style_code(cfg, i)], "riese", star=(x, y, radius), rot=rot,
+    x, y, radius, rot, tilt = star_at(cfg, i)
+    st = K.style(palette(cfg, i), S_CODES[style_code(cfg, i)], "riese", star=(x, y, radius), rot=rot, tilt=tilt,
                  seed=cfg["styles"]["seed"], title_scale=title_scale(cfg, i))
     st.update(layout=layout, type_fn=type_layers,
               loop=dict(i=i, n=count(cfg), type=cfg["type"], qr=cfg["qr"], digital=None))
@@ -371,7 +380,7 @@ def _source_hash():
 
 def render_cached(st, fmt, tag):
     """Bild zu einem Stil-Dict, gecacht nach allem, was es bestimmt (Stil, Lage, Satzwerte, Palette, Quelltext)."""
-    key = json.dumps([fmt, st["P"], S.PALS[st["P"]], st["S"], st["star"], st["rot"], st["seed"],
+    key = json.dumps([fmt, st["P"], S.PALS[st["P"]], st["S"], st["star"], st["rot"], st.get("tilt"), st["seed"],
                       st.get("title_scale"), st["loop"], _source_hash()], sort_keys=True, default=str)
     path = os.path.join(CACHE, f"{tag}_{hashlib.sha1(key.encode()).hexdigest()[:12]}.png")
     if os.path.exists(path):

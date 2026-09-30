@@ -27,25 +27,36 @@ steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P
 # hold_frames = 2: Aushang und folgender Zwischenframe teilen sich den Stil, der Stil springt mit 4 statt 8 fps.
 # Nur Stile mit stabiler Silhouette: S2 S7 S33 S19d S23 S26 S36. S14 S24 S40 S31–S31d brechen sie, S13 streut
 # Kindsterne ueber den Titel (v003-Test: Lesbarkeit 0.85). 7 Stile teilen 32 nicht: die zweite Runde mischt anders.
-cycle = ["S7", "S2", "S19d", "S33", "S36", "S23", "S26"]   # so faellt S2 (voller Koerper) auf Frame 31/32
+cycle = ["S7", "S2", "S19d", "S33", "S23", "S26"]   # S36 raus (Vadim 30.9.: "schmilzt, sieht scheisse aus")
 hold_frames = 2
 seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
 
 [spark]
 # Bumerang: der Stern kreist einmal um den Betrachter. Frame 1: er kommt hinten links (am linken Ohr vorbei) ins Bild,
-# fliegt in die Tiefe (wird kleiner), kehrt um, kommt auf einen zu (wird groesser) und verlaesst das Bild rechts.
+# fliegt in die Tiefe (wird klein), kehrt um, kommt auf einen zu (wird gross) und verlaesst das Bild rechts.
 # Zwischen dem letzten und dem ersten Frame fliegt er hinter dem Betrachter herum (unsichtbar): der Sprung von rechts
 # nach links IST der Neustart des Karussells. Gerechnet als Kreisbahn im Raum mit Zentralprojektion.
-vanish = [0.52, 0.45]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
-height = 0.63              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild
-near = 0.24                # Abstand Bahnmitte → Betrachter (Bahnradius = 1). Kleiner = er kommt naeher ran
+# v004 (Vadim 30.9.: "richtiger Bumerang, man soll die Rotation sehen, dreidimensionaler", "kleinere Sparks"):
+# fern jetzt Radius 0.20 statt 0.54 (die kleinen Frames sind Fotoframes: gedruckt fuers Video, nicht zum Aushaengen),
+# und der Stern ist eine flache Scheibe, die sich im Flug ueberschlaegt (styles.tilt).
+vanish = [0.50, 0.32]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
+height = 0.42              # Bahn liegt so weit unter Augenhoehe (Einheit: Bahnradius): nah = tiefer im Bild
+near = 0.0                 # Abstand Bahnmitte → Betrachter (Bahnradius = 1). Kleiner = er kommt naeher ran
 depth = 1.0                # Tiefe der Bahn (Ellipse), groesser = fliegt weiter weg
-lens = 0.50                # Brennweite (kurze Plakatseite pro Einheit Abstand)
-size = 1.35                # Sterngroesse in Bahneinheiten. Ergebnis: Radius 0.54 (fern) bis 1.10 (nah)
-sweep_deg = [-68, 58]      # sichtbarer Bogen (0 = geradeaus, fern). Rechts endet er frueher: der letzte Frame (vor dem
-                           # Digitalteil) zeigt den Stern gross im Bild statt als Anschnitt. Der Rest passiert hinter dem Kopf
+lens = 0.15                # Brennweite (kurze Plakatseite pro Einheit Abstand)
+size = 1.35                # Sterngroesse in Bahneinheiten. Ergebnis: Radius 0.20 (fern) bis 0.92 (nah)
+sweep_deg = [-78, 76]      # sichtbarer Bogen (0 = geradeaus, fern). Der Rest passiert hinter dem Kopf
+far_rush_frac = 0.7        # fern schneller, nah verweilen: 0 = gleichmaessig, 0.7 = nah halbes Tempo, fern 1.7-fach
 rot_start_deg = 0          # Drehung im ersten Frame
-spin_deg = 240             # Eigendrehung pro Umlauf. Stern ist 6-zackig: Vielfache von 60° schliessen nahtlos
+spin_deg = 600             # Eigendrehung pro Umlauf (18.75° pro Frame: unter 30°, sonst liest das Auge die 6-zackige
+                           # Form rueckwaerts drehend). Vielfache von 60° schliessen nahtlos
+tumble_turns = 1           # Ueberschlaege der Scheibe pro Umlauf: 1 = einmal ganz herum (Vorderseite → hochkant →
+                           # Rueckseite → hochkant → Vorderseite), hochkant bei 1/4 und 3/4 des Loops
+tumble_start_deg = 0       # 0 = Frame 1 frontal
+thin_min_frac = 0.12       # hochkant nie duenner als dieser Bruchteil (ganz hochkant waere eine Linie)
+axis_start_deg = -35       # Kippachse am Anfang (0 = waagerecht, Stern klappt nach oben/unten)
+axis_turn_deg = 180        # so weit dreht die Achse ueber den Loop: der Stern geht schraeg weg und kommt hochkant
+                           # zurueck. Vielfache von 180° schliessen nahtlos
 
 [type]
 # Verlauf in den Buchstaben, pro Zeile von der Grundlinie (dunkler) bis zur Versalhoehe (hellste Stufe), in Palettenstufen.
