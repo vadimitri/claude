@@ -43,14 +43,17 @@ steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P
 # Raus: S14 S24 S40 S31-S31f (brechen Silhouette oder Lesbarkeit: S18 0.56, S31 0.84, S31f 0.89), S13 (Kindsterne im
 # Titel), S36 (Vadim 30.9.: "schmilzt"), Labor S15-S20 S28 (ignorieren die Bahn). Letzter Frame voller Koerper (S2):
 # er wird im Ausbruch bildfuellend, Ringe/Schalen flackern dort (Blitz-Check v004: 40 % statt 24 % der Flaeche).
-cycle = ["S31g",  # Lampe: der Stern als Lichtquelle, Bahnen aus den Spitzen (Gegenlicht)     F1-2
-         "S23",   # Anschnitt: tiefes XOR-Nest                                               F3-4
-         "S33",   # Matrjoschka: Schalen, die ins Korn laufen                                F5-6
-         "S18d",  # Moire im Stern: zwei Hoehenlinien-Sterne per XOR, harter Rand            F7-8
-         "S19d",  # Nest-Rosette                                                             F9-10
-         "S45",   # Facette: Kristall im Cel-Shading, Schatten als Ben-Day-Punktraster       F11-12
-         "S47",   # Praegung: das Nest als Hochdruck, Lichtkante + Schatten an jeder Platte  F13-14
-         "S2"]    # Verlauf, voller Koerper: F15-16 (Ausbruch ins Digitale)
+# Vadim 2.10.: "der vorderste Spark soll ein extravaganter Spark sein, nicht so ein langweiliger, das sieht sonst aus
+# wie der Hintergrund. Der Matroschka-Spark waere am besten." Auf B20c ist der Stern F29-F4 riesig in der Mitte: dort S33
+# (vorher S2/S31g = Verlauf, wurden zur Farbflaeche). S2 raus (Ausbruch kommt neu als Infinite Zoom), S31g auf F9-12.
+cycle = ["S33",   # Matrjoschka: Schalen, die ins Korn laufen (vorn, riesig)                  F1-4
+         "S23",   # Anschnitt: tiefes XOR-Nest                                               F5-8
+         "S31g",  # Lampe: der Stern als Lichtquelle, Bahnen aus den Spitzen (Gegenlicht)     F9-12
+         "S18d",  # Moire im Stern: zwei Hoehenlinien-Sterne per XOR, harter Rand            F13-16
+         "S19d",  # Nest-Rosette                                                             F17-20
+         "S45",   # Facette: Kristall im Cel-Shading, Schatten als Ben-Day-Punktraster       F21-24
+         "S47",   # Praegung: das Nest als Hochdruck, Lichtkante + Schatten an jeder Platte  F25-28
+         "S33"]   # Matrjoschka wieder vorn (riesig in der Mitte, Einstieg in den Zoom)      F29-32
 hold_frames = 4
 seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
 
