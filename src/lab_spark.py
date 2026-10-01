@@ -1651,6 +1651,32 @@ CA_LINE_CELLS = 3            # S48d: Linienraster des Innensaums, Abstand in Zel
 CA_STRIP_CELLS = (2, 15)     # S48c: Hoehe der Baender in Zellen
 CA_STRIP_P = 0.5             # S48c: Anteil der Baender, die verrutschen
 CA_STRIP_SHIFT = (6, 24)     # S48c: groesster Bandversatz in Zellen, fern .. nah (waechst mit dem Radius)
+# S48e/f Linsenfehler Poly (Vadim 2.10.: "ein Glitch, aber in Poly-/Dreiecksversion"): statt Baendern zerbricht der Stern
+# in Dreiecke (Delaunay ueber Punkte in Sternkoordinaten: dreht und skaliert mit dem Stern, gleicher Bruch in jedem Frame).
+CA_POLY_SEED = 485           # Bruchmuster, fest (deterministisch wie die Baender von S48c, Seed 483)
+CA_POLY_JITTER = 0.10        # S48e: Skelettpunkte (Mitte, Kerben, Spitzen, Aussenringe) so weit verwackelt, Sternradien
+CA_POLY_RINGS = (1.0, 1.35, 1.75)  # S48e: Radien der Ringe um den Stern (Sternradien): Spitzen, Kerbrichtung, Rand
+CA_POLY_SCATTER = 30         # S48e: dazu so viele Streupunkte in der Scheibe bis CA_POLY_RINGS[-1]: die Scherben werden ungleich
+CA_POLY_P = 0.6              # Anteil der Scherben, die verrutschen
+CA_POLY_SHIFT = (6, 24)      # groesster Scherbenversatz in Zellen, fern .. nah (waechst mit dem Radius wie CA_STRIP_SHIFT)
+CA_POLY_DIR_DEG = 25         # S48e: Scherben rutschen waagerecht wie die Baender von S48c, Richtung streut so viel (Grad)
+CA_POLY_SPREAD = 0.3         # die drei Platten einer Scherbe streuen um so viel (Anteil des Versatzes): Passer bricht
+CA_POLY_SCALE_MAX = 0.6      # Bruchmuster hoechstens so gross wie bei Sternradius 0.6 (m): in Frame 1/32 (Radius 1.76, die
+                             # Seite liegt im Stern) wuerden sonst zwei, drei Riesendreiecke die Seite teilen (Befund 2.10.)
+CA_POLY_MIN_CELLS = 3        # kleinste Scherbe (Hoehe der Scherbe in Zellen): darunter zerfaellt ein Dreieck im Raster
+CA_POLY_MOVED_STEP = 0.5     # S48e: verrutschte Scherben liegen so viele Stufen tiefer (Befund 2.10.: ohne das liest sich
+                             # das Dreieck nur am Sternrand, innen deckt die verschobene Flaeche genau die alte)
+# S48f Einschlag: ein Treffer im Stern, Risse laufen radial heraus, Ringrisse dazwischen -> kleine Scherben am Einschlag,
+# grosse aussen (Glasbruch). Die Scherben fliegen vom Einschlag weg und sind leicht gekippt (Facetten: eigene Stufe).
+CA_IMPACT_AT = (0.22, 0.35)  # Einschlag in Sternkoordinaten (Sternradien, vor der Drehung): neben der Mitte, nicht symmetrisch
+CA_IMPACT_SPOKES = 9         # radiale Risse (ungerade: kein Riss faellt auf eine Spiegelachse des Sterns)
+CA_IMPACT_RING0 = 0.2        # erster Ringriss, Sternradien vom Einschlag
+CA_IMPACT_RING_Q = 1.7       # jeder weitere Ring so viel weiter aussen (geometrisch: Scherben wachsen nach aussen)
+CA_IMPACT_REACH = 2.1        # Bruchfeld endet hier (Sternradien vom Einschlag)
+CA_IMPACT_WOBBLE_DEG = 9     # Risse laufen nicht ganz gerade: Winkel je Ring so viel verwackelt
+CA_IMPACT_PUSH = 0.75        # Anteil des Versatzes, der vom Einschlag weg zeigt (Rest: zufaellige Richtung)
+CA_FACET_STEPS = (0, 0.5, 1.0)  # Facetten: jede Scherbe liegt so viele Stufen unter ihrem Ueberdruck (gekipptes Glas, nur
+                             # dunkler: heller als die hellste Stufe waere flach und nicht mehr im Korn)
 # S51b Aquarell in Lagen
 AQ_BASE = 0.44               # Grundlasur (Wertraum 0..1; 0.44 = Stufe 2 mit etwas 3 bei 6 Stufen)
 AQ_GLAZE = 0.17              # jede Lasur hebt um knapp eine Stufe; zwei uebereinander = zwei Stufen
@@ -1771,11 +1797,82 @@ def _ca_strips(g, y0, R):
     return sh
 
 
-def _fehldruck_ca(g, strips, wild=False):
+def _poly_points(rng, impact):
+    """Stuetzpunkte des Bruchs in Sternkoordinaten (Sternradien, vor der Drehung). S48e: Sternskelett (Mitte, 6 Kerben,
+    6 Spitzen, Ringe in Spitzen- und Kerbrichtung) verwackelt + Streupunkte: die Dreiecke folgen grob der 6-zackigen
+    Form, sind aber ungleich. S48f: Einschlag mit radialen Rissen und geometrisch wachsenden Ringen."""
+    if impact:
+        ix, iy = CA_IMPACT_AT
+        pts, r = [(ix, iy)], CA_IMPACT_RING0
+        base = rng.uniform(0, 360)
+        while r < CA_IMPACT_REACH * CA_IMPACT_RING_Q:
+            r = min(r, CA_IMPACT_REACH)
+            a = np.radians(base + 360 / CA_IMPACT_SPOKES * np.arange(CA_IMPACT_SPOKES)
+                           + rng.uniform(-1, 1, CA_IMPACT_SPOKES) * CA_IMPACT_WOBBLE_DEG)
+            pts += list(zip(ix + r * np.cos(a), iy + r * np.sin(a)))
+            if r >= CA_IMPACT_REACH:
+                break
+            r *= CA_IMPACT_RING_Q
+        return np.array(pts)
+    tip = np.radians(TIP_DEG + 60 * np.arange(6))
+    notch = tip + np.radians(30)
+    skel = [(0.0, 0.0)] + list(zip(INNER_R * np.cos(notch), INNER_R * np.sin(notch)))
+    for k, rr in enumerate(CA_POLY_RINGS):
+        a = tip if k % 2 == 0 else notch                                  # Ringe abwechselnd in Spitzen-/Kerbrichtung
+        skel += list(zip(rr * np.cos(a), rr * np.sin(a)))
+    skel = np.array(skel) + rng.uniform(-1, 1, (len(skel), 2)) * CA_POLY_JITTER
+    a = rng.uniform(0, 2 * np.pi, CA_POLY_SCATTER)
+    r = CA_POLY_RINGS[-1] * np.sqrt(rng.uniform(0.02, 0.85, CA_POLY_SCATTER))   # flaechengleich, innerhalb des Rands
+    return np.r_[skel, np.c_[r * np.cos(a), r * np.sin(a)]]
+
+
+def _ca_shards(g, x0, y0, R, rot, impact=False):
+    """S48e/f: die Seite um den Stern in Dreiecke zerbrochen (nie im Titelblock: Scherben, die ihn beruehren, bleiben
+    stehen). Etwa CA_POLY_P der Scherben verrutschen, jede Platte darin etwas anders: der Passer bricht an den
+    Scherbenkanten. Liefert Versatz je Zelle in Zellen (x, y), je (3, gh, gw) fuer die Platten A, B, C, dazu die
+    Facettenstufe je Zelle (S48f, sonst 0)."""
+    from scipy.spatial import Delaunay
+    rng = np.random.default_rng(CA_POLY_SEED + impact)
+    c = _cell(g)
+    p = _poly_points(rng, impact)
+    a, Rs = np.radians(rot), min(R, CA_POLY_SCALE_MAX)
+    tri = Delaunay(np.c_[x0 + Rs * (p[:, 0] * np.cos(a) - p[:, 1] * np.sin(a)),
+                         y0 + Rs * (p[:, 0] * np.sin(a) + p[:, 1] * np.cos(a))])
+    sid = tri.find_simplex(np.c_[g.X.ravel(), g.Y.ravel()]).reshape(g.X.shape)
+    n = len(tri.simplices)
+    big = CA_POLY_SHIFT[0] + (CA_POLY_SHIFT[1] - CA_POLY_SHIFT[0]) * min(1.0, R)
+    move = rng.random(n) < CA_POLY_P
+    corner = tri.points[tri.simplices]                                   # (n, 3, 2) Ecken in m
+    cen = corner.mean(1)
+    e = np.roll(corner, -1, 1) - corner                                  # Hoehe = 2 * Flaeche / laengste Kante
+    area = 0.5 * np.abs(e[:, 0, 0] * e[:, 1, 1] - e[:, 0, 1] * e[:, 1, 0])
+    move &= 2 * area / np.hypot(e[..., 0], e[..., 1]).max(1) > CA_POLY_MIN_CELLS * c
+    still = np.zeros(n, bool)
+    still[np.unique(sid[_type_zone(g) & (sid >= 0)])] = True             # Scherben am Titelblock bleiben stehen
+    move &= ~still
+    ang = np.radians(rng.choice([0, 180], n) + rng.uniform(-1, 1, n) * CA_POLY_DIR_DEG)   # S48e: links/rechts
+    if impact:                                                           # S48f: vom Einschlag weg
+        ix, iy = tri.points[0]
+        out = np.arctan2(cen[:, 1] - iy, cen[:, 0] - ix)
+        ang = out + (1 - CA_IMPACT_PUSH) * rng.uniform(-np.pi, np.pi, n)
+    mag = rng.uniform(0.35, 1, n) * big * move
+    dxy = np.stack([np.cos(ang), np.sin(ang)], 1) * mag[:, None]          # (n, 2)
+    plate = dxy[None] + rng.normal(0, CA_POLY_SPREAD * big, (3, n, 2)) * move[None, :, None]
+    plate = np.round(np.concatenate([plate, np.zeros((3, 1, 2))], 1))    # Index -1 (ausserhalb) = kein Versatz
+    facet = rng.choice(CA_FACET_STEPS, n) * ~still if impact else CA_POLY_MOVED_STEP * move
+    facet = np.r_[facet, 0.0]
+    return plate[:, sid, 0], plate[:, sid, 1], facet[sid]
+
+
+def _fehldruck_ca(g, strips, wild=False, shards=None):
+    """Gemeinsamer Kern S48b-f. strips: S48c-Baender; shards: None | "poly" (S48e) | "impact" (S48f)."""
     x0, y0, R, rot, x, y = _local(g)
     N, c = g.N, _cell(g)
     ox, oy = g.A / 2, g.B / 2                                            # optische Achse = Plakatmitte
     sh = _ca_strips(g, y0, R) if strips else np.zeros((3, 1, 1))
+    shy, facet = np.zeros((3, 1, 1)), 0.0
+    if shards:
+        sh, shy, facet = _ca_shards(g, x0, y0, R, rot, impact=shards == "impact")
     gain, jit = 1.0, np.zeros((3, 2))
     if wild:                                                             # S48d: jedes Plakat ein eigener Fehldruck
         rng = np.random.default_rng(int(abs(x0 * 9973 + y0 * 7919 + R * 6007) * 1e4) % 2 ** 31)
@@ -1784,11 +1881,11 @@ def _fehldruck_ca(g, strips, wild=False):
         a = rng.uniform(0, 2 * np.pi)
         jit = np.array([[np.cos(a), np.sin(a)], [0, 0], [-np.cos(a + 0.6), -np.sin(a + 0.6)]]) * mag
     pl = []
-    for s, (mx, my), dr, shx, (jx, jy) in zip(CA_SCALE, CA_SHIFT_CELLS, CA_ROT_DEG, sh, jit):
+    for s, (mx, my), dr, shx, shy_, (jx, jy) in zip(CA_SCALE, CA_SHIFT_CELLS, CA_ROT_DEG, sh, shy, jit):
         k = 1 + gain * s
         dr = gain * dr
         xc, yc = ox + (x0 - ox) * k + (mx + jx) * c, oy + (y0 - oy) * k + (my + jy) * c
-        pl.append(sd((g.X - shx * c - xc) / (R * k), (g.Y - yc) / (R * k), rot + dr) < 1)
+        pl.append(sd((g.X - shx * c - xc) / (R * k), (g.Y - shy_ * c - yc) / (R * k), rot + dr) < 1)
     A, B, C = pl
     top = np.select([A & B & C, B & C, A & C, A & B, C, B, A],
                     [CA_TOP[k] for k in ("ABC", "BC", "AC", "AB", "C", "B", "A")], -1.0)
@@ -1801,7 +1898,7 @@ def _fehldruck_ca(g, strips, wild=False):
         hatch = ((g.c.xx - g.c.yy) % CA_LINE_CELLS) < 1
         top = np.where(C & ~B & ~A & ~hatch, -1.0, top)
     ink = (top >= 0)
-    v = np.where(ink, _dithered(N - top, _lightfield(x, y, d), N), bg(g) + 0.10 * glow(d, 0.3))   # jede Platte im Korn
+    v = np.where(ink, _dithered(N - top - facet, _lightfield(x, y, d), N), bg(g) + 0.10 * glow(d, 0.3))   # jede Platte im Korn
     # Keine Tuschekontur (Vadim 1.10. zu S48b/S48c: "schwarzen Rand weg"): nur die Platten tragen die Form.
     g.lit = ink & (v >= 0.5)
     return np.clip(v, 0, 1)
@@ -1827,6 +1924,23 @@ def c_fehldruck_bruch(g):
     """S48c Linsenfehler + Bruch: wie S48b, dazu zerbricht der Stern in waagerechte Baender, die mit ihren Platten
     verrutschen (Miles' Glitch in ITSV). Nie im Titelblock. Grenzt an den verworfenen Glitch (S30b); Vadim 1.10.: behalten."""
     return _fehldruck_ca(g, strips=True)
+
+
+def c_fehldruck_poly(g):
+    """S48e Linsenfehler Poly (Vadim 2.10.: "ein Glitch, aber in Poly-/Dreiecksversion", loest S48c ab, wenn gut): wie
+    S48c, aber der Stern zerbricht statt in Baender in Dreiecke. Delaunay ueber das verwackelte Sternskelett (Mitte,
+    Kerben, Spitzen, drei Ringe) plus Streupunkte: die Scherben folgen grob der Sternform, keine gleicht der anderen.
+    Jede verrutschte Scherbe nimmt ihre drei Platten mit, jede etwas anders versetzt, und liegt eine halbe Stufe tiefer
+    (sonst sieht man das Dreieck nur am Rand). Versatz waechst mit dem Radius, nie im Titelblock, keine Tuschekontur,
+    alles im Korn."""
+    return _fehldruck_ca(g, strips=False, shards="poly")
+
+
+def c_fehldruck_einschlag(g):
+    """S48f Linsenfehler Einschlag: S48e als Glasbruch. Ein Treffer neben der Sternmitte, radiale Risse und Ringrisse:
+    kleine Scherben am Einschlag, grosse aussen. Die Scherben fliegen vom Einschlag weg, jede ist eine gekippte Facette
+    (0, 1/2 oder 1 Stufe tiefer, CA_FACET_STEPS): so liest sich das Dreieck auch mitten im Stern, wo kein Rand verrutscht."""
+    return _fehldruck_ca(g, strips=False, shards="impact")
 
 
 def c_aquarell_lagen(g):
@@ -2146,6 +2260,8 @@ CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) steh
     ("S48b", c_fehldruck_ca, "Linsenfehler", "ITSV Miles: drei Platten, um die Plakatmitte verschieden skaliert (chromatische Aberration), Licht addiert sich."),
     ("S48c", c_fehldruck_bruch, "Linsenfehler Bruch", "Wie S48b, der Stern zerbricht in verrutschte Baender (ITSV-Glitch; Vadim behaelt ihn)."),
     ("S48d", c_fehldruck_wild, "Linsenfehler wild", "S48b doppelt, jedes Plakat ein eigener Fehldruck, Punkt- und Linienraster in den Saeumen."),
+    ("S48e", c_fehldruck_poly, "Linsenfehler Poly", "Wie S48c, aber der Stern zerbricht in Dreiecke (Delaunay ueber das Sternskelett), die mit ihren Platten verrutschen."),
+    ("S48f", c_fehldruck_einschlag, "Linsenfehler Einschlag", "S48e als Glasbruch: radiale + Ringrisse, kleine Scherben am Einschlag, Scherben fliegen weg, Facetten."),
     ("S49", c_krackle, "Krackle", "Jack Kirby / ITSV-Kollider: heller Energiesaum, schwarze Kirby-Punkte stanzen den Raum aus."),
     ("S50", c_fokus, "Fokuslinien", "Manga shuuchuu-sen / ITSV-Speedlines: Keile vom Rand auf den Stern, Titelblock bleibt frei."),
     ("S51", c_aquarell, "Aquarell", "ATSV Gwen (Earth-65): Lasur mit Pigmentrand und Rueckfluss-Blueten, scharfer Umriss."),
@@ -2236,6 +2352,8 @@ URTEIL.update({"S50": (5, "Loop", "Vadim 1.10.: kommt rein, so wie er ist."),
                "S51b": (1, "raus", "Vadim 1.10.: Aquarell raus. Befund Runde 1: Rauschinseln mit Umriss = Landkarte (S16)."),
                "S51c": (1, "raus", "Vadim 1.10.: Aquarell raus."),
                **{c: (2, "nicht gewaehlt", "Vadim 1.10.: nicht gewaehlt (nicht verworfen).") for c in "S49 S52 S53 S55".split()}})
+# Vadim 2.10.: "eine weitere Glitch-Version, die wenn sie gut ist die alte abloest, ein Glitch in Poly-/Dreiecksversion"
+URTEIL.update({c: (3, "Loop", "neu, Vadim hat noch nicht gewaehlt. Soll S48c abloesen, wenn gut.") for c in ("S48e", "S48f")})
 KEPT =[c for c in BY if URTEIL[c][1] != "raus"]
 
 # Kick-off-Sichtung 2026-09-25 nachts (Vadim)
@@ -2432,6 +2550,8 @@ HAND_TEST_STARS = ((-0.13, 0.65, 0.87, 0.0), (0.95, 0.61, 0.64, 225.0))  # Selbs
                              # Titel (x, y, Radius, Drehung; Frame 1/16 der Bahn bis 1.10.), fest, damit der Test nicht an
                              # der Bahn haengt: mit der Ellipse (1.10. abends) sind Frame 1/16 leer, der Test war blind
 
+POLY_TEST_MIN_FRAC = 0.01    # Selbsttest Poly: so viel der Seite unter dem Titelblock muss der Bruch mindestens aendern
+
 
 def selftest_hand(codes=("S54", "S54b", "S54c"), frames=(0, 15)):
     """Selbsttest am fertigen Plakat des Loops (Frame 1 und 16: grosser Stern an QR bzw. Titel): Schraffurfelder duerfen
@@ -2476,6 +2596,31 @@ def selftest_hand(codes=("S54", "S54b", "S54c"), frames=(0, 15)):
     return got
 
 
+def selftest_poly(codes=("S48e", "S48f")):
+    """Selbsttest Poly-Glitch am fertigen Plakat (grosser Stern am Titel, HAND_TEST_STARS[1]): der Bruch darf den Titelblock
+    nicht anfassen (Vadim: Glitch nie im Titelblock) -> dort Pixel gleich S48b (dieselben Platten ohne Bruch), unter dem
+    Titelblock muss er sichtbar sein (genug Zellen anders). Schlaegt an, wenn Scherben am Titelblock mitrutschen
+    (nachgewiesen: Zeile "move &= ~still" in _ca_shards entfernt -> Titelblock-Abweichung > 0)."""
+    import kickoff_loop as KL
+    sx, sy, sr, srot = HAND_TEST_STARS[1]
+    img = {}
+    for code in ("S48b",) + tuple(codes):
+        st = KL.poster_style(KL.load(), 15)
+        st["S"], st["star"], st["rot"] = "lab:" + code, (sx, sy, sr), srot
+        img[code] = KL.frame(KL.load(), 15, style=st)
+        if code == "S48b":
+            c = styles.Ctx(st, KL.PREVIEW)
+            zone = up(_type_zone(G(st, KL.PREVIEW, c)), c.px)[:img[code].shape[0], :img[code].shape[1]]
+    got = {}
+    for code in codes:
+        diff = (img[code] != img["S48b"]).any(-1)
+        got[code] = (int(diff[zone].sum()), float(diff[~zone].mean()))
+    print("Selbsttest Poly (Pixel anders im Titelblock, Anteil anders darunter):", got)
+    bad = {k: v for k, v in got.items() if v[0] > 0 or v[1] < POLY_TEST_MIN_FRAC}
+    assert not bad, f"Poly-Glitch im Titelblock oder unsichtbar: {bad}"
+    return got
+
+
 def main():
     """Argumente: Codes (S31b ...; ohne = alle behaltenen), --pal a,b | all, --fmt 16x9|9x16|a3, --kick (Test mit
     Kick-off-Titel SPARK nach styles/lab/spark/_kick/), --sheet name. 'posters [codes]' = A3 im echten Satz, 'html' = Galerie.
@@ -2484,6 +2629,7 @@ def main():
     args = sys.argv[1:]
     if args == ["test"]:
         selftest_hand()
+        selftest_poly()
         return
     if args == ["sheet"] or args == ["html"]:
         gallery()
