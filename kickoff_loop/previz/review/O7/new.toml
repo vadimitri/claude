@@ -1,8 +1,11 @@
-# O6 = O4 neu, Wurf in die Tiefe (Vadim 3.10. zu O4: "stoppt kurz, bewegt sich und dann nach hinten weiter, keine
-# fluessige Linie"; Befund 1.10.: das Bildtempo fiel nach dem Wurf 46 -> 3 px/Bild). Ein digitaler Umlauf ab dem
-# Bass-Boom, auf F14 laesst er los und fliegt auf gerader Linie zum Fluchtpunkt seiner Richtung (rechts von SPARK),
-# perspektivisch exakt: Bildtempo und Schrumpfen werden nur schneller, bis er dort verschwindet ("zack").
-# Musik-Sync zweitrangig (Vadim schneidet am Ende). Nur geaenderte Abschnitte, Rest aus loop.toml.
+# new = Vadims Tweak von O7 (1.10. abends: Zoom x6, Auslauf-Potenz 0.2, Drehung x3), auf den Stand mit beschleunigtem
+# Loop, Morph und Zielpunkt gezogen (alte Datei hatte orbit_dive_lead_beats). Rest wie O7.
+# O7 = O5 neu, Wurf auf die Kamera + Infinite Zoom (Vadim 3.10. zu O5: "kommt zu einem, schiesst ein bisschen ueber,
+# korrigiert und zoomt dann rein" und "der Zoom ist kein richtiger Zoom und hat nicht das Momentum"; Befund 1.10.: Wachstum
+# sprang am Wurf x8, die Mitte bremste in 8 Bildern hart). Ein digitaler Umlauf ab dem Bass-Boom; im Anflug (F29, er
+# waechst noch) taucht die Kamera ein: Zoomrate = Wachstum der Bahn, danach nur schneller. Die Mitte faehrt in ihrer
+# Richtung weiter und laeuft mit dem Zoom aus (keine Umkehr). Auf F1 (S33) wird es der Infinite Zoom: das Korn der Luft
+# waechst mit, schnelle Ringe verwischen (Bewegungsunschaerfe statt Tempo-Deckel). Nur geaenderte Abschnitte.
 
 [ending]
 carousel_bars = 2          # Kamerafahrt + Karussell T16 (Vadim 1.10.: "den Anfang schaut sich kein Mensch so oft an", war 4)
@@ -11,17 +14,21 @@ runout_hold_beats = 0.0
 length_bars = 5.0          # ganzes Video in Takten ab Anfang (14.7 s, war 7.75-7.9 = 22.8 s): QR steht ~6 s
 card_on = true
 # Bahn-Ende (end_mode = "orbit"). Zeiten in Beats ab dem Karussell-Ende (= Bass-Boom); end_frame folgt daraus
-orbit_path = "throw"       # gerade Linie in die Tiefe, gesteuert ueber 1/Z (Radius und Abstand zum Fluchtpunkt)
-orbit_frame = 14           # loslassen auf F14 (noch auf dem Weg nach hinten): Tangente rechts in die Tiefe
+orbit_path = "dive"        # Wurf auf die Kamera, ohne Bruch in den Infinite Zoom der Matrjoschka
+orbit_frame = 1            # im riesigen frontalen F1 (S33, Naht F32 -> F1)
 orbit_loops = 1.0          # Vadim 3.10.: ab dem Moment, wo es digital ist, EIN Umlauf (1.96 s), dann die neue Bahn
-                           # (v1 hatte 1.1-2.6 Umlaeufe: "zu teasing"). Karussell-Endframe und Zeitpunkt folgen daraus
 orbit_loop_speedup = 1.6   # Vadim 1.10.: "den letzten Loop auch noch schneller": Tempo x1.6 pro Beat ab T16 (1 = gleichmaessig)
-orbit_throw_speedup = 8.0  # Bildtempo x8 pro Beat ab dem Tempo der Bahn (war 5, Vadim 1.10.: "Wegschleudern zu langsam")
-orbit_spin_speedup = 5.0   # Drehung: Bahntempo, legt pro Beat das 4-fache zu
+orbit_dive_lead_frames = 7 # die Kamera taucht so viele Bahnframes vor F1 ein (F26: genug Weg, um weich aufs Ziel zu bremsen; Raster 1.10.)
+orbit_dive_core_shrink = 20.0  # Puppen bis zum Punkt: der flache Kern ist ab dem ersten Zoom-Bild unter einem Pixel (1.0 liess ihn nach innen schrumpfen, die Kante lief gegen den Zoom = wirkte rueckwaerts)
+orbit_throw_speedup = 6.0  # Vadim: x6 (O7: 8)
+orbit_dive_drift_pow = 0.2     # Vadim: 0.2 (wirkt nur ohne orbit_dive_target)
+orbit_dive_target = [0.55, 0.5]   # Ruhelage der Zoom-Mitte (Bruchteil des Bildes; Vadim 1.10.: "mittig, leicht rechts"). [] = frei
+orbit_dive_shutter_frac = 0.5   # Bewegungsunschaerfe (Dreiecksblende): 0.5 = Ringe verschwinden genau ab 1 Puppe pro Bild
+orbit_spin_speedup = 3.0   # Vadim: x3 (O7: 1.5)
 orbit_cycle_beats = 1.73   # Farben/Sterne wechseln bis zum Wurf (Beat 1.73 bei x1.6), dann steht die Colorway
 orbit_type_morph = true    # Satz zerfaellt je Element, waehrend sein Gegenstueck auf der Karte eindithert (false = alter Zerfall)
-orbit_type_out_at_beats = 3.0      # nur ohne morph: Titelblock zerfaellt im Korn ab hier ...
-orbit_type_out_beats = 1.0         # ... in so vielen Beats (weg, wenn SPARK der Karte faellt)
+orbit_type_out_at_beats = 3.5      # nur ohne morph: Titelblock zerfaellt im Korn ab hier ...
+orbit_type_out_beats = 1.0         # ... in so vielen Beats
 orbit_flow_at_beats = 1.0  # Verlauf in der Schrift faengt an zu laufen (Beats nach dem Karussell-Ende) ...
 orbit_flow_in_beats = 1.0  # ... waechst in so vielen Beats auf ...
 orbit_flow_steps = 2.0     # ... so viele Palettenstufen Spannweite (Plakat: text_gradient_steps 1; 3 halbierte kleine Schrift, Lesbarkeit 0.85) ...
@@ -36,7 +43,7 @@ card_moves = [["title", 2.75, 0.0, 0.0, 1.0],     # [Teil, Einsatz in Beats, dx,
               ["info", 3.75, 0.0, 0.0, 1.0]]
 card_in_beats = 1.0        # Eindithern dauert die Haelfte davon (0.5 Beat), Zerfall des Gegenstuecks gleich schnell
 card_overshoot = 1.70158
-card_dim_frac = 0.0        # nichts abzudimmen: der Stern ist weg, die Karte steht auf dem Grund der Colorway
+card_dim_frac = 1.0        # Zoom geht unter SPARK im Korn ganz in den Grund (dann steht er, Karte frei)
 card_title_w_frac = 0.74
 card_top_frac = 0.14
 card_sub_frac = 0.40

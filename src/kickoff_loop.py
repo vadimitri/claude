@@ -510,13 +510,18 @@ def rect(c, y0, x0, y1, x1, r=0):
     return (cy > y0) & (cy < y1) & (cx > x0) & (cx < x1) & (np.hypot(dx, dy) <= r)
 
 
-def line_gradient(c, base, cap, steps):
+def line_gradient(c, base, cap, steps, phase=0.0):
     """Wertfeld fuer eine Schriftzeile: unterste Pixelreihe = hellste Stufe minus `steps`, oberste = hellste Stufe.
+    phase (Ende, [ending].orbit_flow_*): der Verlauf laeuft als Dreieckswelle nach oben durch die Zeile (Phase 1 =
+    eine Zeilenhoehe) und rastet auf Palettenstufen (posterisiert). phase 0 = genau der Plakatverlauf.
 
     Gemessen wird an Grundlinie und Versalhoehe dieser einen Zeile, nicht ueber Zeilengrenzen hinweg (der alte
     Verlauf lief 1.4 Versalhoehen hoch und fing in der Zeile darueber unten wieder hell an). Die Mitten der ersten und
     letzten Pixelreihe liegen genau auf den Endstufen, deshalb sind beide Enden flaechig."""
     rel = np.clip((base - c.px / 2 - c.cy) / (cap - c.px), 0, 1)      # 0 = unterste Pixelreihe, 1 = oberste
+    if phase:
+        rel = 1 - np.abs((rel - phase) % 2 - 1)                       # Dreieck: bei phase 0 = rel, laeuft nahtlos
+        return np.round((1 - steps / c.N * (1 - rel)) * c.N) / c.N
     return 1 - steps / c.N * (1 - rel)
 
 
@@ -555,6 +560,14 @@ def flip_glyphs(c, mk, v):
     return np.where(share[lab] > 0.5, c.lvl(0), v)
 
 
+def flip_word(c, mk, v):
+    """JOIN US kippt als Ganzes hell/dunkel (Vadim 1.10.: "niemals unterschiedliche Buchstabenfarben, entweder hell
+    oder dunkel, alles kombiniert"): Mehrheit aller Pixel des Worts auf Hellem → Grundfarbe, sonst v. Datum/KICK-OFF
+    kippen weiter pro Buchstabe (flip_glyphs)."""
+    bright = c.star_m | (under(c) > 0.5)
+    return c.lvl(0) if bright[mk].mean() > 0.5 else v
+
+
 def qr_glow(c, q):
     """JOIN US + QR, die Platte glueht ins Plakat ein (Vadim zu v005: keine harte Box, "reingeglueht" wie v003, aber
     sauber). Ebenen [(name, Maske, Wert)] in Malreihenfolge.
@@ -565,8 +578,8 @@ def qr_glow(c, q):
       glow_shape    round = Abstand zum Rechteck, die Ecken runden sich nach aussen | square = bleibt eckig (Chebyshev)
       glow_profile  gauss = weich | light = Lichtabfall (exponentiell) | linear = gleichmaessig |
                     steps = linear, auf Palettenstufen gerundet: Ringe ohne Korn
-    JOIN US steht frei ueber der Platte, ohne Kasten/Rand/Hof, und kippt pro Buchstabe hell/dunkel je nach Untergrund
-    (flip_glyphs, Regel wie beim Datum). Es hat eine feste Groesse in Zellen und waechst nicht mit dem Titel."""
+    JOIN US steht frei ueber der Platte, ohne Kasten/Rand/Hof, und kippt als ganzes Wort hell/dunkel je nach Untergrund
+    (flip_word, Vadim 1.10.: nie gemischte Buchstabenfarben). Es hat eine feste Groesse in Zellen und waechst nicht mit dem Titel."""
     L, px = c.L, c.px
     lum = c.pal @ LUMA
     hi, lo = c.lvl(int(lum.argmax())), c.lvl(int(lum.argmin()))
@@ -599,12 +612,12 @@ def qr_glow(c, q):
 
 
 def qr_embed(c, q):
-    """JOIN US + QR auf das Plakat legen (Geometrie und Stufen: qr_glow). JOIN US zuletzt, damit flip_glyphs das
+    """JOIN US + QR auf das Plakat legen (Geometrie und Stufen: qr_glow). JOIN US zuletzt, damit flip_word das
     Gluehen als Untergrund sieht. JOIN US steht in der Tintenstufe (letzte Stufe: auf dunklem Grund die hellste, auf
     Papier die dunkelste) und kippt auf Hohem in den Grund. Frueher stand hier die hellste Stufe: auf Papier ist das
     der Grund selbst, JOIN US verschwand im Gluehen (das dort ebenfalls zum Grund hin laeuft)."""
     for name, mask, v in qr_glow(c, q):
-        c.add(name, mask, flip_glyphs(c, mask, c.lvl(c.N)) if v is None else v)
+        c.add(name, mask, flip_word(c, mask, c.lvl(c.N)) if v is None else v)
 
 
 def text_lines(c):
@@ -639,13 +652,15 @@ def type_layers(c):
         qr_embed(c, lp["qr"])
 
     steps = lp["type"]["text_gradient_steps"]
+    flow = (((lp["digital"] or {}).get("zoom") or {}).get("flow"))       # Ende: (phase, Stufen) des laufenden Verlaufs
+    phase, steps = (flow[0], flow[1]) if flow else (0.0, steps)
     for name, lines in text_lines(c).items():
         if show is not None and name not in show:
             continue
         mk = np.zeros(shape, bool)
         v = np.zeros(shape, np.float32)
         for (s, b, cap), m in zip(lines, line_masks(c, lines, centered=name == "title")):
-            v = np.where(m, line_gradient(c, b, cap, steps), v)
+            v = np.where(m, line_gradient(c, b, cap, steps, phase), v)
             mk |= m
         # Titel kippt pro Pixel (XOR mit dem Stern), die kleineren Zeilen pro Buchstabe
         plain = lp["i"] % lp["n"] + 1 in lp["type"].get("title_plain_frames", [])     # dort ohne Differenz

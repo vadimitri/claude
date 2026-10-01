@@ -47,7 +47,7 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
   cool, erstmal parken“).
 - **Agenten (3.10.):** `pipeline` und `enden` sind gemergt; die Enden stehen jetzt als O6/O7 unten.
 
-## Bahn-Enden O6, O7 (1.10. abends, aus der Übergabe; wartet auf Vadims Urteil)
+## Bahn-Enden O6, O7 (1.10. abends, aus der Übergabe; Runde 2 gebaut, wartet auf Vadims Urteil)
 
 `[endcard].end_mode = "orbit"` (`kickoff_loop_end.py`, Schlüssel `orbit_*` in `[ending]`): nach dem Karussell (4 Takte T16)
 genau **ein** digitaler Umlauf ab dem Bass-Boom (11.76 s, Vadim 3.10.: „sonst zu teasing“), dann die neue Bahn. Beide
@@ -75,9 +75,46 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
 - Verworfen: Maßstab am Bild per log-polarer Korrelation (Puppen selbstähnlich: ab ½ Puppe/Bild nur modulo einer Puppe
   messbar, O7 startet bei 0.37). `cv2.warpPolar` liefert im Log-Modus `nan` → eigene Abtastung per `cv2.remap`.
 - **Endfarbe offen, Vadim mochte Blau.** O7 Navy/Türkis (Plakat 1), O6 Dunkelrot (Plakat 62).
-- **Offen für Vadim:** O6 vs O7 (oder beide neu); bei O7 läuft die Mitte aus, statt voll weiterzufahren (sonst nach ~5
-  Bildern aus dem Bild, kein Zoom in die Puppen). Zoomtempo (k 4) und Unschärfe (0.5) sind TOML-Schrauben. Danach das
-  gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
+- **Runde 2 (Vadim 1.10. spät, gebaut):** „letzten Loop schneller, Wegschleudern zu langsam“ → `orbit_loop_speedup` 1.6
+  (Tempo des digitalen Umlaufs x1.6 pro Beat ab T16, Wurf bei 7.15 s statt 13.72 s) und O6 `orbit_throw_speedup` 8 (weg
+  nach 0.19 s, 108 → 154 px/Bild). „Zoom nicht mittig, nervig“ → `orbit_dive_target` [0.55, 0.5]: die Mitte fährt auf
+  einer Hermite-Kurve (Lage + Tempo der Bahn → Ziel mit Tempo 0, Dauer 2 x Abstand / Tempo = lineares Abbremsen) dorthin,
+  Vorlauf jetzt in Bahnframes (`orbit_dive_lead_frames` 7 = ab F26, Raster: weniger bremst in 3 Bildern hart), Zoom x8,
+  Drehung x1.5 (x2 lief über 30°/Bild = Wagenrad rückwärts). „Text verschwindet nicht und kommt neu“ → `orbit_type_morph`:
+  jedes Plakat-Element zerfällt in derselben Bayer-Reihenfolge, in der sein Kartenteil eindithert (`MORPH`), „Gradients
+  bewegen sich darunter, lively, posterisiert“ → `orbit_flow_*` (Zeilenverlauf als Dreieckswelle nach oben, auf
+  Palettenstufen gerundet; 3 Stufen halbierten die kleine Schrift, Lesbarkeit 0.85 → 2 Stufen, 0.95/0.97). „Nichts poppt
+  von links/rechts ein“ → `card_moves` alle dx = dy = 0, Maßstab 1, nur Eindithern. „Video zu lang“ → `carousel_bars` 2,
+  `length_bars` 5 (14.7 s statt 22.8 s). JOIN US kippt nur noch als ganzes Wort (`KL.flip_word`, Regel fürs ganze System).
+  Messung angepasst: Knick = Drehung am Wechsel minus Drehung davor (bei x1.6 dreht die Bahn selbst 20°/Bild), Sprung =
+  erster ganzer Schritt danach / letzter davor (der Schritt über den Wechsel verdeckte den Stand-Zoom), Zoomrate muss
+  echt steigen; Gegenprobe Versatz = 2 Videobilder Bahnweg.
+- `previz/review/O7/new.toml` = Vadims eigener Tweak (Zoom x6, Potenz 0.2, Drehung x3), auf den neuen Stand gezogen; Bahn-
+  Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
+- **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
+
+**Stellschrauben Ende** (alle in `[ending]` der Varianten-TOML; Report-Zeile „Bahn-Check“ sagt, ob es noch clean ist):
+
+| Schlüssel | macht | O6 / O7 |
+|---|---|---|
+| `carousel_bars`, `length_bars` | Länge Kamerafahrt+Karussell bzw. ganzes Video (Takte à 2.94 s) | 2 / 5 |
+| `orbit_loop_speedup` | digitaler Umlauf wird pro Beat so viel schneller (1 = T16) | 1.6 |
+| `orbit_frame` | Bahnframe des Wurfs (throw: einer, auf dem er schrumpft F2–F16; dive: F1 = S33) | 14 / 1 |
+| `orbit_throw_speedup` | throw: Bildtempo x pro Beat; dive: Zoomrate x pro Beat | 8 / 8 |
+| `orbit_spin_speedup` | Drehung legt pro Beat (x − 1) zu; über 30°/Bild wirkt sie rückwärts | 5 / 1.5 |
+| `orbit_dive_lead_frames` | Kamera taucht so viele Bahnframes vor F1 ein (mehr = weicher aufs Ziel) | – / 7 |
+| `orbit_dive_target` | Ruhepunkt der Zoom-Mitte [x, y] als Bruchteil des Bildes, `[]` = läuft frei aus | – / [0.55, 0.5] |
+| `orbit_dive_shutter_frac` | Bewegungsunschärfe (0 = scharf, flackert ab ½ Puppe/Bild; 0.5 = Ringe weg ab 1) | – / 0.5 |
+| `orbit_dive_core_shrink` | 20 = Puppen bis zum Punkt; 1 = Kern schrumpft sichtbar (wirkt rückwärts) | – / 20 |
+| `orbit_cycle_beats` | bis hier wechseln Farbe/Stern, dann steht die Colorway (Endfarbe) | 1.73 |
+| `orbit_flow_at_beats`, `_in_beats`, `_steps`, `_per_beat` | laufender Verlauf in der Schrift: Start, Einblendung, Spannweite (Stufen), Tempo (Zeilen/Beat) | 1, 1, 2, 1 |
+| `orbit_type_morph` | true = Satz morpht in die Karte, false = alter Zerfall (`orbit_type_out_*`) | true |
+| `card_moves` | [Teil, Einsatz-Beat, dx, dy, Startmaßstab] je Kartenteil; Reihenfolge/Takt des Morphs | 2.75–3.75 |
+| `card_in_beats` | Dauer des Eindithern (Hälfte davon) | 1 |
+| `card_reveal` | bayer / blocks / noise | bayer |
+| `card_dim_frac` | Grund unter der Karte abdimmen (1 = Zoom geht ganz in den Grund) | 0 / 1 |
+| `card_*_frac`, `card_qr_*` | Layout der Karte (Titelbreite, Abstände, QR-Größe/-Lage) | |
+
 
 ## Stand vor O6/O7 (Übergabe O4/O5 erledigt 1.10. abends, Details oben)
 
@@ -225,6 +262,10 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
 | **Version** (v007) | ein `preview`-Lauf in `previz/vNNN/` |
 
 ## Befehle (aus dem Pack-Root)
+
+Aus jedem Ordner (Vadims Shell, `~/.zshrc`): `kl <befehl> [x.toml] [--draft]` = `uv run src/kickoff_loop.py <befehl> <x.toml>`
+mit Pfad relativ zum aktuellen Ordner, Pack-Root wird über der TOML gesucht; `kl end x.toml` = Selbsttest Ende; ohne TOML
+bei sheet/preview/end die einzige im Ordner.
 
 | Befehl | Ergebnis | Dauer |
 |---|---|---|

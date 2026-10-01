@@ -58,13 +58,15 @@ EXIT_MAX_SCALE = 30.0   # Begriff an der Kamera vorbei: ab diesem Massstab ist e
 GLOW_E = 4              # Gluehen wie kickoff_loop.qr_glow "light": exp(-4) = 2 % am Ende von card_glow_cells
 GLOW_MIN = 0.02         # ... darunter unsichtbar im Korn (wie kickoff_loop.GLOW_MIN)
 REVEALS = ("bayer", "blocks", "noise")
+MORPH = {"title": ("title",), "date": ("what", "when"), "qr": ("qr",), "cta": ("cta",)}   # Plakatsatz -> Kartenteile
 REVEAL_BLOCKS = (8, 4, 2)   # card_reveal "blocks": Blockgroesse (Zellen) im ersten, zweiten, dritten Drittel des Einsatzes
 REVEAL_SEED = 41           # card_reveal "noise": fester Zufall, gleiche Datei = gleiches Bild
-ORBIT_KEYS = ("orbit_path", "orbit_frame", "orbit_loops", "orbit_cycle_beats", "orbit_type_out_at_beats",
-              "orbit_type_out_beats", "orbit_spin_speedup")
+ORBIT_KEYS = ("orbit_path", "orbit_frame", "orbit_loops", "orbit_loop_speedup", "orbit_cycle_beats",
+              "orbit_type_morph", "orbit_type_out_at_beats", "orbit_type_out_beats", "orbit_spin_speedup",
+              "orbit_flow_at_beats", "orbit_flow_in_beats", "orbit_flow_steps", "orbit_flow_per_beat")
 ORBIT_PATH_KEYS = {"throw": ("orbit_throw_speedup",),
-                   "dive": ("orbit_throw_speedup", "orbit_dive_lead_beats", "orbit_dive_core_shrink",
-                            "orbit_dive_shutter_frac", "orbit_dive_drift_pow")}
+                   "dive": ("orbit_throw_speedup", "orbit_dive_lead_frames", "orbit_dive_core_shrink",
+                            "orbit_dive_shutter_frac", "orbit_dive_drift_pow", "orbit_dive_target")}
 PHASE_EPS = 1e-6     # Bahn: so nah an einer ganzen Phase = ganze Phase (Float-Rest aus Tempo x Zeit, sonst nie bitgleich)
 TANGENT_H = 1e-3     # Schleuder: Schrittweite (Bahnframes) der zentralen Differenz fuer die Tangente beim Loslassen
 RELEASE_JUMP = 1.5   # Selbsttest Bahn: Schritt beim Bahnwechsel hoechstens 1.5 x der groessere Nachbarschritt (sonst Sprung)
@@ -73,7 +75,7 @@ ZOOM_LP_R, ZOOM_LP_A = 512, 360   # ... log-polares Raster (Radius, Winkel; Wink
 ZOOM_LP_INNER = 0.03              # ... innerster Radius als Bruchteil des aeussersten (darunter wenige Pixel je Ring)
 STROBE_MAX = 0.3                  # ... ab 1 Puppe pro Bild hoechstens so viel Ringkontrast wie ohne Unschaerfe
 RINGS_MIN = 0.5                   # ... unter 1/2 Puppe pro Bild mindestens so viel (die Matrjoschka bleibt erkennbar)
-KINK_DEG = 10.0      # Selbsttest Bahn: Richtung der Mitte am Wechsel dreht hoechstens so viel (Uebergabe 3.10.: "kein Knick")
+KINK_DEG = 10.0      # Selbsttest Bahn: Richtung der Mitte am Wechsel dreht hoechstens so viel mehr/weniger als davor ("kein Knick")
 SLOW_EPS = 1e-6      # ... "nie langsamer": kleiner um mehr als Float-Rauschen
 MOVE_PX = 0.5        # ... Umkehr zaehlt nur, wenn sich die Mitte in beiden Schritten sichtbar bewegt (halbes Pixel)
 PROBE_FRAMES = 4     # ... Bilder vor und nach dem Bahnwechsel, an denen die Sternlage gemessen wird
@@ -363,9 +365,11 @@ def check_orbit(cfg, beats_left):
         "[ending].orbit_at_beats: folgt aus orbit_loops (Umlaeufe digital bis zum Bahnwechsel), Zeile streichen"
     assert e["orbit_throw_speedup"] >= 1, "[ending]: orbit_throw_speedup >= 1 (Tempo-Faktor pro Beat, 1 = gleichmaessig)"
     if path == "dive":
-        assert e["orbit_dive_lead_beats"] >= 0 and e["orbit_dive_core_shrink"] >= 0 and e["orbit_dive_drift_pow"] > 0 and \
-            0 <= e["orbit_dive_shutter_frac"] <= 1, \
-            "[ending]: orbit_dive_lead_beats >= 0, orbit_dive_core_shrink >= 0, orbit_dive_drift_pow > 0, orbit_dive_shutter_frac 0..1"
+        tg = e["orbit_dive_target"]
+        assert e["orbit_dive_lead_frames"] >= 0 and e["orbit_dive_core_shrink"] >= 0 and e["orbit_dive_drift_pow"] > 0 and \
+            0 <= e["orbit_dive_shutter_frac"] <= 1 and (tg == [] or (len(tg) == 2 and all(0 <= v <= 1 for v in tg))), \
+            ("[ending]: orbit_dive_lead_frames >= 0, orbit_dive_core_shrink >= 0, orbit_dive_drift_pow > 0, "
+             "orbit_dive_shutter_frac 0..1, orbit_dive_target [] (frei) oder [x, y] als Bruchteil des Bildes")
         bad = [KL.style_code(cfg, i) for i in range(f - 1, KL.posters(cfg), n) if KL.style_code(cfg, i) != "S33"]
         assert not bad, f"[ending].orbit_frame F{f}: dive taucht in die Matrjoschka, dort steht {bad[0]} statt S33"
     steps = e["orbit_loops"] * n                                          # Bahnframes digital bis zum Wechsel
@@ -376,12 +380,16 @@ def check_orbit(cfg, beats_left):
     assert given in (None, end), (f"[endcard].end_frame {given}: folgt bei end_mode = orbit aus orbit_frame/orbit_loops "
                                    f"(= {end}), Zeile streichen")
     cfg["endcard"]["end_frame"] = end
-    e.update(orbit_at_beats=steps / per_beat, _orbit_derived=True)        # Bahnwechsel auf orbit_frame
+    a = e["orbit_loop_speedup"]
+    assert a >= 1, "[ending].orbit_loop_speedup >= 1 (Tempo des digitalen Loops x a pro Beat, 1 = T16 gleichmaessig)"
+    assert e["orbit_flow_in_beats"] > 0 and e["orbit_flow_steps"] >= 0 and e["orbit_flow_per_beat"] >= 0, \
+        "[ending]: orbit_flow_in_beats > 0, orbit_flow_steps >= 0, orbit_flow_per_beat >= 0"
+    e.update(orbit_at_beats=_beats_to(steps / per_beat, a), _orbit_derived=True)   # Bahnwechsel auf orbit_frame
     assert e["orbit_at_beats"] < beats_left, f"[ending]: Bahnwechsel nach {e['orbit_at_beats']:g} Beats, Video endet vorher"
     assert e["orbit_spin_speedup"] >= 1 and e["orbit_type_out_beats"] > 0 and e["orbit_cycle_beats"] >= 0, \
         "[ending]: orbit_spin_speedup >= 1, orbit_type_out_beats > 0, orbit_cycle_beats >= 0"
-    lead = e["orbit_dive_lead_beats"] * per_beat if path == "dive" else 0.0   # Bahnframes Vorlauf (Kamera taucht ein)
-    assert lead < steps, "[ending].orbit_dive_lead_beats: Eintauchen muss nach dem Karussell-Ende liegen"
+    lead = e["orbit_dive_lead_frames"] if path == "dive" else 0.0          # Bahnframes Vorlauf (Kamera taucht ein)
+    assert lead < steps, "[ending].orbit_dive_lead_frames: Eintauchen muss nach dem Karussell-Ende liegen"
     phi_s = f - 1 - lead
     dr = KL.orbit(cfg, (phi_s + TANGENT_H) % n)[2] - KL.orbit(cfg, (phi_s - TANGENT_H) % n)[2]
     assert (dr < 0) if path == "throw" else (dr > 0), (
@@ -403,11 +411,36 @@ def orbit_clock(cfg):
     return V.end_index(cfg) + 1, cfg["loop"]["changes_per_bar"] / 4 / b, b
 
 
+def _beats_to(x, a):
+    """Beats, bis ein Loop, dessen Tempo pro Beat um a waechst, x Beats Weg im Anfangstempo zurueckgelegt hat
+    (Umkehrung von _ramp in Beats: (a^u - 1) / ln a = x)."""
+    return x if abs(a - 1) < 1e-12 else math.log(1 + x * math.log(a)) / math.log(a)
+
+
+def orbit_phase(cfg, dt):
+    """Bahnphase dt s nach dem Karussell-Ende. Vadim 1.10.: "den letzten Loop auch noch schneller": das Tempo legt pro
+    Beat um orbit_loop_speedup zu (1 = T16 gleichmaessig), Start im Karusselltempo (stetig). Nach dem Bahnwechsel
+    laeuft die Uhr weiter (Farben bis orbit_cycle_beats)."""
+    phi0, per_s, b = orbit_clock(cfg)
+    return _snap(phi0 + per_s * _ramp(dt, b, cfg["ending"]["orbit_loop_speedup"]))
+
+
+def orbit_rate(cfg, dt):
+    """Bahnframes pro Sekunde dt s nach dem Karussell-Ende (Ableitung von orbit_phase)."""
+    _, per_s, b = orbit_clock(cfg)
+    return per_s * cfg["ending"]["orbit_loop_speedup"] ** (dt / b)
+
+
+def orbit_time(cfg, j):
+    """Zeit s nach dem Karussell-Ende, zu der der digitale Loop j Bahnframes gelaufen ist."""
+    _, per_s, b = orbit_clock(cfg)
+    return _beats_to(j / per_s / b, cfg["ending"]["orbit_loop_speedup"]) * b
+
+
 def orbit_release(cfg):
     """(Zeit s nach dem Karussell-Ende, Bahnphase) des Bahnwechsels. orbit_at_beats setzt check_orbit (orbit_loops)."""
-    phi0, per_s, b = orbit_clock(cfg)
-    t = cfg["ending"]["orbit_at_beats"] * b
-    return t, _snap(phi0 + per_s * t)
+    t = cfg["ending"]["orbit_at_beats"] * beat(cfg)
+    return t, orbit_phase(cfg, t)
 
 
 def orbit_px(cfg, phase):
@@ -420,21 +453,21 @@ def orbit_px(cfg, phase):
     return float(ox + x * pw), float(oy + y * ph), float(r * pw), rot
 
 
-def orbit_kin(cfg, phase):
-    """Zustand der Bahn im Bild bei phase: Lage (x, y, R px) und Tempo (vx, vy, vR in px/s), zentrale Differenz."""
-    _, per_s, _ = orbit_clock(cfg)
+def orbit_kin(cfg, phase, per_s):
+    """Zustand der Bahn im Bild bei phase: Lage (x, y, R px) und Tempo (vx, vy, vR in px/s bei per_s Bahnframes pro
+    Sekunde), zentrale Differenz."""
     a, m, c = (orbit_px(cfg, phase + d)[:3] for d in (-TANGENT_H, 0.0, TANGENT_H))
     return m, tuple((cc - aa) / (2 * TANGENT_H) * per_s for aa, cc in zip(a, c))
 
 
 def orbit_switch(cfg):
     """(Zeit s nach dem Karussell-Ende, Bahnphase), ab der der Stern die Ellipse verlaesst: throw beim Loslassen
-    (orbit_frame), dive schon orbit_dive_lead_beats davor (die Kamera taucht im Anflug ein)."""
-    phi0, per_s, b = orbit_clock(cfg)
-    t_r, _ = orbit_release(cfg)
-    e = cfg["ending"]
-    t = t_r - (e["orbit_dive_lead_beats"] * b if e["orbit_path"] == "dive" else 0.0)
-    return t, _snap(phi0 + per_s * t)
+    (orbit_frame), dive schon orbit_dive_lead_frames Bahnframes davor (die Kamera taucht im Anflug ein)."""
+    e, n = cfg["ending"], cfg["loop"]["frames"]
+    if e["orbit_path"] != "dive":
+        return orbit_release(cfg)
+    t = orbit_time(cfg, round(e["orbit_loops"] * n) - e["orbit_dive_lead_frames"])
+    return t, orbit_phase(cfg, t)
 
 
 def _ramp(tau, b, k):
@@ -454,9 +487,10 @@ def orbit_star(cfg, dt, jump=0.0):
              Fluchtpunkt beide ~ 1/Z. Gesteuert wird 1/Z selbst: R = R0 + R0' F, Mitte = c0 + v0 F, F = Integral von
              k^(t/b) (k = orbit_throw_speedup pro Beat). Bildtempo und Schrumpfen wachsen, bis er im Fluchtpunkt ist
              (endliche Zeit, "zack"). Braucht einen Frame, auf dem er schrumpft.
-      dive   (O7) die Kamera taucht schon im Anflug ein (orbit_dive_lead_beats vor orbit_frame): Wachstumsrate
+      dive   (O7) die Kamera taucht schon im Anflug ein (orbit_dive_lead_frames Bahnframes vor orbit_frame): Wachstumsrate
              g = g0 k^(t/b) ab der Rate der Bahn (nie langsamer, kein Sprung), die Mitte faehrt in ihrer Richtung
-             weiter und laeuft mit dem Zoom aus (Tempo v0 (R0 / R)^orbit_dive_drift_pow: keine Umkehr, kein Ziel).
+             weiter und laeuft mit dem Zoom aus (Tempo v0 (R0 / R)^orbit_dive_drift_pow, keine Umkehr). orbit_dive_target
+             [x, y]: statt auszulaufen faehrt die Mitte auf einer Hermite-Kurve dorthin (Bruchteil des Bildes), [] = frei.
              Ab orbit_frame (S33, Schnitt wie im Loop) Infinite Zoom (KD.zoom_spark), Puppen = ln-Zuwachs seitdem.
     Drehung ab dem Loslassen: Bahntempo, das in jedem Beat um (orbit_spin_speedup - 1) x zulegt.
     ghost: ist er weg, wo er waere (Grund V3 legt die Tasche um c.L["star"], sonst springt sie in die Ecke)."""
@@ -465,30 +499,40 @@ def orbit_star(cfg, dt, jump=0.0):
     e, n, sp = cfg["ending"], KL.count(cfg), cfg["spark"]
     W, H = cfg["video"]["size_px"]
     cell = S.BASE["R"] * S.SIZES["9x16"][2]
-    phi0, per_s, b = orbit_clock(cfg)
+    b = beat(cfg)
     t_r, phi_r = orbit_release(cfg)
     t_s, phi_s = orbit_switch(cfg)
     k = e["orbit_throw_speedup"]
-    w0 = sp["spin_deg"] / n * per_s                                          # Grad pro Sekunde auf der Bahn
+    w0 = sp["spin_deg"] / n * orbit_rate(cfg, t_r)                           # Grad pro Sekunde auf der Bahn beim Wurf
     if dt <= t_r:
-        rot = orbit_px(cfg, _snap(phi0 + per_s * dt))[3]
+        rot = orbit_px(cfg, orbit_phase(cfg, dt))[3]
     else:
         tau = dt - t_r
         rot = orbit_px(cfg, phi_r + jump)[3] + w0 * (tau + 0.5 * (e["orbit_spin_speedup"] - 1) * tau * tau / b)
     if dt <= t_s:
-        x, y, R, _ = orbit_px(cfg, _snap(phi0 + per_s * dt))
+        x, y, R, _ = orbit_px(cfg, orbit_phase(cfg, dt))
         return dict(star=(x, y, R, rot) if R > 0 else None, dolls=0.0, blur=0.0, loop=True)
     tau = dt - t_s
-    (x0, y0, R0), (vx, vy, vR) = orbit_kin(cfg, phi_s + jump)
+    (x0, y0, R0), (vx, vy, vR) = orbit_kin(cfg, phi_s + jump, orbit_rate(cfg, t_s))
     if e["orbit_path"] == "dive":
         g0 = vR / R0
         G = lambda t: g0 * _ramp(t, b, k)                                   # noqa: E731  ln(R / R0)
-        s = np.linspace(0.0, tau, THROW_SAMPLES)
-        f = np.exp(-e["orbit_dive_drift_pow"] * G(s))
-        drift = float(np.sum((f[1:] + f[:-1]) / 2 * np.diff(s)))           # Weg der Mitte / v0
+        def drift(t):                                                      # Weg der Mitte / v0
+            s = np.linspace(0.0, t, THROW_SAMPLES)
+            f = np.exp(-e["orbit_dive_drift_pow"] * G(s))
+            return float(np.sum((f[1:] + f[:-1]) / 2 * np.diff(s)))
+        x, y = x0 + vx * drift(tau), y0 + vy * drift(tau)
+        if e["orbit_dive_target"]:                                         # Vadim 1.10.: "Spark mittig, leicht rechts,
+            W, H = cfg["video"]["size_px"]                                 # als wuerde man reinfliegen": Hermite-Kurve
+            tx, ty = e["orbit_dive_target"][0] * W, e["orbit_dive_target"][1] * H   # von (Lage, Tempo) der Bahn ins
+            T = 2 * math.hypot(tx - x0, ty - y0) / max(math.hypot(vx, vy), 1e-9)   # Ziel mit Tempo 0. Dauer 2 x
+            u = min(tau / T, 1.0)                                          # Abstand / Tempo: zeigt die Bahn aufs Ziel,
+            h10, h01 = u ** 3 - 2 * u * u + u, 3 * u * u - 2 * u ** 3      # faellt das Tempo linear auf 0 (keine
+            x = x0 + h10 * T * vx + h01 * (tx - x0)                        # Umkehr, kein Ueberschiessen)
+            y = y0 + h10 * T * vy + h01 * (ty - y0)
         dolls = max(G(tau) - G(t_r - t_s), 0.0) / math.log(1 / KD.DOLL_RATIO)
         blur = 2 * e["orbit_dive_shutter_frac"] * g0 * k ** (tau / b) / math.log(1 / KD.DOLL_RATIO) / cfg["video"]["timeline_fps"]
-        return dict(star=(x0 + vx * drift, y0 + vy * drift, R0 * math.exp(G(tau)), rot), dolls=dolls,
+        return dict(star=(x, y, R0 * math.exp(G(tau)), rot), dolls=dolls,
                     blur=blur if dt > t_r else 0.0, loop=dt <= t_r)
     F = _ramp(tau, b, k)
     cx, cy, R = x0 + vx * F, y0 + vy * F, R0 + vR * F
@@ -503,8 +547,7 @@ def orbit_poster(cfg, dt):
     """Plakat (Index ueber alle Welten), dessen Farbe und Stern dt s nach dem Karussell-Ende gilt: laeuft im
     Karusselltempo weiter bis orbit_cycle_beats, dann steht es (Farbe der Endkarte)."""
     import kickoff_loop as KL
-    phi0, per_s, b = orbit_clock(cfg)
-    return int(math.floor(_snap(phi0 + per_s * min(dt, cfg["ending"]["orbit_cycle_beats"] * b)))) % KL.posters(cfg)
+    return int(math.floor(orbit_phase(cfg, min(dt, cfg["ending"]["orbit_cycle_beats"] * beat(cfg))))) % KL.posters(cfg)
 
 
 def orbit_state(cfg, dt, jump=0.0):
@@ -535,16 +578,37 @@ def orbit_state(cfg, dt, jump=0.0):
         star = os_.get("ghost") or (-3.0 * W, -3.0 * H, 1.0, 0.0)          # dort, wo er waere (Grund), sonst weit draussen
         st["S"], st["spark_fn"] = KL.S_CODES["S2"], K.spark
     tout = min(max((dt - e["orbit_type_out_at_beats"] * b) / (e["orbit_type_out_beats"] * b), 0.0), 1.0)
+    morph = None
+    if e["orbit_type_morph"]:                 # Vadim 1.10.: der Text verschwindet nicht und kommt neu, er loest sich auf
+        tout = 0.0                            # und dithert an der Kartenstelle ein: jedes Element des Plakatsatzes kippt
+        a = {p[0]: p[1] for p in (card or {}).get("parts", [])}           # in derselben Bayer-Reihenfolge weg, in der
+        morph = {k: max(a.get(v, 0.0) for v in vs) for k, vs in MORPH.items()}   # sein Gegenstueck einsetzt
+        morph = morph if any(morph.values()) else None
+    flow = orbit_flow(cfg, dt)
     dg = dict(u=0.0, offset=(ox, oy), star=star, show=None)
-    if not os_["loop"] or tout > 0 or card:                                # sonst exakt das Plakat-Dict (bitgleich)
+    if not os_["loop"] or tout > 0 or card or flow:                        # sonst exakt das Plakat-Dict (bitgleich)
         dg.update(poster=idx, card=card, zoom=dict(dolls=round(os_["dolls"], 6), type_out=round(tout, 4), info=[],
                                                    info_in=0.0, core_shrink=e.get("orbit_dive_core_shrink", 0.0),
-                                                   blur=round(os_.get("blur", 0.0), 4)))   # 0: throw, ohne Zoom
+                                                   blur=round(os_.get("blur", 0.0), 4), flow=flow, morph=morph))
         st["type_fn"] = KD.zoom_card_type
     st["rot"] = star[3]                                                    # Labor-Sterne drehen nach st["rot"]
     st["loop"] = {**st["loop"], "digital": dg}
     st["star"] = (star[0] / W, star[1] / H, star[2] / W)
     return st
+
+
+def orbit_flow(cfg, dt):
+    """Laufender Verlauf in der Schrift (Vadim 1.10.: "die Gradients bewegen sich darunter, dass es lively wird",
+    posterisiert): ab orbit_flow_at_beats laeuft der Zeilenverlauf mit orbit_flow_per_beat Zeilenhoehen pro Beat nach
+    oben (KL.line_gradient, Dreieckswelle), seine Spannweite waechst in orbit_flow_in_beats von text_gradient_steps auf
+    orbit_flow_steps Palettenstufen. (Phase mod 2, Stufen) oder None (steht)."""
+    e, b = cfg["ending"], beat(cfg)
+    if "orbit_flow_at_beats" not in e or dt <= e["orbit_flow_at_beats"] * b or not e["orbit_flow_per_beat"]:
+        return None
+    x = (dt - e["orbit_flow_at_beats"] * b) / b
+    s0 = cfg["type"]["text_gradient_steps"]
+    u = min(x / e["orbit_flow_in_beats"], 1.0)
+    return [round(e["orbit_flow_per_beat"] * x % 2, 4), round(s0 + (e["orbit_flow_steps"] - s0) * u * u * (3 - 2 * u), 3)]
 
 
 def poster_digital(cfg, i):
@@ -572,8 +636,9 @@ def _rel_step(a, c):
 def orbit_measure(cfg, jump=0.0):
     """Befund "clean" (Uebergabe 3.10.) an der Bahn, je Videobild (24 fps) ab PROBE_FRAMES Bildern vor dem Verlassen der
     Ellipse bis der Stern weg ist, die Karte alles deckt oder 2 Beats um sind. Schritt = (dx, dy px, d ln R, Drehung).
-    dict(kink = Winkel Grad zwischen dem Schritt davor und dem ersten danach, jump = |v| danach / davor, gjump = |d ln R|
-    danach / davor, slow = Schritte danach, in denen eine Groesse kleiner wird (throw: |v| und |d ln R|; dive: d ln R und
+    dict(kink = Drehung der Mitte am Wechsel minus Drehung im Schritt davor (Grad; die Bahn kruemmt sich bei x1.6 bis
+    20 Grad pro Bild, das ist kein Knick, ein Abknicken dagegen schon), jump/gjump = |v| bzw. |d ln R| im ersten ganzen
+    Schritt danach / im letzten davor (Sprung im Tempo bzw. in der Zoomrate), , slow = Schritte danach, in denen eine Groesse kleiner wird bzw. |d ln R| nicht waechst (throw: |v| und |d ln R|; dive: d ln R und
     Sehfluss |v| + d ln R x rms-Bildradius; beide: Drehung), turn = Richtungsumkehren der Mitte (Skalarprodukt < 0), track = Schritte
     danach, gone_s = s nach dem Karussell-Ende, ab der der Stern weg ist (None: bleibt), on = Mitte am Ende im Bild).
     Am alten O4 (1.10.): |v| fiel 24 von 25 Schritten; alter O5: d ln R sprang x8.1, Sehfluss fiel 7x."""
@@ -597,7 +662,10 @@ def orbit_measure(cfg, jump=0.0):
     j = PROBE_FRAMES - 1                                                   # vom letzten Bild davor zum ersten danach
     u, v = steps[j - 1], steps[j]
     nu, nv = math.hypot(*u[:2]), math.hypot(*v[:2])
-    kink = math.degrees(math.acos(max(-1.0, min(1.0, (u[0] * v[0] + u[1] * v[1]) / max(nu * nv, 1e-12)))))
+
+    def turn(a, c):                                                        # vorzeichenbehaftete Drehung Grad a -> c
+        return math.degrees(math.atan2(a[0] * c[1] - a[1] * c[0], a[0] * c[0] + a[1] * c[1]))
+    kink = abs(turn(u, v) - turn(steps[j - 2], u))                         # Drehung am Wechsel minus Drehung davor
     after = steps[j:]
     sizes = [math.hypot(*x[:2]) for x in after]
     rates = [abs(x[2]) for x in after]
@@ -607,11 +675,16 @@ def orbit_measure(cfg, jump=0.0):
 
     def falls(xs):
         return sum(1 for a, c in zip(xs, xs[1:]) if c < a * (1 - SLOW_EPS))
-    slow = falls(rates) + falls(spins) + (falls(flow) if e["orbit_path"] == "dive" else falls(sizes))
+
+    def flat(xs):                                                          # Zoom/Schrumpfen muss echt anziehen (ein
+        return sum(1 for a, c in zip(xs, xs[1:]) if c <= a * (1 + SLOW_EPS))   # Zoom aus dem Stand bleibt sonst bei 0)
+    slow = flat(rates) + falls(spins) + (falls(flow) if e["orbit_path"] == "dive" else falls(sizes))
     turn = sum(1 for a, c in zip(after, after[1:])
                if math.hypot(*a[:2]) > MOVE_PX and math.hypot(*c[:2]) > MOVE_PX and a[0] * c[0] + a[1] * c[1] < 0)
     x, y = seq[-1][:2]
-    return dict(kink=kink, jump=nv / max(nu, 1e-12), gjump=abs(v[2]) / max(abs(u[2]), 1e-12), slow=slow, turn=turn,
+    w = steps[j + 1]                                                       # erster ganzer Schritt danach (steps[j] ist
+    nw = math.hypot(*w[:2])                                                # halb Loop, halb neue Bahn: verdeckt Spruenge)
+    return dict(kink=kink, jump=nw / max(nu, 1e-12), gjump=abs(w[2]) / max(abs(u[2]), 1e-12), slow=slow, turn=turn,
                 track=len(after), gone_s=gone, on=0 <= x <= W and 0 <= y <= H,
                 v=sizes, g=rates)
 
@@ -641,7 +714,7 @@ def orbit_report(cfg):
             f"Wurf in die Tiefe ab F{phi_r % n + 1:.0f} bei {at + t_r:.2f} s (gerade Linie zum Fluchtpunkt, Bildtempo x"
             f"{e['orbit_throw_speedup']:g} pro Beat)")
     return [f"Ende Bahn: digitaler Loop ab F{phi0 % n + 1} auf dem Karussell-Ende {at:.2f} s "
-            f"({t_r * per_s / n:.2f} Umlaeufe, 24 fps), dann {what}, Drehung x{e['orbit_spin_speedup']:g} pro Beat. "
+            f"({(phi_r - phi0) / n:.2f} Umlaeufe, Tempo x{e['orbit_loop_speedup']:g} pro Beat, 24 fps), dann {what}, Drehung x{e['orbit_spin_speedup']:g} pro Beat. "
             f"Farbe/Stern wechseln bis {at + e['orbit_cycle_beats'] * b:.2f} s, Endfarbe Plakat {land + 1} "
             f"({KL.station_label(cfg, land)})",
             f"Bahn-Check {'ok' if orbit_clean(m) else 'FEHLER'}: Knick {m['kink']:.1f} Grad (Grenze {KINK_DEG}), Tempo "
@@ -675,7 +748,7 @@ def card_state(cfg, dt, group=1.0):
     lay = {k[5:]: e[k] for k in CARD_KEYS if k not in ("card_reveal", "card_diff", "card_moves", "card_in_beats",
                                                        "card_overshoot", "card_dim_frac")}
     return dict(group=round(group, 5), parts=parts, dim=round(dim, 3), layout=lay, reveal=e["card_reveal"],
-                diff=bool(e["card_diff"]))
+                diff=bool(e["card_diff"]), flow=orbit_flow(cfg, dt) if cfg["endcard"].get("end_mode") == "orbit" else None)
 
 
 def card_masks(c, lay):
@@ -772,6 +845,12 @@ def card_layers(c, cs):
         m = place(base[name], a, s, dx, dy)
         if m.any():
             ink = np.full((c.gh, c.gw), c.lvl(c.N), np.float32)
+            if cs.get("flow"):                                             # Verlauf laeuft wie im Plakatsatz (orbit_flow)
+                ys = np.nonzero(base[name].any(1))[0]
+                rel = np.clip((ys.max() - np.arange(c.gh)) / max(ys.max() - ys.min(), 1), 0, 1)[:, None]
+                rel = 1 - np.abs((rel - cs["flow"][0]) % 2 - 1)
+                ink = np.broadcast_to(np.round((1 - cs["flow"][1] / c.N * (1 - rel)) * c.N) / c.N,
+                                      (c.gh, c.gw)).astype(np.float32)
             c.add(name, m, KL.title_value(c, ink) if cs["diff"] else ink)   # diff: wie SPARK auf dem Plakat, Effekte
                                                                             # laufen invertiert durch (Difference-Ebene)
 
@@ -825,9 +904,9 @@ def orbit_selftest(cfg):
         return KL.render_cached(st, "9x16", "end")
     phi0, per_s, b = orbit_clock(cfg)
     t_s, _ = orbit_switch(cfg)
-    js = [j for j in (0, 5, 11) if j / per_s < t_s]
-    same = [np.array_equal(img(orbit_state(cfg, j / per_s)), img(poster_digital(cfg, phi0 + j))) for j in js]
-    bites = not np.array_equal(img(orbit_state(cfg, (js[-1] + 0.5) / per_s)), img(poster_digital(cfg, phi0 + js[-1])))
+    js = [j for j in (0, 5, 11) if orbit_time(cfg, j) < t_s]
+    same = [np.array_equal(img(orbit_state(cfg, orbit_time(cfg, j))), img(poster_digital(cfg, phi0 + j))) for j in js]
+    bites = not np.array_equal(img(orbit_state(cfg, orbit_time(cfg, js[-1] + 0.5))), img(poster_digital(cfg, phi0 + js[-1])))
     lines.append(f"Loop bitgleich zum Plakat an ganzen Phasen (Plakate {', '.join(str(phi0 + j + 1) for j in js)}): "
                  f"{'ok' if all(same) else 'FEHLER'}; Gegenprobe halbe Phase: {'schlaegt an' if bites else 'TEST BLIND'}")
     ok &= all(same) and bites
@@ -858,16 +937,17 @@ def orbit_selftest(cfg):
         st = [math.hypot(c[0] - a[0], c[1] - a[1]) + abs(c[2] - a[2]) for a, c in zip(out, out[1:])]
         j = PROBE_FRAMES - 1                                               # Schritt vom letzten Bild davor zum ersten danach
         return st[j] / max(st[j - 1], st[j + 1], 1e-9)
-    good, bad = probe(0.0), probe(1.0)
+    off = max(1.0, 2 * orbit_rate(cfg, t_s) / fps)                         # 2 Videobilder Bahnweg (Loop x1.6: 1.3/Bild)
+    good, bad = probe(0.0), probe(off)
     lines.append(f"Bahn stetig am Bild (Sternflaeche S2): Schritt beim Wechsel x{good:.2f} des groesseren Nachbarn "
-                 f"(Grenze x{RELEASE_JUMP}): {'ok' if good <= RELEASE_JUMP else 'FEHLER'}; Gegenprobe 1 Bahnframe versetzt "
+                 f"(Grenze x{RELEASE_JUMP}): {'ok' if good <= RELEASE_JUMP else 'FEHLER'}; Gegenprobe {off:.1f} Bahnframes versetzt "
                  f"x{bad:.2f}: {'schlaegt an' if bad > RELEASE_JUMP else 'TEST BLIND'}")
     ok &= good <= RELEASE_JUMP < bad
 
     m = orbit_measure(cfg)
     probe_cfg = copy.deepcopy(cfg)                                         # ohne check_orbit: bewusst falsche Werte
     if cfg["ending"]["orbit_path"] == "dive":
-        probe_cfg["ending"]["orbit_dive_lead_beats"] = 0.0
+        probe_cfg["ending"]["orbit_dive_lead_frames"] = 0
         what = "ohne Vorlauf aus F1 (Zoom aus dem Stand, alter O5)"
     else:
         probe_cfg["ending"]["orbit_throw_speedup"] = 0.5
@@ -885,7 +965,7 @@ def orbit_selftest(cfg):
         ok &= good
 
     def loops(c):                                                          # Bahnframes vom Karussell-Ende bis zum Wurf
-        return orbit_release(c)[0] * orbit_clock(c)[1] / n
+        return (orbit_release(c)[1] - orbit_clock(c)[0]) / n
     old = copy.deepcopy(cfg)
     old["ending"]["orbit_loops"] = 2.5
     del old["endcard"]["end_frame"]
