@@ -111,7 +111,7 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
 
 | Befehl | Ergebnis | Dauer |
 |---|---|---|
-| `uv run src/kickoff_loop.py sheet [review/X.toml]` | Kontaktbogen + Loop-Video → `previz/now/` bzw. `previz/review/X_*` (+ Report), öffnet beides | ~10 s |
+| `uv run src/kickoff_loop.py sheet [review/X.toml]` | Kontaktbogen + Loop-Video → `previz/now/` bzw. `previz/review/X_*` (+ Report). Öffnet nichts (Vadim schaut selbst) | ~10 s |
 | `uv run src/kickoff_loop.py stars [S..]` | Sterne-Bogen an 3 Bahnstellen → `previz/variants/stars.png` | ~25 s |
 | `uv run src/kickoff_loop.py test [N..]` | Selbsttest am fertigen Bild (+ Bahn, Blitz) | ~5 s |
 | `uv run --with numpy --with pillow --with scipy --with qrcode --with scikit-image --with opencv-python-headless python src/lab_spark.py test` | Selbsttest Sterne (Hand-Schraffur) | ~20 s |

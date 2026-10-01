@@ -936,12 +936,10 @@ def main():
         tag = os.path.splitext(os.path.basename(var))[0] + "_" if var else ""   # B1.toml → review/B1_contact.png
         out = V.sheet(cfg, posters, ok, leg, os.path.join(PROJECT, "previz", "review" if var else "now"), tag)
         print(f"{out}/{tag}contact.png  QR {sum(ok)}/{len(ok)}, Lesbarkeit min {min(leg):.2f}")
-        subprocess.run(["open", os.path.join(out, tag + "contact.png"), os.path.join(out, tag + "loop.mp4")]) if sys.stdout.isatty() else None
     elif cmd == "boil":                                 # Test: Digitalteil ohne | mit Boil nebeneinander
         import kickoff_loop_video as V
         out = V.boil_test(cfg)
         print(out)
-        subprocess.run(["open", out])
     elif cmd == "preview":
         import kickoff_loop_video as V
         print(V.preview(cfg, *frames(cfg)))
