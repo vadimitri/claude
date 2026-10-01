@@ -1,0 +1,10 @@
+B20c · 32 Plakate = 16 Aushaenge + 16 Fotoframes · 1 Welt(en) a 32 Frames · Bahn und Stile alle 32 Frames
+Welten: P11 → P20 → P15 → P13 → P17 → P25 → P26 → P9 → P19 → P18 → P14 → P10 → P13 → P17 → P14 → P10 → P11
+QR lesbar: 32/32
+Lesbarkeit Titel+Datum: min 0.75, 5/32 in Stufe A  ! unter A: 04 (0.90) 05 (0.76) 06 (0.83) 07 (0.87) 08 (0.88) 09 (0.79) 10 (0.78) 11 (0.75) 12 (0.79) 13 (0.81) 14 (0.86) 15 (0.83) 16 (0.85) 17 (0.84) 18 (0.82) 19 (0.82) 20 (0.78) 21 (0.85) 22 (0.87) 23 (0.89) 24 (0.90) 25 (0.83) 26 (0.89) 27 (0.88) 28 (0.84) 30 (0.94) 31 (0.95)
+Lesbarkeit JOIN US: min 0.98 (dunkel 0.98, Papier nan)
+Lila: ok (load prueft jedes Plakat, sonst gaebe es keinen Bogen)
+Blitz, Plakat bildfuellend, 16.32 Plakate/s, 2 Durchgaenge: aus ([checks].flash_gate = false, Vadim 2.10.)
+Loop-Video: 16.32 Plakate/s, 4 Durchgaenge = 7.84 s, Ton ref/audio/igors_theme.mp3
+Harte Weltwechsel (Helligkeit vorher → nachher, Flaeche mit Blitz-Sprung, Flaeche mit Rot-Uebergang):
+  zum Vergleich, groesster Wechsel innerhalb einer Welt: Plakat 04 > 05  0.60 → 0.20  Sprung 80 %  Rot 0 %
