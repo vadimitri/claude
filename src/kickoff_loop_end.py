@@ -352,8 +352,9 @@ def card_masks(c, lay):
 def card_layers(c, cs):
     """Endkarte als Ebenen: Hintergrund im Korn abdimmen (dim = Anteil Zellen auf Grund), dann je Teil die Maske im
     Animationsstand (warp um die eigene Mitte, dann um die Bildmitte mit group), Einblendung im Bayer-Korn. QR: Platte
-    in der hellsten Stufe, Module in der dunkelsten, Gluehen aus dem Abstand zur (bewegten) Platte. Schrift in der
-    Tintenstufe; JOIN US und Info kippen pro Buchstabe auf Hellem (wie auf dem Plakat)."""
+    in der hellsten Stufe, Module in der dunkelsten, Gluehen aus dem Abstand zur (bewegten) Platte. Alle Schrift in der
+    Tintenstufe. Kein Kippen pro Buchstabe wie auf dem Plakat (flip_glyphs): im Zoom zaehlen die abgedimmten Schalen
+    dort als hell, JOIN US und Info verloren ganze Buchstaben (Vorschau 2.10.)."""
     import kickoff_loop as KL
     thr = bayer(c)
     if cs["dim"] > 0:
@@ -391,7 +392,7 @@ def card_layers(c, cs):
             continue
         m = place(base[name], a, s, dx, dy)
         if m.any():
-            c.add(name, m, KL.flip_glyphs(c, m, c.lvl(c.N)) if name in ("cta", "info") else c.lvl(c.N))
+            c.add(name, m, c.lvl(c.N))     # Tinte, ohne Kippen: der Grund ist abgedimmt, die Schalen darunter zaehlen nicht
 
 
 def card_check(st, img):

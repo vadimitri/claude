@@ -41,7 +41,7 @@ from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import binary_dilation, label
+from scipy.ndimage import binary_dilation, gaussian_filter, label, minimum_filter
 
 import kickoff as K
 import styles as S
@@ -68,7 +68,9 @@ GLOW_SIDE_TOL = 0.6  # Selbsttest: gleicher Abstand, andere Seite der Platte, ho
 ELLIPSE_SAMPLES = 4001  # Stuetzstellen der Bahn fuer Zeit → Ort (Fehler < 0.1 % eines Frames bei 32 Frames)
 OFF_STAR = (-3.0, -3.0, 0.002)  # leerer Frame: Stern (x, y, Radius) so weit draussen, dass auch kein Schein hereinreicht
 BEHIND_Z = 0.02    # Bahn: Abstand (Bahnradius = 1), ab dem der Stern hinter/neben dem Kopf ist (Projektion 1/z explodiert)
-FX_BIAS = 0.25      # Titel-Differenz: Untergrund bis 3/4 Palettenstufe ist Grund (Hintergrundverlauf ~0.6 Stufen), kein Effekt
+FX_WIN_CELLS = 15   # Titel: Fenster fuer den lokalen Grund. Breiter als Strahlen/Schraffur (1-5 Zellen), schmaler als Schalen
+FX_DEAD = 0.04      # ... Abweichung darunter ist Korn/Rauschen des Grunds (Labor-Gruende schwanken ~0.02-0.04)
+FX_FULL = 0.25      # ... ab dieser Abweichung (gut 1 Palettenstufe bei 6 Stufen) kippt die Tinte ganz in den Grund
 GLOW_MIN = 0.02     # QR-Gluehen: darunter unsichtbar im 6-stufigen Bayer-Korn (1/5 Stufe Abstand, 16 Schwellen: ~0.01)
 
 P_CODES = {code: val for code, val, _ in K.PAL}         # "P17" → "signal" (nur Kick-off-Colorways, kein Lila)
@@ -505,14 +507,21 @@ def under(c):
 
 
 def title_value(c, v):
-    """SPARK als Differenz-Ebene (Vadim 2.10.: "hinter dem Spark-Schriftzug sind die ganzen Effekte nicht zu sehen"):
-    auf Grund die Tinte v (Verlauf), ueber Stern, Strahlen, Schraffur |v - Effekt|, so laufen alle Effekte invertiert
-    durch die Buchstaben. Vorher kippte der Titel nur auf dem Sternkoerper flaechig in den Grund (lvl 0) und deckte
-    alles andere zu. Alle Stern-Stile malen bildfuellend (auch ihren Grund), deshalb zaehlt als Effekt nur, was auf
-    Palettenstufen gerundet ueber dem Grund liegt (FX_BIAS). Merkt sich die Effekt-Pixel in c.title_fx (Selbsttest)."""
-    e = np.floor(under(c) * c.N + FX_BIAS) / c.N
-    c.title_fx, c.title_e = e > 0, e
-    return np.where(c.title_fx, np.abs(v - e), v)
+    """SPARK zeigt die Effekte dahinter invertiert (Vadim 2.10.: "hinter dem Spark-Schriftzug sind die ganzen Effekte
+    nicht zu sehen", dann "manche Effekte ausserhalb des Sterns auf Titelhoehe immer noch unsichtbar").
+    Effekt = heller als der lokale Grund (Minimum ueber FX_WIN_CELLS, weich): die Labor-Sterne malen bildfuellend und
+    ihren eigenen, dunkleren Grund, eine feste Schwelle verpasste dort 40-75 % der Effektpixel (gemessen F5-F12). Die
+    Abweichung wird gestreckt (FX_DEAD..FX_FULL → 0..1): auch feine Strahlen kippen die Tinte sichtbar Richtung Grund,
+    statt sie nur eine Stufe abzudunkeln. Auf dem Sternkoerper zusaetzlich |Tinte - Stern|, damit flaechig helle
+    Sterne nicht helle Schrift auf Hellem ergeben (frueher: dort flaechig Grund, alles andere zugedeckt).
+    Merkt sich den Zielwert in c.title_target (Selbsttest)."""
+    u = under(c)
+    ground = gaussian_filter(minimum_filter(u, FX_WIN_CELLS), FX_WIN_CELLS / 4)
+    k = np.clip((u - ground - FX_DEAD) / (FX_FULL - FX_DEAD), 0, 1)
+    t = v * (1 - k)
+    t = np.where(c.star_m, np.minimum(t, np.abs(v - u)), t)
+    c.title_target, c.title_fx = t, (k > 0) | c.star_m
+    return t
 
 
 def flip_glyphs(c, mk, v):
@@ -818,7 +827,10 @@ def selftest(cfg, i=8):
     img = frame(cfg, i, style=st)
     c = S.Ctx(st, PREVIEW)
     fx = {}
-    S.render({**st, "type_fn": lambda cc: (type_layers(cc), fx.update(m=cc.title_fx, e=cc.title_e))}, PREVIEW)   # Effekte im Titel
+    S.render({**st, "type_fn": lambda cc: (type_layers(cc), fx.update(t=getattr(cc, "title_target", None),
+                                                                     fx=getattr(cc, "title_fx", None)))},
+             PREVIEW)                                   # Zielwerte im Titel (Effekte dahinter)
+    fx["m"] = np.zeros((c.gh, c.gw), bool) if fx["t"] is None else fx.pop("fx")
     cells = img[PREVIEW_CELL_PX // 2::PREVIEW_CELL_PX, PREVIEW_CELL_PX // 2::PREVIEW_CELL_PX].astype(int)
     level = np.argmin(((cells[..., None, :] - c.pal.astype(int)[None, None]) ** 2).sum(-1), -1)
     top_level = c.N
@@ -828,6 +840,10 @@ def selftest(cfg, i=8):
     title = masks[0]
     xs = np.nonzero(title.any(0))[0]
     assert abs((xs[0] + xs[-1] + 1) / 2 - c.gw / 2) <= 0.5, "SPARK nicht waagerecht zentriert"
+    see = title & fx["m"] & (fx["t"] < 1 - 2 / c.N)     # deutliche Effekte im Titel: Stufe folgt dem Ziel (+-1 Stufe Korn)
+    if see.sum() > 50:                                  # (alter Fehler: Titel flaechig, Effekte zugedeckt → weicht ab)
+        hit = np.abs(level[see] - c.N * fx["t"][see]) <= 1.01
+        assert hit.mean() > 0.8, f"Effekte hinter SPARK nicht sichtbar: nur {hit.mean():.0%} der Pixel folgen dem Effekt"
     for (s, _, _), full in zip(lines, masks):
         m = full & (level != 0) & ~binary_dilation(fx["m"])   # ohne gekippte Pixel und ohne Effekte im Titel (Differenz).
                                                          # Kopie: masks wird unten mit F32 verglichen
@@ -838,10 +854,6 @@ def selftest(cfg, i=8):
         period = len(S.bayer(4))                        # Bayer 4x4 fuellt Nachbarreihen verschieden: ueber 4 Reihen mitteln
         smooth = np.convolve(rows, np.ones(period) / period, "valid")
         assert np.all(np.diff(smooth) <= 0.05), f"{s}: Verlauf wird nach unten wieder heller {np.round(smooth, 2)}"
-    see = title & fx["m"]                               # Effekte im Titel: Stufe folgt |Tinte - Effekt| (+-1 Stufe Korn)
-    if see.sum() > 50:                                  # (alter Fehler: Titel flaechig, Effekte zugedeckt → weicht ab)
-        hit = np.abs(level[see] - np.round(c.N * np.abs(1 - fx["e"][see]))) <= 1
-        assert hit.mean() > 0.8, f"Effekte hinter SPARK nicht sichtbar: nur {hit.mean():.0%} der Pixel folgen der Differenz"
     assert K.check_qr(img, PREVIEW_CELL_PX), "QR nicht lesbar"
     q = st["loop"]["qr"]
     (_, glow, _), (_, plate, _), (_, mods, _), _ = qr_glow(c, q)
