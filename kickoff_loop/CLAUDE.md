@@ -20,6 +20,10 @@ In `previz/review/` liegt, was offen ist (alles andere in `review/alt/`):
   - C1c: Split-Tone, Grund und Licht aus verschiedenen Colorways.
   - C1d: Regenbogen-Mischung, bunter.
   - Urteil offen.
+- `B20` / `B20b` (2.10.): neue Bahn. Die Ellipse liegt ganz vor dem Betrachter (`ahead` > 1). F1 zentral bildfüllend,
+  dann links, kleiner, hoch hinter SPARK (Fernpunkt = Fluchtpunkt auf Titelhöhe), rechts zurück, F32 wieder zentral.
+  Keine leeren Frames. B20b holt weiter aus, F1–2 sind dort nur noch Lichtfläche.
+  Befund: Lesbarkeit min 0.83 / 0.82, weil der kleine Stern ~16 Frames hinter dem Titel steht.
 - `tempo_T16.mp4`: Tempo mit IGOR darunter.
 - `S_rework_3.png`: die gewählten neuen Sterne.
 
