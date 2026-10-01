@@ -216,14 +216,18 @@ def favs():
 
 def check_qr(img, px):
     """Dekodiert den QR wie ein Handy aus Abstand, bei Modulgroessen 16/8/5/4 Pixel. OpenCV ist launisch
-    (liest bei 8 px nicht, bei 5 px schon), deshalb gilt: mindestens 2 von 4 Groessen lesbar."""
+    (liest bei 8 px nicht, bei 5 px schon), deshalb gilt: mindestens 2 von 4 Groessen lesbar. Kleinste Groesse zuerst
+    und Schluss, sobald das Ergebnis feststeht: gleiches Ergebnis, im Mittel 2 statt 4 Dekodierungen (Befund 1.10.,
+    64 Plakate: 16 px 318 ms, 8 px 96, 5 px 64, 4 px 32; vorher ~510 ms je Plakat, jetzt ~100)."""
     import cv2
     h, w = img.shape[:2]
-    ok = 0
-    for mod in (16, 8, 5, 4):
+    ok, mods = 0, (4, 5, 8, 16)
+    for j, mod in enumerate(mods):
         k = mod / (2 * px)
         small = cv2.resize(img[..., ::-1], (round(w * k), round(h * k)), interpolation=cv2.INTER_AREA)
         ok += cv2.QRCodeDetector().detectAndDecode(small)[0] == COPY["qr_url"]
+        if ok >= 2 or ok + len(mods) - 1 - j < 2:              # steht fest: genug lesbar bzw. nicht mehr erreichbar
+            break
     return ok >= 2
 
 
