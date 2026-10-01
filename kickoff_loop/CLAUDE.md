@@ -48,6 +48,30 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
 - **Agenten (3.10.):** `pipeline` (Render-Tempo: Machbarkeit + Prototyp, eigener Branch, kein Merge) und `enden`
   (neue digitale Enden laut Übergabe unten: v1 nach hinten + Zoom, Schleuder-Varianten; eigener Branch, kein Merge).
 
+## Bahn-Enden O1–O4 (Agent `enden`, 3.10., offen zur Wahl)
+
+`[endcard].end_mode = "orbit"` (`kickoff_loop_end.py`, Schlüssel `orbit_*` in `[ending]`): nach dem Karussell (4 Takte T16)
+läuft der Loop auf dem Bass-Boom (11.76 s) **digital weiter** (24 fps, `KL.orbit` mit gebrochener Phase, Farbe/Stern je
+ganzer Phase im T16-Raster, an ganzen Phasen bitgleich zum Plakat), dann wechselt der Stern die Bahn. `end_frame` folgt aus
+`orbit_frame` + `orbit_at_beats` (load setzt/prüft). Endkarte wie Z5 (SPARK Takt 7, KICK-OFF/Datum auf den Beats, QR auf dem
+Hit 20.59 s), bis Takt 10. Vergleich `previz/review/Vergleich_O1_O2_O3_O4.mp4`, je Ordner `preview.mp4`, `bogen.png`, `orbit.png`.
+- **O1** Fern + Zoom: bremst in 1 Beat in F17 (Halt Takt 6), Kamera taucht ab Bremsbeginn in die Matrjoschka (S33,
+  `zoom_spark`, Ease-in ^2, 12 Puppen bis Takt 7). Farbe rastet mit dem Halt ein: mit Farbwechsel bildfüllend waren es die
+  verworfenen Hypno-Ringe.
+- **O2** Schleuder seitlich: lässt in F17 los (Takt 6 Beat 4), Tangente quer, klein nach rechts raus, Tempo x3/Beat, Drehung x3.
+- **O3** Schleuder zur Kamera: lässt in F20 los, wächst und rauscht rechts vorbei, x2.5/Beat, Drehung x2.
+- **O4** Schleuder in die Tiefe: lässt in F14 los (Snare Takt 6 Beat 3), schrumpft rechts von SPARK zum Punkt, x5/Beat,
+  `orbit_throw_boost` 2, Drehung x5. Befund: rein exponentiell schrumpft er in die Tiefe mit festem Verhältnis pro Bild
+  (Faktor 1.000–1.005, wirkt gleichmäßig), daher `boost` (der Tempo-Faktor wächst selbst).
+- Selbsttest `uv run src/kickoff_loop_end.py test kickoff_loop/previz/review/O1/O1.toml`: Bahn-Nachbau = `KL.orbit`, Loop
+  bitgleich, Stetigkeit am Bild (Sternfläche S2 mit/ohne Stern, Schritt beim Wechsel ≤ x1.5 Nachbar; Gegenprobe 1 Bahnframe
+  versetzt: x1.5–2.7, bei O4 knapp), Beschleunigung monoton (Gegenprobe gleichmäßig). Report: Zeile „Bahn-Check“.
+- Grund V3 (Tasche um den Stern): ist der Stern weg, bleibt `c.L["star"]` dort, wo er wäre (`ghost`), sonst sprang die
+  Tasche in die Ecke und der ganze Grund wurde hell. `qr_scan`: OpenCV bricht auf manchen Zoom-Bildern intern ab → gilt
+  als nicht lesbar.
+- Offen: Wahl O1–O4 (oder Mischung, alles TOML), Länge des Digital-Loops (O2/O3 2.6 Umläufe bis zum Wurf), Endfarbe der
+  Karte folgt aus der Phase (`orbit_cycle_beats`), kein eigener Schalter.
+
 ## Übergabe → nächste Session (Stand 2.10., 20 Uhr)
 
 **Auftrag (Vadim 2.10.): neues Ende als „digitaler Loop, der anders loopt“.** Nach dem Karussell geht es noch einmal in den

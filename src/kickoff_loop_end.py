@@ -66,6 +66,7 @@ RELEASE_JUMP = 1.5   # Selbsttest Bahn: Schritt beim Bahnwechsel hoechstens 1.5 
 ACCEL_MIN = 1e-3     # ... Beschleunigung: jeder Schritt mindestens 0.1 % groesser als der vorige (konstant = Float-Rauschen)
 PROBE_FRAMES = 4     # ... Bilder vor und nach dem Bahnwechsel, an denen die Sternlage gemessen wird
 THROW_SAMPLES = 256  # Schleuder: Stuetzstellen fuer den Weg (Integral des Tempos, keine geschlossene Form)
+GONE_R_PX = 0.01     # Stern in der Ferne verschwunden: Radius so klein, dass keine Zellmitte mehr im Stern liegt
 
 
 # ---------------------------------------------------------------- Konfiguration, Zeitachse
@@ -415,7 +416,10 @@ def orbit_star(cfg, dt, jump=0.0):
              schneller: in die Tiefe schrumpft er dann mit festem Verhaeltnis pro Bild (Befund O4 v1, Faktor je Bild
              1.000-1.005), das liest sich als gleichmaessig. Projiziert wie die Bahn. Weg, sobald er samt Schein
              (KL.STAR_CLEAR) aus dem Bild ist, hinter der Kamera oder kleiner als eine Zelle.
-    Drehung nach dem Wechsel: Bahntempo, das in jedem Beat um (orbit_spin_speedup - 1) x zulegt."""
+    Drehung nach dem Wechsel: Bahntempo, das in jedem Beat um (orbit_spin_speedup - 1) x zulegt.
+    ghost: ist er weg, wo er waere (aus dem Bild: dieselbe Lage; in der Ferne: Radius GONE_R_PX; hinter der Kamera:
+    None). Der Grund [ground] center = "star" (V3, 3.10.) legt seine dunkle Tasche um c.L["star"]: ohne ghost sprang
+    sie beim Verschwinden in die Ecke weit draussen (OFF-Stern), der ganze Grund wurde hell."""
     import kickoff_loop as KL
     import kickoff_loop_video as V
     import kickoff_loop_digital as KD
@@ -456,11 +460,13 @@ def orbit_star(cfg, dt, jump=0.0):
     s = float(np.sum((speed[1:] + speed[:-1]) / 2 * np.diff(x)) * b)       # Trapez: Weg = Integral des Tempos
     X, Z = P + vel / v * s
     if Z <= KL.BEHIND_Z:
-        return dict(star=None, dolls=0.0, loop=False)
+        return dict(star=None, ghost=None, dolls=0.0, loop=False)
     cx, cy, R = px(*KL._project(sp, X, Z))
     clear = KL.STAR_CLEAR * R
-    gone = R < cell or cx + clear < 0 or cx - clear > W or cy + clear < 0 or cy - clear > H
-    return dict(star=None if gone else (cx, cy, R, rot), dolls=0.0, loop=False)
+    out = cx + clear < 0 or cx - clear > W or cy + clear < 0 or cy - clear > H
+    if R < cell or out:
+        return dict(star=None, ghost=(cx, cy, R if out else GONE_R_PX, rot), dolls=0.0, loop=False)
+    return dict(star=(cx, cy, R, rot), dolls=0.0, loop=False)
 
 
 def orbit_poster(cfg, dt):
@@ -485,10 +491,9 @@ def orbit_state(cfg, dt, jump=0.0):
     b = beat(cfg)
     card = card_state(cfg, dt) if e["card_on"] else None
     card = card if card and (card["parts"] or card["dim"] > 0) else None
-    t_star = dt
-    if card and card["dim"] >= 1:
-        first = min(mv[1] for mv in e["card_moves"])
-        t_star = min(dt, (first + e["card_in_beats"]) * b)
+    t_star = dt                               # steht die Karte (erster Einsatz fertig), steht der Stern bzw. sein Grund:
+    if e["card_on"]:                          # gleiche Bilder rendern nur einmal
+        t_star = min(dt, (min(mv[1] for mv in e["card_moves"]) + e["card_in_beats"]) * b)
     os_ = orbit_star(cfg, t_star, jump)
     idx = orbit_poster(cfg, dt)
     st = KL.poster_style(cfg, idx)
@@ -496,8 +501,9 @@ def orbit_state(cfg, dt, jump=0.0):
     if not os_["loop"] and e["orbit_path"] == "zoom":                      # Kamera taucht in die Matrjoschka
         st.update(S=KL.S_CODES["S33"], spark_fn=KD.zoom_spark,
                   fx_behind_title="S33" in cfg["type"].get("effects_behind_title", []))
-    if star is None:                                                       # weg: S2 weit draussen (Labor-Stile messen am Stern)
-        star, st["S"], st["spark_fn"] = (-3.0 * W, -3.0 * H, 1.0, 0.0), KL.S_CODES["S2"], K.spark
+    if star is None:                          # weg: S2 (Labor-Stile messen am Stern, manche fuellen die Seite), unsichtbar
+        star = os_.get("ghost") or (-3.0 * W, -3.0 * H, 1.0, 0.0)          # dort, wo er waere (Grund), sonst weit draussen
+        st["S"], st["spark_fn"] = KL.S_CODES["S2"], K.spark
     tout = min(max((dt - e["orbit_type_out_at_beats"] * b) / (e["orbit_type_out_beats"] * b), 0.0), 1.0)
     dg = dict(u=0.0, offset=(ox, oy), star=star, show=None)
     if not os_["loop"] or tout > 0 or card:                                # sonst exakt das Plakat-Dict (bitgleich)
@@ -789,6 +795,7 @@ def orbit_selftest(cfg):
             st = orbit_state(cfg, k / fps, jump)
             dg = st["loop"]["digital"]
             st.update(S=KL.S_CODES["S2"], P=P0, spark_fn=K.spark, type_fn=KL.type_layers)
+            st.pop("ground", None)                                         # Grund um den Stern (V3) aendert sonst alles
             on = {**st, "loop": {**st["loop"], "digital": dict(u=0.0, offset=dg["offset"], star=dg["star"], show=None)}}
             off = {**st, "loop": {**st["loop"], "digital": dict(u=0.0, offset=dg["offset"], star=(-3.0 * W, -3.0 * H, 1.0, 0.0),
                                                                 show=None)}}
