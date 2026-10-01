@@ -3,15 +3,12 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy", "scipy"]
 # ///
-"""Musik des Kick-off-Loops, M2: nur IGOR, mit seinen eigenen Drums, und der Drop springt in den B-Teil mit Gesang.
+"""Musik des Kick-off-Loops, M2: reiner IGOR-Zusammenschnitt. Brummen → IGORs Drums → DROP = Sprung in den B-Teil.
 
-Vadim 2.10. zu M1 (synthetische 808, 32tel-Hats): "zu ernst, zu trocken, harter Techno, kein Spass". M2 nimmt IGORs Drums
-(Songzeit ab in_s, igor_beats.json) und legt Menschliches drueber: eine Klatsch-Menge, die waehrend des Aufbaus waechst
-(Leute kommen dazu), Tamburin mit Swing, eine Marimba-Hook in IGORs Stimmung (D + tune_cents), Hall. Ablauf:
-
-  Brummen (Intro) → IGORs Drums (je Variante: hinter der Wand / pur / mit IGORs eigenem Stopp) → Spannung (Stutter auf
-  Triolen, Riser) → Stillstand mit Marimba-Lauf → DROP = Sprung auf einen Downbeat im B-Teil (~46-49 s, Tyler singt)
-  → das Original laeuft unter der Endkarte, Claps/Tamburin/Hook nur dort, wo Tyler gerade nicht singt (gemessen).
+Vadim 2.10.: M1 (synthetische 808, 32tel-Hats) "zu ernst, zu trocken, harter Techno". M2 nimmt nur IGOR: das Brummen
+aus dem Intro, seine Drums ab in_s (igor_beats.json), und auf dem Drop springt der Song auf einen Downbeat im B-Teil
+(~46-49 s), wo Tyler singt; das Original laeuft unter der Endkarte weiter. Alle Schnitte liegen auf IGORs Taktstrichen.
+Eigene Overlays (Klatschen, Tamburin, Marimba) sind raus (Vadim: "erst den IGOR-Zusammenschnitt raw", Entwurf in 6b0d667).
 
   uv run src/kickoff_loop_music.py [toml]   (Standard kickoff_loop/previz/review/M2a.toml, Abschnitt [mashup])
   → kickoff_loop/ref/audio/mashup_M2{a,b,c}.wav + .json (Raster fuers Video), boil_test.wav
@@ -37,15 +34,12 @@ AUDIO = os.path.join(PROJECT, "ref", "audio")
 OUT = os.path.join(PROJECT, "previz", "music")
 SR = A.SR                                 # 48 kHz wie igor_beats.json (Songzeit = Sample-Index / 48000)
 PEAK = 0.89                               # -1 dBFS: Spitzenpegel der WAV
-D1_HZ = 36.7081                           # D1 bei A4 = 440 Hz
 HEAR_LUFS = -14                           # Hoerversionen: Reel/Story-Norm
 TRUE_PEAK_MAX = -1.0                      # dBTP-Grenze der Hoerversion (Streaming-Norm)
 LIMIT = 0.79                              # Hoerversion: Limiter-Decke -2 dBFS, AAC legt ~1 dB Ueberschwinger drauf (Befund M1a)
-VOCAL_HZ = (300, 3400)                    # Band, in dem Tylers Stimme liegt (Gate fuer eigene Elemente nach dem Drop)
 HAT_HZ = (4000, 12000)                    # Band fuer die Raster-Messung am Sprung (Hats: scharfe Anschlaege)
 ONSET_HOP = 48                            # 1 ms Aufloesung der Onset-Huellkurve
-SEED = 2                                  # Zufall (Rauschen, menschliche Streuung), reproduzierbar
-MIDI_D1 = 26
+SEED = 2                                  # Zufall der Boil-Ticks, reproduzierbar
 
 
 # ---------------------------------------------------------------- Konfiguration
@@ -55,7 +49,7 @@ def load(path):
     with open(path, "rb") as f:
         cfg = tomllib.load(f)
     mx = cfg.get("mashup", {})
-    for k in ("variants", "tune_cents", "end_bars", "hook", "swing_frac", "clap_people"):
+    for k in ("variants", "end_bars", "fade_out_beats", "fade_cut_s"):
         assert k in mx, f"{path}: [mashup].{k} fehlt (M2-Format, siehe previz/review/M2a.toml)"
     grid = json.load(open(os.path.join(AUDIO, "igor_beats.json")))
     burst = cfg["endcard"]["burst_beats"]
@@ -65,9 +59,10 @@ def load(path):
         bars = sum(b for _, b, _ in mx[f"{v}_segments"])
         assert sum(b for _, b in mx[f"{v}_carousel"]) == bars, \
             f"[mashup].{v}_carousel: Summe der Takte muss {bars} sein (= Takte der Segmente, Drop am Ende)"
-        assert mx[f"{v}_stop_beats"] >= burst, f"[mashup].{v}_stop_beats < [endcard].burst_beats ({burst})"
+        stop = mx[f"{v}_stop_beats"]
+        assert stop == 0 or stop >= burst, f"[mashup].{v}_stop_beats: 0 (kein Stillstand) oder >= burst_beats ({burst})"
         for sb, b, fx in mx[f"{v}_segments"]:
-            assert fx in ("raw", "wall", "build"), f"[mashup].{v}_segments: fx {fx!r} (raw | wall | build)"
+            assert fx in ("raw", "wall", "stutter"), f"[mashup].{v}_segments: fx {fx!r} (raw | wall | stutter)"
             assert grid["in_s"] + sb * grid["bar_s"] >= 0, f"[mashup].{v}_segments: Takt {sb} liegt vor Songanfang"
         land = grid["in_s"] + mx[f"{v}_land_bar"] * grid["bar_s"]
         assert 40 < land < 60, f"[mashup].{v}_land_bar: Sprung auf {land:.2f} s, gewuenscht ~48 s (B-Teil)"
@@ -124,72 +119,11 @@ def put(buf, t, s, g=1.0, pan=0.0):
     buf[i:i + len(s), 1] += s * np.sqrt(1 + pan)
 
 
-def hz(midi, cents):
-    return D1_HZ * 2 ** ((midi - MIDI_D1) / 12 + cents / 1200)
-
-
-def marimba(f, vel=1.0):
-    """Marimba: Grundton + die zwei typischen Obertoene (4x, ~10x) mit kurzen Abklingzeiten, Schlegel-Klick."""
-    sec = 1.2
-    t = np.arange(n(sec)) / SR
-    dec = 0.55 * (440 / f) ** 0.4
-    x = (np.sin(2 * np.pi * f * t) * np.exp(-t / dec)
-         + 0.25 * np.sin(2 * np.pi * f * 3.93 * t) * np.exp(-t / (dec / 4))
-         + 0.06 * np.sin(2 * np.pi * f * 9.2 * t) * np.exp(-t / (dec / 12)))
-    x += A.bp(A.noise(sec), 1500, 5000) * np.exp(-t / 0.003) * 0.15
-    return x * np.minimum(t / 0.001, 1) * vel
-
-
-def clapper(rng):
-    """Eine Person klatscht: eigenes Band (Handgroesse), 1-2 Vorschlaege, kurzer Ausklang."""
-    c = rng.uniform(700, 2400)
-    x = np.zeros(n(0.25))
-    for k, dt in enumerate([0, rng.uniform(0.006, 0.012)][:rng.integers(1, 3)]):
-        seg = A.bp(A.noise(0.25), c * 0.6, c * 1.6) * A.env(0.25, 0.0005, 0.01 if k == 0 else rng.uniform(0.02, 0.05))
-        x[n(dt):] += seg[:len(x) - n(dt)]
-    return x / np.abs(x).max()
-
-
-def tambourine(rng):
-    t = np.arange(n(0.2)) / SR
-    x = np.zeros(len(t))
-    for dt in rng.uniform(0, 0.012, 4):                       # Schellen schlagen leicht versetzt an
-        x[n(dt):] += (A.hp(A.noise(0.2), 6500, 4) * np.exp(-t / 0.04))[:len(x) - n(dt)]
-    return x / np.abs(x).max()
-
-
-def riser(sec):
-    """Rausch-Riser: Tiefpass faehrt von 300 Hz auf 6 kHz, Pegel steigt quadratisch."""
-    x = A.sweep_lp(A.noise(sec), lambda s: 300 * (6000 / 300) ** (s / sec))
-    t = np.arange(len(x)) / SR
-    x = A.hp(x, 200) * (t / sec) ** 2
-    return x / (np.abs(x).max() + 1e-9)
-
-
-def swung(six_idx, six_s, swing):
-    """16tel-Index → Zeit mit Swing: jede zweite 16tel um swing * 16tel spaeter."""
-    return six_idx * six_s + (six_idx % 2) * swing * six_s
-
-
-# ---------------------------------------------------------------- Song
-
-def vocal_gate(song, t_song, sec, thr_db):
-    """True, wenn Tyler im Fenster [t_song, +sec] leise ist (Band 300-3400 Hz unter thr_db dBFS RMS)."""
-    seg = song[n(t_song):n(t_song + sec)].mean(1)
-    if len(seg) < 64:
-        return False
-    v = A.bp(seg, *VOCAL_HZ)
-    return 20 * np.log10(np.sqrt((v ** 2).mean()) + 1e-9) < thr_db
-
-
 def build(cfg, grid, song, v):
     """Eine Variante: (Audio, Raster-Dict, Befund-Dict). Zeiten ab Videoanfang in Sekunden."""
     mx = cfg["mashup"]
-    rng = np.random.default_rng(SEED)
-    A.rng = rng
     bar, beat = grid["bar_s"], grid["beat_s"]
     six = bar / 16
-    cents = mx["tune_cents"]
     segs = mx[f"{v}_segments"]
     impact = sum(b for _, b, _ in segs) * bar
     stop = mx[f"{v}_stop_beats"] * beat
@@ -197,7 +131,6 @@ def build(cfg, grid, song, v):
     end = impact + mx["end_bars"] * bar
     land = grid["in_s"] + mx[f"{v}_land_bar"] * grid["bar_s"]
     x = np.zeros((n(end), 2))
-    fx_buf = np.zeros((n(end), 2))                             # eigene Elemente (bekommen Hall)
     song_map, hits = [], []
     # ---- vor dem Drop: Song-Segmente auf dem Raster aneinander, je mit Effekt
     t = 0.0
@@ -207,16 +140,14 @@ def build(cfg, grid, song, v):
         if fx == "wall":                                       # Party nebenan: Tiefpass oeffnet sich ueber das Segment
             lo, hi = mx["wall_lp_hz"]
             seg = np.stack([A.sweep_lp(seg[:, c], lambda s: lo * (hi / lo) ** ((s / (b * bar)) ** 2)) for c in range(2)], 1)
-        if fx == "build":                                      # Spannung: Stutter auf Triolen in der 2. Haelfte, Riser
-            for k, (per, from_beat) in enumerate(((24, 2), (48, 3))):   # 16tel-Triolen ab Beat 3, 32tel-Triolen ab Beat 4
+        if fx == "stutter":                                    # IGORs letzter Beat zerhackt: 16tel-, dann 32tel-Triolen
+            for per, from_beat in ((24, 2), (48, 3)):
                 step = bar / per
                 a = n((b - 1) * bar + from_beat * beat)
                 z = n((b - 1) * bar + (from_beat + 1) * beat)
                 sl = declick(seg[a:a + n(step)], 0.002)
                 for i in range(a, z, n(step)):
-                    seg[i:i + len(sl)] = sl[:len(seg[i:i + len(sl)])] * (0.8 + 0.2 * k)
-            r = np.resize(riser(b * bar), len(seg))
-            seg += np.stack([r, r], 1) * mx["riser_gain"]
+                    seg[i:i + len(sl)] = sl[:len(seg[i:i + len(sl)])]
         seg = declick(seg, mx["fade_cut_s"]) * 10 ** (mx["pre_db"] / 20)
         x[n(t):n(t) + len(seg)] += seg
         song_map.append(dict(video_s=round(t, 4), song_s=round(s0, 4), bars=b, fx=fx))
@@ -224,73 +155,15 @@ def build(cfg, grid, song, v):
             if sb * bar <= h < (sb + b) * bar and t + h - sb * bar < impact - stop:
                 hits.append(round(t + h - sb * bar, 4))
         t += b * bar
-    # Stillstand: alles weg, nur der Hall der eigenen Elemente, dazu ein Marimba-Lauf auf 32tel-Triolen in den Drop
-    x[n(impact - stop):n(impact)] = 0
-    x[:n(impact - stop)] = declick(x[:n(impact - stop)], mx["fade_cut_s"], start=False)
-    run = mx["run"]
-    step = bar / 48
-    for k, m in enumerate(run):
-        put(fx_buf, impact - (len(run) - k) * step, marimba(hz(m, cents), 0.5 + 0.5 * k / len(run)), mx["hook_gain"],
-            pan=0.5 * np.sin(k))
-    # ---- Klatsch-Menge: waechst von clap_people[0] auf [1] Personen bis zum Stillstand, auf 2 und 4, menschlich gestreut
-    start_bar = mx[f"{v}_claps_from_bar"]
-    people = [clapper(rng) for _ in range(mx["clap_people"][1])]
-    pans = rng.uniform(-0.7, 0.7, len(people))
-    claps_until = impact - stop
-    for bi in range(start_bar, int(round(impact / bar))):
-        for bt in (1, 3):
-            tc = bi * bar + bt * beat
-            if tc >= claps_until:
-                continue
-            frac = (tc - start_bar * bar) / max(claps_until - start_bar * bar, 1e-6)
-            cnt = int(round(mx["clap_people"][0] + frac * (mx["clap_people"][1] - mx["clap_people"][0])))
-            for p in range(cnt):
-                put(fx_buf, tc + rng.normal(0, mx["human_ms"] / 1000), people[p],
-                    mx["clap_gain"] / np.sqrt(cnt) * rng.uniform(0.7, 1.0), pans[p])
-    # ---- Hook im Aufbau (ab hook_from_bar, Marimba, Swing), nach dem Drop nur in Tylers Pausen
-    hook_from = mx[f"{v}_hook_from_bar"]
-    gated, played = 0, 0                                       # Hook-Toene unter Tyler: geprueft / gespielt
-    for bi in range(hook_from, int(round(end / bar)), 2):         # Hook = 2 Takte in 16teln
-        for s16, m, vel in mx["hook"]:
-            tn = bi * bar + swung(s16, six, mx["swing_frac"]) + rng.normal(0, mx["human_ms"] / 1000)
-            if impact - stop <= tn < impact or tn >= end - beat:
-                continue
-            g = vel * rng.uniform(0.85, 1.0)
-            if tn >= impact:                                   # unter Tyler: nur wenn er gerade nicht singt
-                gated += 1
-                if not vocal_gate(song, land + tn - impact, 0.25, mx["vocal_thr_db"]):
-                    continue
-                g *= mx["hook_after_drop"]
-                played += 1
-            put(fx_buf, tn, marimba(hz(m, cents), g), mx["hook_gain"], pan=0.25 * np.sin(m))
-    # ---- Tamburin: 8tel mit Swing ab dem Hook, nach dem Drop weiter (hoch, liegt ueber Tylers Stimme)
-    tamb = [tambourine(rng) for _ in range(4)]
-    for k in range(int(hook_from * 8), int(end / (bar / 8))):
-        tt = swung(2 * k, six, mx["swing_frac"]) + rng.normal(0, mx["human_ms"] / 1000)
-        if impact - stop <= tt < impact or tt >= end - beat:
-            continue
-        put(fx_buf, tt, tamb[k % 4], mx["tamb_gain"] * (1.0 if k % 2 else 0.55) * rng.uniform(0.8, 1), pan=0.4)
-    # ---- Drop: Sprung in den B-Teil, Original laeuft; Claps auf 2 und 4, Crash + Marimba-Akkord auf der Eins
-    drop = song[n(land):n(land) + n(end) - n(impact)]
+    if stop:                                                   # Stillstand: Stille bis zum Drop
+        x[n(impact - stop):n(impact)] = 0
+        x[:n(impact - stop)] = declick(x[:n(impact - stop)], mx["fade_cut_s"], start=False)
+    # Drop: Sprung in den B-Teil, das Original laeuft unter der Endkarte, letzter Beat blendet aus
+    drop = declick(song[n(land):n(land) + n(end) - n(impact)], mx["fade_cut_s"], end=False)
     fo = n(mx["fade_out_beats"] * beat)
-    drop = declick(drop, mx["fade_cut_s"], end=False)
     drop[-fo:] *= np.linspace(1, 0, fo)[:, None]
     x[n(impact):] += drop
-    t_ = np.arange(n(2.5)) / SR
-    crash = A.hp(A.noise(2.5), 5000, 2) * np.exp(-t_ / 0.8)
-    put(fx_buf, impact, crash, mx["crash_gain"])
-    for m in mx["drop_chord"]:
-        put(fx_buf, impact, marimba(hz(m, cents)), mx["hook_gain"] * 0.8, pan=0.3 * np.sin(m))
-    for bi in range(mx["end_bars"]):
-        for bt in (1, 3):
-            tc = impact + bi * bar + bt * beat
-            if tc < end - beat:
-                for p in range(mx["clap_people"][1]):
-                    put(fx_buf, tc + rng.normal(0, mx["human_ms"] / 1000), people[p],
-                        mx["clap_gain"] * mx["claps_after_drop"] / np.sqrt(mx["clap_people"][1]), pans[p])
     hits.append(round(impact, 4))
-    wet = A.reverb(fx_buf, mx["reverb_s"])
-    x += (fx_buf + mx["reverb_wet"] * wet) * 10 ** (mx["fx_db"] / 20)
     x *= PEAK / np.abs(x).max()
     carousel = mx[f"{v}_carousel"]
     changes, tc = [], 0.0
@@ -308,9 +181,9 @@ def build(cfg, grid, song, v):
                 jump_song_s=round(land, 5), song_map=song_map + [dict(video_s=round(impact, 4), song_s=round(land, 4),
                                                                       bars=mx["end_bars"], fx="drop")],
                 explain="Zeiten ab Videoanfang. drop_s = impact_s = Sprung in den B-Teil (jump_song_s, Songzeit). "
-                        "stop_s = Stillstand beginnt (Musik weg, Marimba-Lauf), burst_s = Ausbruch. hits_s: IGORs "
+                        "stop_s = Stillstand beginnt (= impact_s, wenn keiner), burst_s = Ausbruch. hits_s: IGORs "
                         "Drum-Hits im Video + Drop. song_map: welches Stueck Song wo im Video liegt.")
-    return x, info, dict(hook_played=played, hook_gated=gated)
+    return x, info
 
 
 # ---------------------------------------------------------------- Pruefungen + Ausgabe
@@ -329,6 +202,22 @@ def grid_phase(song, a, b, in_s, six):
     offs = np.arange(-int(six * 500), int(six * 500)) / 1000
     score = [flux[np.clip(((grid + o - a) * fr).astype(int), 0, len(flux) - 1)].sum() for o in offs]
     return 1000 * float(offs[int(np.argmax(score))])
+
+
+def cuts(x, info):
+    """Befund an den Schnitten: groesster Sample-Sprung +-2 ms um jede Schnittkante gegen den 99.9-%-Wert des ganzen
+    Stuecks (> 1 = Knack-Verdacht), und Pegel des letzten Beats vor dem Drop gegen den davor (IGORs Stopp = still)."""
+    jump = np.abs(np.diff(x, axis=0)).max(1)
+    typ = np.percentile(jump, 99.9)
+    at = [m["video_s"] for m in info["song_map"][1:]]
+    worst = max(jump[n(c) - n(0.002):n(c) + n(0.002)].max() / typ for c in at)
+    beat, imp = 60 / info["bpm_carousel"], info["impact_s"]
+
+    def db(a, b):
+        return 20 * np.log10(np.sqrt((x[n(a):n(b)] ** 2).mean()) + 1e-9)
+    return (f"  Schnitte {', '.join(f'{c:.2f}' for c in at)} s: max. Sample-Sprung {worst:.2f}x des 99.9-%-Werts "
+            f"({'ok, kein Knack' if worst <= 1 else 'KNACK?'}); letzter Beat vor dem Drop {db(imp - beat, imp):.1f} dBFS, "
+            f"Beat davor {db(imp - 2 * beat, imp - beat):.1f}, erster Beat danach {db(imp, imp + beat):.1f}")
 
 
 def hear(wav, x, m4a):
@@ -366,12 +255,12 @@ def main():
     mx = cfg["mashup"]
     os.makedirs(OUT, exist_ok=True)
     song = decode(os.path.join(AUDIO, "igors_theme.mp3"))
-    rep = [f"Musik M2 (IGORs Drums, Sprung in den B-Teil) · uv run src/kickoff_loop_music.py "
+    rep = [f"Musik M2 (reiner IGOR-Schnitt, Sprung in den B-Teil) · uv run src/kickoff_loop_music.py "
            f"{os.path.relpath(path, ROOT)}", "",
-           f"Eigene Toene (Marimba) auf D {mx['tune_cents']:+d} c (IGOR-Brummen gemessen D2 +48..+65 c). "
-           f"Tylers Gesang setzt nach dem B-Anfang (45.96 s) bei ~47.0 s ein (Band 300-3400 Hz +6 dB gegen davor).", ""]
+           "B-Teil beginnt 45.963 s (Song-Takt 8); Tylers Gesang setzt bei ~47.0 s ein (Band 300-3400 Hz +6 dB gegen "
+           "davor, gemessen 2.10.). Naechster Downbeat zu 48 s: 48.904 s (Takt 9), da singt er schon.", ""]
     for v in mx["variants"]:
-        x, info, st = build(cfg, grid, song, v)
+        x, info = build(cfg, grid, song, v)
         name = info["variant"]
         wav = os.path.join(AUDIO, f"mashup_{name}.wav")
         write_wav(wav, x)
@@ -382,18 +271,18 @@ def main():
         ph0 = grid_phase(song, grid["in_s"], grid["in_s"] + 4 * grid["bar_s"], grid["in_s"], grid["sixteenth_s"])
         pre = lufs(x[n(info["impact_s"] - 2 * grid["bar_s"]):n(info["stop_s"])])
         post = lufs(x[n(info["impact_s"]):n(info["impact_s"] + 2 * grid["bar_s"])])
-        segs = " | ".join(f"{s['video_s']:.2f} s: Song {s['song_s']:.2f} s x{s['bars']} {s['fx']}" for s in info["song_map"])
+        segs = " | ".join(f"{m['video_s']:.2f} s: Song {m['song_s']:.2f} s x{m['bars']} {m['fx']}" for m in info["song_map"])
         rep += [f"{name}: {info['note']}",
                 f"  Zeitachse (Video): {segs}",
-                f"  Stillstand {info['stop_s']:.2f} s, Ausbruch {info['burst_s']:.2f} s, DROP {info['drop_s']:.3f} s "
+                f"  {'Stillstand ' + format(info['stop_s'], '.2f') + ' s, ' if info['stop_s'] < info['impact_s'] else ''}"
+                f"Ausbruch {info['burst_s']:.2f} s, DROP {info['drop_s']:.3f} s "
                 f"= Sprung auf Songzeit {land:.3f} s, Ende {info['end_s']:.2f} s",
                 f"  Sprung-Phase (Kamm-Fit Hat-Band, 4 Takte): ab Songzeit {land:.2f} s {ph:+.0f} ms, IGORs Drums vor dem "
                 f"Drop (ab in_s) {ph0:+.0f} ms, Differenz {ph - ph0:+.0f} ms "
                 f"({'ok' if abs(ph - ph0) <= 20 else 'PRUEFEN'}, Grenze 20 ms ~ Raster-Streuung 19 ms)",
                 f"  Lohnt sich: 2 Takte nach dem Drop {post:.1f} LUFS gegen 2 Takte davor {pre:.1f} LUFS "
                 f"({post - pre:+.1f} LU)",
-                f"  Hook nach dem Drop: {st['hook_played']} von {st['hook_gated']} Toenen gespielt, nur in Tylers Pausen "
-                f"(Band 300-3400 Hz im Original unter {mx['vocal_thr_db']} dBFS)",
+                cuts(x, info),
                 f"  Karussell {' + '.join(f'{b}x{p}' for p, b in info['carousel_bars'])} (Takte x Wechsel) = "
                 f"{len(info['changes_s'])} Wechsel; {len(info['hits_s'])} Hits",
                 f"  WAV {lu:.1f} LUFS, True Peak {tp:.1f} dBTP, Spitze -1 dBFS statisch",

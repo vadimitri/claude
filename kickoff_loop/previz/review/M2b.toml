@@ -157,62 +157,38 @@ flash_min_delta = 0.10     # Helligkeitssprung (relative Luminanz 0..1), ab dem 
 flash_max_area_frac = 0.25 # Flaechenanteil des Bildes, ab dem blitzende Pixel als Verstoss gelten
 
 [mashup]
-# M2 (Vadim 2.10., M1 verworfen: "zu ernst, trocken, harter Techno, kein Spass"): IGORs eigene Drums, Menschliches drueber,
-# Drop = Sprung auf einen Downbeat im B-Teil, wo Tyler singt (Wunsch "~48 s"). Bauen (alle Varianten auf einmal):
-#   uv run src/kickoff_loop_music.py kickoff_loop/previz/review/M2a.toml
+# M2 (Vadim 2.10.): reiner IGOR-Zusammenschnitt, keine eigenen Toene ("Xylophon komplett raus, erst IGOR raw").
+# Brummen → IGORs Drums → DROP = Sprung auf einen Downbeat im B-Teil (Tyler singt, Wunsch "~48 s"), Original laeuft
+# unter der Endkarte. Bauen (alle Varianten auf einmal): uv run src/kickoff_loop_music.py kickoff_loop/previz/review/M2a.toml
 #   → ref/audio/mashup_M2{a,b,c}.wav/.json, boil_test.wav, previz/music/*.m4a + report.txt
-# Takte = IGORs Takt (2.941 s, 81.606 BPM). Song-Takt 0 = in_s 22.435 s (IGORs Drum-Loop-Start), 8 = B-Teil 45.963 s.
+# Takte = IGORs Takt (2.941 s, 81.606 BPM). Song-Takt 0 = in_s 22.435 s (Drum-Loop-Start), 6 = Takt mit IGORs eigenem
+# Stopp (letzter Beat still), 7 = Hit nach dem Stopp, 8 = B-Teil 45.963 s (Tyler ab ~47.0 s), 9 = 48.904 s.
 variants = ["a", "b", "c"]
-tune_cents = 55                # Marimba ueber D: IGOR-Brummen gemessen D2 +48..+65 c
-end_bars = 4                   # nach dem Drop laeuft so viele Takte das Original (Endkarte), letzter Beat blendet aus
+end_bars = 4                   # nach dem Drop laeuft so viele Takte das Original (Endkarte)
 fade_out_beats = 1.0           # Ausblende am Ende (Beats), das Video endet auf dem Taktstrich
-fade_cut_s = 0.005             # Entknacken an jeder Schnittkante
-pre_db = -3.0                  # Song vor dem Drop so viel leiser als das Original: der Drop springt um so mehr auf
-wall_lp_hz = [250, 9000]       # "wall": Tiefpass auf IGORs Drums, zu → offen ueber das Segment (Party hinter der Wand)
-riser_gain = 0.25              # Rausch-Riser im "build"-Takt (Stutter auf 16tel-, dann 32tel-Triolen)
-swing_frac = 0.18              # Swing: jede 2. 16tel so viel einer 16tel spaeter (0 = gerade, 0.33 = Triolen-Shuffle)
-human_ms = 7                   # menschliche Streuung (Standardabweichung) jedes eigenen Anschlags
-clap_people = [1, 10]          # Klatsch-Menge waechst von 1 auf 10 Personen bis zum Stillstand (Leute kommen dazu)
-clap_gain = 0.45
-claps_after_drop = 0.55        # nach dem Drop leiser (Tyler)
-hook_gain = 0.22               # Marimba
-hook_after_drop = 0.6          # Hook unter Tyler leiser und nur in seinen Pausen:
-vocal_thr_db = -19.0           # Pause = Band 300-3400 Hz im Original unter so viel dBFS RMS (gemessen: Gesang -15..-18)
-tamb_gain = 0.10               # Tamburin auf 8teln mit Swing, Offbeat betont
-crash_gain = 0.22              # Becken auf dem Drop
-reverb_s = 1.8                 # Hall auf allen eigenen Elementen (Raum statt trocken)
-reverb_wet = 0.4
-fx_db = 0.0                    # eigene Elemente gesamt gegen den Song
-# Hook: 2 Takte in 16teln [16tel, MIDI, Lautstaerke], D-Moll-pentatonisch (D F G A C), D5 = 74
-hook = [[0, 74, 1.0], [3, 77, 0.7], [6, 79, 0.8], [8, 81, 0.9], [10, 79, 0.6], [11, 77, 0.6], [14, 74, 0.8],
-        [16, 72, 0.9], [19, 74, 0.7], [22, 77, 0.8], [24, 81, 1.0], [26, 84, 0.8], [28, 81, 0.7], [30, 79, 0.6]]
-run = [62, 65, 67, 69, 72, 74, 77, 79, 81, 84, 86]   # Marimba-Lauf im Stillstand auf 32tel-Triolen, endet im Drop
-drop_chord = [62, 69, 74, 77, 81]                    # Marimba-Akkord (Dm) auf der Drop-Eins
-# Varianten: segments = [Song-Takt, Takte, fx], fx raw | wall | build. carousel = [Wechsel pro Takt, Takte], Summe = Takte
-# a "Party nebenan": IGORs Drums hinter der Wand, Wand faellt langsam, Menge klatscht sich ein → Stillstand → B-Teil
-a_note = "Party nebenan: Brummen, IGORs Drums hinter der Wand (Tiefpass oeffnet), Menge waechst, Stutter, Stillstand, Sprung"
-a_segments = [[-2, 2, "raw"], [0, 4, "wall"], [3, 1, "build"]]
-a_carousel = [[16, 2], [48, 5]]
-a_land_bar = 8                 # Sprung auf Song-Takt 8 = 45.963 s: B-Anfang, Tyler setzt ~1 s spaeter ein
-a_stop_beats = 1.0             # Stillstand vor dem Drop (Beats), >= [endcard].burst_beats
-a_claps_from_bar = 2           # Video-Takt, ab dem geklatscht wird
-a_hook_from_bar = 4            # Video-Takt, ab dem die Marimba-Hook spielt
-# b "IGOR pur": Drums sofort offen, Hook frueh, IGORs eigener Stopp-Takt (Song-Takt 6) als Spannung, kurze Luft
-b_note = "IGOR pur: 1 Takt Brummen, IGORs Drums offen mit Hook und Menge, IGORs Stopp-Takt mit Stutter, Sprung"
-b_segments = [[-1, 1, "raw"], [0, 4, "raw"], [6, 1, "build"]]
+fade_cut_s = 0.005             # Entknacken an jeder Schnittkante (5 ms, keine hoerbare Blende)
+pre_db = 0.0                   # Song vor dem Drop so viel leiser (0 = Original-Pegel; der B-Teil ist ohnehin lauter)
+wall_lp_hz = [250, 9000]       # nur fuer fx "wall": Tiefpass zu → offen ueber das Segment (heute nicht benutzt)
+# Varianten: segments = [Song-Takt, Takte, fx], fx raw | wall | stutter (letzter Beat auf Triolen zerhackt).
+# carousel = [Plakatwechsel pro Takt, Takte], Summe = Takte der Segmente (Drop am Ende). stop_beats: Stille vor dem Drop
+# a: Brummen, ein Durchlauf IGOR-Drums, harter Schnitt auf den B-Anfang
+a_note = "2 Takte Brummen, 4 Takte IGOR-Drums (Loop 1), Schnitt auf B-Anfang"
+a_segments = [[-2, 2, "raw"], [0, 4, "raw"]]
+a_carousel = [[16, 2], [48, 4]]
+a_land_bar = 8                 # Sprung auf Song-Takt 8 = 45.963 s (B-Anfang, Tyler ~1 s spaeter)
+a_stop_beats = 0
+# b: wie a, aber davor IGORs eigener Stopp-Takt: der letzte Beat ist im Original still, der Drop kommt aus der Stille
+b_note = "1 Takt Brummen, 4 Takte IGOR-Drums, IGORs Stopp-Takt, Schnitt auf B-Anfang"
+b_segments = [[-1, 1, "raw"], [0, 4, "raw"], [6, 1, "raw"]]
 b_carousel = [[16, 1], [48, 5]]
 b_land_bar = 8
-b_stop_beats = 0.5
-b_claps_from_bar = 1
-b_hook_from_bar = 2
-# c = a, aber Sprung auf den naechsten Downbeat zu 48 s (Song-Takt 9 = 48.904 s, Tyler mitten in der Zeile)
-c_note = "wie a, Sprung auf den Downbeat naechst 48 s (Song-Takt 9, mitten in Tylers Zeile)"
-c_segments = [[-2, 2, "raw"], [0, 4, "wall"], [3, 1, "build"]]
-c_carousel = [[16, 2], [48, 5]]
+b_stop_beats = 0
+# c: wie b, Sprung auf den Downbeat naechst 48 s (Takt 9, Tyler mitten in der Zeile)
+c_note = "wie b, Schnitt auf 48.904 s (Downbeat naechst 48 s)"
+c_segments = [[-1, 1, "raw"], [0, 4, "raw"], [6, 1, "raw"]]
+c_carousel = [[16, 1], [48, 5]]
 c_land_bar = 9
-c_stop_beats = 1.0
-c_claps_from_bar = 2
-c_hook_from_bar = 4
+c_stop_beats = 0
 boil_s = 4.0                   # Boil-Test: so viele Sekunden Endkarte ab dem Drop (erste Variante)
 boil_fps = 24                  # Bildrate der Endkarte ([endcard].card_fps)
 boil_on = 2                    # Tick alle so viele Bilder ([endcard].boil_on): 2 = auf Zweiern = 12 Ticks/s
