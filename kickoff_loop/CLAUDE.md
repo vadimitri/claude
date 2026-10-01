@@ -28,8 +28,10 @@ Loop hinein (digital, 24 fps, dieselbe Bahn/Sterne/Farben), dann ändert der Ste
 
 **Sonst offen zur Wahl** (`previz/review/<Code>/`): Z4 v2, Z5, W1, W2 (Begriffe), G1/G2 (Poly-Glitch statt S48c), N1 (neue
 Sterne S56–S60 in Welt 2, Bögen `review/S56/`). Hauptversion `previz/v021/` (loop.toml, altes Ende).
-**Render-Tempo**: Agent `render-speed` (Worktree `.claude/worktrees/agent-a9d4dafff3d6dd2bf`) optimiert die Pipeline; Ergebnis
-gemergt oder offen, siehe Git-Log. **Platte** war voll (Rohvideo eines Agenten): keine Rohvideos schreiben, `df -h` prüfen.
+**Render-Tempo** (gemergt 74b61df, Bild bitgleich per Frame-Hash): `sheet` warm ~3.5 s, `preview` warm ~33 s / kalt ~57 s,
+`preview … --draft` ~20 s (Digitalteil auf Zweiern, Hardware-Encoder, `*_draft.mp4`, nicht zur Abnahme). Cache-Schlüssel nur
+noch aus bildbestimmenden Quellen (`test` prüft das per Trace). Neue Sterne: `S57` verworfen, `S57b` weiter; S58b/c (weicheres
+Fluchtpunkt-Licht) und S60b/c (ohne komischen Rand) beim Sterne-Agenten in Arbeit (`review/S56/rework_*.png`). **Platte** war voll (Rohvideo eines Agenten): keine Rohvideos schreiben, `df -h` prüfen.
 
 ## Stand 2.10. (Abend)
 
