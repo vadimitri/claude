@@ -1,0 +1,9 @@
+C5 · 32 Plakate = 16 Aushaenge + 16 Fotoframes · 1 Welt(en) a 32 Frames · Bahn und Stile alle 32 Frames
+Welten: ~P21/P10 → ~P19/~P13 → P20/P25 → P16/~P26 → ~P22/~P24 → ~P9/~P15 → P11/P18 → ~P14/P23 → P20/P17 → P24/P22 → ~P21/P6 → ~P25/~P26 → P15/P19 → ~P10/P23 → P13/P9 → ~P14/P16 → P17/P10 → ~P25/~P26 → P20/P9 → ~P19/~P11 → ~P23/P13 → P24/P22 → ~P21/P6 → ~P18/P16 → ~P22/P20 → ~P10/~P17 → P15/P18 → ~P19/P21 → ~P23/P13 → ~P25/~P26 → ~P16/~P24 → ~P9/~P11 → ~P21/P10
+QR lesbar: 32/32
+Lesbarkeit Titel+Datum: min 0.82, 1/32 in Stufe A  ! unter A: 01 (0.92) 02 (0.91) 03 (0.88) 04 (0.92) 05 (0.92) 06 (0.91) 07 (0.87) 08 (0.85) 09 (0.86) 10 (0.88) 11 (0.84) 12 (0.83) 13 (0.89) 14 (0.90) 15 (0.89) 16 (0.89) 17 (0.88) 18 (0.90) 19 (0.87) 20 (0.87) 21 (0.89) 22 (0.90) 23 (0.89) 24 (0.87) 25 (0.86) 26 (0.87) 27 (0.92) 28 (0.91) 29 (0.92) 30 (0.82) 31 (0.94)
+Lesbarkeit JOIN US: min 1.00 (dunkel 1.00, Papier nan)
+Lila: ok (load prueft jedes Plakat, sonst gaebe es keinen Bogen)
+Blitz, Plakat bildfuellend, 8 Plakate/s, 2 Durchgaenge: VERSTOSS · allgemein: schlimmste Sekunde bei 3.0 s 96 % der Flaeche ueber 3 Blitze/s (Grenze 25 %), max. 8 Blitze/s an einer Stelle · rot: 2 % der Flaeche (bei 3.2 s), max. 4 rote Blitze/s an einer Stelle
+Harte Weltwechsel (Helligkeit vorher → nachher, Flaeche mit Blitz-Sprung, Flaeche mit Rot-Uebergang):
+  zum Vergleich, groesster Wechsel innerhalb einer Welt: Plakat 12 > 13  0.39 → 0.10  Sprung 95 %  Rot 0 %
