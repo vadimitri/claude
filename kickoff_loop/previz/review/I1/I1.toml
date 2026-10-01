@@ -1,0 +1,13 @@
+# I1 Inseln weich (Vadim 3.10.: Grund nicht linear oben→unten, sondern Inseln): 4 grosse weiche Lichtinseln, wandern
+# ueber einen Umlauf langsam im Kreis (Loop nahtlos), ein Rest des alten Verlaufs bleibt. Nur [ground], Rest aus loop.toml.
+[ground]
+mode = "islands"     # linear = Verlauf oben→unten wie bisher | islands = Inseln (styles.ground_shape)
+islands = 4          # Anzahl Inseln
+size_frac = [0.3, 0.6]   # Radius einer Insel (Bruchteil der kurzen Plakatseite), zufaellig dazwischen
+seed = 11            # Lage der Inseln, gleich auf allen Plakaten
+drift_frac = 0.06    # Inseln fahren je Umlauf einen Kreis mit diesem Radius (kurze Seite); 0 = stehen still
+warp_frac = 0.0      # wellige Kueste (Verbiegung in kurzen Seiten), 0 = rund
+terraces = 0         # 0 = weich auslaufend | n = n harte Hoehenstufen (Hoehenkarte)
+gain = 1.6           # Hoehe der Inseln: 1 = so hell wie der alte Verlauf unten; 2 = gut eine Palettenstufe (Befund 3.10.: 2.5
+                     # hob den Grund 2 Stufen, P41 wurde flaechig Magenta, Split-Frames liefen in die zweite Colorway)
+lin_frac = 0.3       # so viel vom alten Verlauf oben→unten bleibt darunter

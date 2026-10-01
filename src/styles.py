@@ -255,11 +255,47 @@ def qr_matrix():
     return np.array(q.get_matrix(), bool)
 
 
-def background(c):
+def ground_shape(c, lin):
+    """Form des Grunds, 0..1 auf dem Zellraster. Ohne st["ground"] (alle Projekte bis 3.10.) der lineare Verlauf lin,
+    bitgleich wie bisher. Vadim 3.10.: "nicht einfach von oben nach unten ein Linear-Gradient, sondern verschiedene
+    Islands". Inseln = Metaballs (Summe von Gauss-Glocken), jede Insel faehrt ueber einen Umlauf (st["loop"]) einen
+    geschlossenen Kreis: der Loop bleibt nahtlos, die Inseln stehen nicht wie ein Standbild. Werte aus [ground]:
+      islands, size_frac [min, max] (Radius, kurze Seite), seed, drift_frac (Kreisradius der Fahrt, kurze Seite),
+      warp_frac (wellige Kueste), terraces (0 = weich, n = n harte Hoehenstufen wie eine Hoehenkarte),
+      gain (Hoehe der Inseln, 1 = so hell wie der lineare Verlauf unten), lin_frac (so viel vom alten Verlauf bleibt)."""
+    gd = c.st.get("ground")
+    if not gd or gd["mode"] == "linear":
+        return lin
+    m = min(c.W, c.H)
+    X, Y = c.cx / m, c.cy / m
+    lp = c.st.get("loop") or {}
+    t = 2 * np.pi * lp.get("i", 0) / max(lp.get("n", 1), 1)
+    rng = np.random.default_rng(gd["seed"])
+    if gd["warp_frac"]:                                     # Kueste: Koordinaten mit zwei Wellen verbiegen (feste Phase)
+        a, b = rng.uniform(0, 2 * np.pi, 2)
+        X, Y = (X + gd["warp_frac"] * np.sin(9 * Y + a + t), Y + gd["warp_frac"] * np.sin(7 * X + b - t))
+    f = np.zeros(lin.shape)
+    for _ in range(gd["islands"]):
+        x0, y0 = rng.uniform(0, c.W / m), rng.uniform(0, c.H / m)
+        r, ph = rng.uniform(*gd["size_frac"]), rng.uniform(0, 2 * np.pi)
+        x0, y0 = x0 + gd["drift_frac"] * np.cos(t + ph), y0 + gd["drift_frac"] * np.sin(t + ph)
+        f += np.exp(-((X - x0) ** 2 + (Y - y0) ** 2) / r ** 2)
+    f = np.clip(f, 0, 1)
+    if gd["terraces"]:
+        f = np.floor(f * gd["terraces"] + 0.5) / gd["terraces"]
+    return gd["lin_frac"] * lin + gd["gain"] * f
+
+
+def ground(c):
+    """Der blanke Grund ohne Stern-Schein (fuer Hintergrund-Boegen)."""
     nx, ny = (c.xx + 0.5) / c.gw, (c.yy + 0.5) / c.gh
     grad = (0.35 * nx + ny) / 1.35 if c.W > c.H else ny
     neb = gaussian_filter(np.random.default_rng(26).standard_normal((c.gh, c.gw)), 88 * c.u / c.px)
-    v = 0.025 + 0.085 * grad ** 1.3 + 0.01 * neb / neb.std()
+    return 0.025 + 0.085 * ground_shape(c, grad ** 1.3) + 0.01 * neb / neb.std()
+
+
+def background(c):
+    v = ground(c)
     cx, cy, R, rot = c.L["star"]
     d, rr = star_d(c, cx, cy, R, rot)
     return v + np.where(d > 1, 0.15 * np.exp(-(d - 1) / 0.3) + 0.16 * np.exp(-rr / R / 1.6), 0)

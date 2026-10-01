@@ -1,0 +1,12 @@
+# I4 Archipel: 14 kleine weiche Inseln ueber die ganze Seite, stehen still (kein Wandern): gleichmaessiges Muster
+# statt Verlauf. Nur [ground], Rest aus loop.toml.
+[ground]
+mode = "islands"
+islands = 14
+size_frac = [0.1, 0.24]
+seed = 3
+drift_frac = 0.0
+warp_frac = 0.0
+terraces = 0
+gain = 1.6
+lin_frac = 0.2

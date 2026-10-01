@@ -1,0 +1,12 @@
+# I3 Inseln organisch: 5 Inseln mit welliger Kueste (Koordinaten verbogen, die Wellen laufen mit dem Umlauf), 2 harte
+# Stufen: klare Landmassen wie Farbflecken. Nur [ground], Rest aus loop.toml.
+[ground]
+mode = "islands"
+islands = 5
+size_frac = [0.25, 0.55]
+seed = 5
+drift_frac = 0.04
+warp_frac = 0.07     # Kueste wellt sich
+terraces = 2
+gain = 2.0
+lin_frac = 0.0       # kein Rest des alten Verlaufs

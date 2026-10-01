@@ -1,0 +1,12 @@
+# I2 Inseln Terrassen: 6 Inseln als Hoehenkarte in 3 harten Stufen (wie Contour-Bands, jede Stufe ein eigenes Korn),
+# wandern langsam. Nur [ground], Rest aus loop.toml.
+[ground]
+mode = "islands"
+islands = 6
+size_frac = [0.22, 0.5]
+seed = 23
+drift_frac = 0.06
+warp_frac = 0.0
+terraces = 3         # 3 harte Stufen: Kuesten statt Verlauf
+gain = 2.0
+lin_frac = 0.2

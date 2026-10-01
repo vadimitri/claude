@@ -3,6 +3,27 @@
 Session-Start: diese Datei, dann `uv run src/kickoff_loop.py sheet` (zeigt den Stand in ~10 s). Stellschrauben: `loop.toml`.
 Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Befunde, Verworfenes, Archiv) und Skill `spark-motion`.
 
+## Stand 3.10. (Vadims Urteil zu N1/G1/S58/S60, Hintergrund-Inseln)
+
+- **In `loop.toml`:** N1 übernommen (Welt 2 eigene Sternfolge). **S45 raus** („öde“), **S48c → S48e** (Poly-Glitch G1;
+  G2/S48f geparkt), **S58 → S58b**, **S60 → S60d**. Die frei gewordenen S45-Plätze: W1 F20 S58b, W1 F24 S60d, W2 F20 S59
+  (Vorschlag, Vadim kann tauschen). Bögen `previz/now/`.
+- **S58b/S58c ohne Rand** (Vadim: „One-Pixel-Border an manchen Stellen“). Befund: die helle Kante `TUN_RIM` (1.5 Zellen,
+  Stufe 4.6) zerfiel im Korn zu einzelnen hellen Pixeln, dazu kippte der Schein außen Randzellen. `TUN_RIM_CELLS` je Code,
+  b/c = 0. S58 bleibt unverändert (Archiv bitgleich).
+- **S60d** = S60 ohne Pfütze (Sprühwolke) und ohne Lücke (die dunkle, versetzte Outline las sich auf dunklem Grund als
+  Grund, „wie ein Stencil“); das helle gesprühte Halo setzt direkt an der Füllung an. Lesbarkeit min 0.82 statt 0.71 (S60).
+  Vergleich `previz/review/S58b_S60d/`. S60b/c: „beschissener“, nicht gewählt.
+- **Hintergrund-Inseln I1–I4** (`previz/review/I*/`, je nur `[ground]`): `styles.ground_shape` ersetzt den linearen Verlauf
+  in `styles.background` und `lab_spark.bg` (alle Labor-Sterne). Metaballs, wandern pro Umlauf einen Kreis (Loop nahtlos).
+  I1 weich, I2 Terrassen (3 Höhenstufen), I3 organisch (wellige Küste, 2 Stufen), I4 Archipel (14 klein, steht still).
+  Ohne `[ground]` bitgleich wie vorher (Cache-Schlüssel unverändert). Blanker Grund im Vergleich:
+  `uv run src/kickoff_loop.py grounds kickoff_loop/previz/review/I{1,2,3,4}/I*.toml` → `previz/variants/grounds.png`.
+  Befund: `gain` 2.5–3 hob den Grund 2 Stufen (P41 flächig Magenta, Split-Frames liefen in die zweite Colorway) → 1.6–2.0.
+  Lesbarkeit unverändert (Mittel 0.806–0.808 gegen 0.807).
+- **Lesbarkeit min 0.38** = Plakat 43 (W2 F11, S24), stand schon in N1 so (die 0.60 unten sind veraltet).
+- **Render-Pipeline:** ein Agent prüft weitere Beschleunigung (Machbarkeit + Prototyp, eigener Branch, kein Merge).
+
 ## Übergabe → nächste Session (Stand 2.10., 20 Uhr)
 
 **Auftrag (Vadim 2.10.): neues Ende als „digitaler Loop, der anders loopt“.** Nach dem Karussell geht es noch einmal in den
@@ -26,12 +47,12 @@ Loop hinein (digital, 24 fps, dieselbe Bahn/Sterne/Farben), dann ändert der Ste
 - Nach jedem Render: Bildstreifen über die Zeit selbst ansehen (ffmpeg fps=1.5 → Bogen) + Report, **bevor** Vadim es sieht
   (Z4 v1 war kaputt und ging ungeprüft raus).
 
-**Sonst offen zur Wahl** (`previz/review/<Code>/`): Z4 v2, Z5, W1, W2 (Begriffe), G1/G2 (Poly-Glitch statt S48c), N1 (neue
-Sterne S56–S60 in Welt 2, Bögen `review/S56/`). Hauptversion `previz/v021/` (loop.toml, altes Ende).
+**Sonst offen zur Wahl** (`previz/review/<Code>/`): Z4 v2, Z5, W1, W2 (Begriffe), I1–I4 (Hintergrund-Inseln).
+G1/N1 sind seit 3.10. in `loop.toml` (archiviert). Hauptversion `previz/v021/` (loop.toml, altes Ende).
 **Render-Tempo** (gemergt 74b61df, Bild bitgleich per Frame-Hash): `sheet` warm ~3.5 s, `preview` warm ~33 s / kalt ~57 s,
 `preview … --draft` ~20 s (Digitalteil auf Zweiern, Hardware-Encoder, `*_draft.mp4`, nicht zur Abnahme). Cache-Schlüssel nur
 noch aus bildbestimmenden Quellen (`test` prüft das per Trace). Neue Sterne: `S57` verworfen, `S57b` weiter; Rework gemergt
-(`review/S56/rework_S58.png`, `rework_S60.png`): **S58b** schwaches Fluchtpunkt-Licht (Speedlines tragen), **S58c** breiter
+(`archiv/review/alt/S56/rework_S58.png`, `rework_S60.png`): **S58b** schwaches Fluchtpunkt-Licht (Speedlines tragen), **S58c** breiter
 Verlauf (F5 noch weicher gelber Schein), **S60b** Graffiti sauber ohne Hof/Doppelkontur (Lesbarkeit min 0.85 statt 0.71),
 **S60c** = S60b + Hauch Nebel. Noch nicht in N1 eingesetzt (N1 hat S58/S60): Vadims Wahl abwarten. **Platte** war voll (Rohvideo eines Agenten): keine Rohvideos schreiben, `df -h` prüfen.
 
@@ -180,6 +201,7 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
 |---|---|---|
 | `uv run src/kickoff_loop.py sheet [review/X/X.toml]` | Kontaktbogen + Loop-Video → `previz/now/` bzw. `previz/review/X/` (+ Report). Öffnet nichts (Vadim schaut selbst) | warm ~4 s, kalt ~15 s |
 | `uv run src/kickoff_loop.py stars [S..]` | Sterne-Bogen an 3 Bahnstellen → `previz/variants/stars.png` | ~25 s |
+| `uv run src/kickoff_loop.py grounds [review/I1/I1.toml ..]` | blanker Grund (ohne Stern/Satz) je Variante, erste Zeile loop.toml → `previz/variants/grounds.png` | ~3 s |
 | `uv run src/kickoff_loop.py test [N..]` | Selbsttest am fertigen Bild (+ Bahn, Blitz) | ~5 s |
 | `uv run --with numpy --with pillow --with scipy --with qrcode --with scikit-image --with opencv-python-headless python src/lab_spark.py test` | Selbsttest Sterne (Hand-Schraffur) | ~20 s |
 | `uv run src/kickoff_loop_resolve.py schnitt` | Resolve-Projekt `SPARK_Kickoff_Schnitt`: Timeline „Schnitt" = Loop (9:16, Wechsel auf IGORs Raster, F1 auf 22.435 s) + IGOR-Song, verknüpft, 9 Marker; „Referenz" = `resolve/schnitt/ref/*`. Erneut aufrufen = neue Medien, Timeline bleibt (Resolve verlinkt neu) | ~3 min |

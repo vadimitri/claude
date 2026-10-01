@@ -103,8 +103,9 @@ def stamp(g, acc, x0, y0, R, rot, op="xor", val=True):
 
 
 def bg(g, lo=0.02, hi=0.07):
+    """Grund der Labor-Sterne: linearer Verlauf, auf Plakaten mit [ground] Inseln (styles.ground_shape)."""
     nx, ny = g.X / g.A, g.Y / g.B
-    return lo + hi * ((0.35 * nx + ny) / 1.35 if not g.tall else ny)
+    return lo + hi * styles.ground_shape(g.c, (0.35 * nx + ny) / 1.35 if not g.tall else ny)
 
 
 def title(g, dx=0.0, dy=0.0):
@@ -2302,7 +2303,9 @@ TUN_BASE = (3.3, 1.5)        # Grund des Tunnels: Stufe am Fluchtpunkt .. am Ste
 TUN_BASE_REACH = 1.3         # ... erreicht am Rand nach so vielen Sternradien vom Fluchtpunkt
 TUN_DOT_CELLS = 4.0          # Ben-Day-Raster im Grund (fest auf der Seite), Punkte eine Stufe tiefer
 TUN_DOT_MAX = 0.5            # Flaechendeckung am Sternrand (am Fluchtpunkt 0)
-TUN_RIM_CELLS = 1.5          # helle Kante: der Stern ist ein Fenster in den Tunnel
+TUN_RIM_CELLS = {"S58": 1.5, "S58b": 0, "S58c": 0}   # helle Kante: der Stern ist ein Fenster in den Tunnel. Vadim 3.10.
+                             # zu S58b/c: "keinen Rand, so eine One-Pixel-Border an manchen Stellen" (Befund: 1.5 Zellen
+                             # in Stufe 4.6 zerfallen im Korn zu einzelnen hellen Pixeln entlang der Kante) -> 0 = keine Kante
 TUN_RIM_LEVEL = 4.6
 
 # S59 Impact (Still 03, ITSV "KRACK", marilajane): Farbspritzer und eine gemalte Schlaufe um den Stern, die Kontur mehrmals
@@ -2365,6 +2368,11 @@ GRF_CLEAN_OUTLINE_CELLS = 4.0   # breiter als S60: Stufe 2 auf dunklem Grund ist
 GRF_CLEAN_GLINT_CELLS = (8, 14)  # Glanzstern groesser als in S60 (dort kaum zu sehen)
 GRF_SHINE_DOTS = 3           # Glanzpunkte (1-2 Zellen) neben dem Glanzstern
 GRF_HAZE = (0.8, 0.35)       # S60c: Nebel nur aussen an der Outline, (Abfall in Zellen, Dichte an der Kante)
+# Vadim 3.10.: "doch S60 nehmen, aber das gespruehte Halo soll keinen Abstand zum Spark haben, da ist eine Luecke wie bei
+# einem Stencil, und die Pfuetze hinter dem Spark entfernen". Befund: die Luecke ist die dunkle, versetzte Outline zwischen
+# Fuellung und heller Outline (auf dunklem Grund liest sie sich als Grund), die Pfuetze ist die Spruehwolke. S60d = S60
+# ohne beides: die helle Outline (Halo) setzt direkt an der Fuellung an, unversetzt (versetzt blieb an einer Seite 1 Zelle frei).
+GRF_HALO_CELLS = GRF_BACK_CELLS  # S60d: Breite des Halos ab der Fuellkante, so breit wie die helle Outline von S60
 
 
 def _grain(level, L, N):
@@ -2622,8 +2630,9 @@ def c_tunnel(g, code="S58"):
     else:
         core = np.clip(1 - rr / reach, 0, 1) ** TUN_SOFT_POW
     v = np.maximum(v, core * peak / N)                          # Licht im Fluchtpunkt, im Korn (peak nie genau eine Stufe)
-    rim = d >= 1 - TUN_RIM_CELLS * c / R
-    v = np.where(inside, np.where(rim, _dithered(TUN_RIM_LEVEL + 0.4, 0.6, N), v), bg(g) + 0.06 * glow(d, 0.3))
+    rim = d >= 1 - TUN_RIM_CELLS[code] * c / R
+    outside = bg(g) + 0.06 * glow(d, 0.3) if TUN_RIM_CELLS[code] else bg(g)   # ohne Kante auch kein Schein aussen: er
+    v = np.where(inside, np.where(rim, _dithered(TUN_RIM_LEVEL + 0.4, 0.6, N), v), outside)  # kippte Randzellen einzeln
     g.lit = inside & (v >= 0.5)
     return np.clip(v, 0, 1)
 
@@ -2745,6 +2754,8 @@ def c_graffiti(g, mode="wall"):
     keep = qfree > 0
     kc = c / R                                                   # eine Zelle in Sternprofilen (gut genug fuer Baender)
     v = bg(g).astype(np.float64)
+    if mode == "halo":
+        return _graffiti_halo(g, x0, y0, R, rot, x, y, d, rng, keep, kc, v)
     if mode != "wall":
         return _graffiti_clean(g, mode, x0, y0, R, rot, x, y, d, rng, keep, kc, v)
     # Spruehwolke hinter dem Piece: Stern-nahe Wolke mit welligem Rand
@@ -2794,6 +2805,25 @@ def _graffiti_clean(g, mode, x0, y0, R, rot, x, y, d, rng, keep, kc, v):
     v, drips = _graffiti_drips(g, v, d, R, rot, keep, fill_v)
     v = _graffiti_shine(g, v, x0, y0, R, rot, rng, keep, kc, GRF_CLEAN_GLINT_CELLS, GRF_SHINE_DOTS)
     g.lit = (body | drips) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def _graffiti_halo(g, x0, y0, R, rot, x, y, d, rng, keep, kc, v):
+    """S60d: S60 ohne Spruehwolke und ohne dunkle Outline. Fuellung mit Fade und Nebel, darum das helle gespruehte Halo
+    direkt an der Fuellkante (Abstand in Zellen ab der unversetzten Form), mit eigenem Nebel nach aussen; Laeufer, Glanz."""
+    N = g.N
+    body = d < 1
+    fill = _spray(rng, body, GRF_OVERSPRAY_CELLS, GRF_OVERSPRAY_MAX) & (keep | body)
+    up_ = np.clip(0.5 - (g.Y - y0) / (2 * R * 0.9), 0, 1)
+    fade = GRF_FILL[0] + (GRF_FILL[1] - GRF_FILL[0]) * up_ + GRF_FILL_NOISE * _star_noise(g, x, y, rot, 5, GRF_SEED + 1)
+    fill_v = np.clip(fade - 0.2, 0, N - 0.15) / N
+    v = np.where(fill, fill_v, v)
+    figure = distance_transform_edt(~body) < GRF_HALO_CELLS
+    halo = _spray(rng, figure, GRF_OVERSPRAY_CELLS, GRF_OVERSPRAY_MAX) & ~body & (keep | figure)
+    v = np.where(halo, _grain(GRF_BACK_LEVEL, 0.6, N), v)
+    v, drips = _graffiti_drips(g, v, d, R, rot, keep, fill_v)
+    v = _graffiti_shine(g, v, x0, y0, R, rot, rng, keep, kc, GRF_GLINT_CELLS, 0)
+    g.lit = (fill | drips) & (v >= 0.5)
     return np.clip(v, 0, 1)
 
 
@@ -2864,6 +2894,12 @@ def c_graffiti_clean(g):
     zweite Outline, ohne Nebel. Fuellung mit Fade, klare Outline in Stufe 2 etwas versetzt (andere Farbe als die Fuellung,
     hebt sich vom Grund ab), Laeufer, grosse Glanzsterne und Glanzpunkte."""
     return c_graffiti(g, "clean")
+
+
+def c_graffiti_halo(g):
+    """S60d Graffiti Halo (Vadim 3.10.: S60, aber Halo ohne Abstand, ohne Pfuetze): Fuellung mit Fade, das helle
+    gespruehte Halo setzt direkt an, keine dunkle Outline dazwischen, keine Spruehwolke dahinter; Laeufer, Glanz."""
+    return c_graffiti(g, "halo")
 
 
 def c_graffiti_hauch(g):
@@ -2949,6 +2985,7 @@ CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) steh
     ("S60", c_graffiti, "Graffiti", "Spraydose: Wolke, zweite Outline, Fade-Fuellung, versetzte Outline, Spruehnebel, Laeufer, Glanz."),
     ("S60b", c_graffiti_clean, "Graffiti sauber", "S60 ohne Hof: klare Outline in Stufe 2, Fade-Fuellung, Laeufer, grosse Glanzsterne + Glanzpunkte."),
     ("S60c", c_graffiti_hauch, "Graffiti Hauch", "S60b mit hauchduennem Spruehnebel aussen an der Outline."),
+    ("S60d", c_graffiti_halo, "Graffiti Halo", "S60 ohne Pfuetze und ohne dunkle Outline: das gespruehte Halo setzt direkt an der Fuellung an."),
 ]
 BY = {c[0]: c for c in CANDS}
 CMP = {"S26v1": c_xortitel_alt, "S30v1": c_versatz_alt, "S31b2": c_lichtfall_kurz}   # alte Fassungen, nur Vergleich
@@ -3039,6 +3076,17 @@ URTEIL.update({"S57": (1, "raus", "Vadim 2.10.: nur S57b kommt weiter, nicht S57
                "S58": (3, "Loop", "Vadim 2.10.: Licht im Fluchtpunkt zu stark, sieht aus wie Spotlight -> S58b/S58c."),
                "S60": (2, "Loop", "Vadim 2.10.: muss gereworked werden, komischer Rand (Hof, helle Doppelkontur) -> S60b/S60c."),
                **{c: (3, "Loop", "neu (Rework 2.10.), Vadim hat noch nicht gewaehlt.") for c in ("S58b", "S58c", "S60b", "S60c")}})
+# Vadims Urteil 3.10.: S58-Rework zufrieden (ohne 1-px-Kante); S60 doch, aber als S60d; S60b/c "beschissener"; S45 "oede";
+# Glitch: der Poly-Glitch loest S48c ab
+URTEIL.update({"S58b": (4, "Loop", "Vadim 3.10.: zufrieden, nur ohne Rand (Kante raus)."),
+               "S58c": (4, "Loop", "Vadim 3.10.: zufrieden (Rework), ohne Rand. Im Loop steht S58b."),
+               "S60": (3, "nicht gewaehlt", "Vadim 3.10.: doch S60, aber Halo ohne Luecke, ohne Pfuetze -> S60d."),
+               "S60b": (2, "nicht gewaehlt", "Vadim 3.10.: die neuen Versionen sind schlechter als S60."),
+               "S60c": (2, "nicht gewaehlt", "Vadim 3.10.: die neuen Versionen sind schlechter als S60."),
+               "S60d": (4, "Loop", "Vadim 3.10.: S60 ohne Abstand zum Halo, ohne Pfuetze."),
+               "S45": (2, "nicht gewaehlt", "Vadim 3.10.: oede, raus aus dem Loop (es gibt genug neue Sterne)."),
+               "S48c": (3, "nicht gewaehlt", "Vadim 3.10.: alter Glitch raus, ersetzt durch den Poly-Glitch S48e."),
+               "S48e": (4, "Loop", "Vadim 3.10.: ersetzt S48c.")})
 KEPT =[c for c in BY if URTEIL[c][1] != "raus"]
 
 # Kick-off-Sichtung 2026-09-25 nachts (Vadim)
@@ -3236,7 +3284,7 @@ HAND_TEST_STARS = ((-0.13, 0.65, 0.87, 0.0), (0.95, 0.61, 0.64, 225.0))  # Selbs
                              # der Bahn haengt: mit der Ellipse (1.10. abends) sind Frame 1/16 leer, der Test war blind
 
 POLY_TEST_MIN_FRAC = 0.01    # Selbsttest Poly: so viel der Seite unter dem Titelblock muss der Bruch mindestens aendern
-SV2_CODES = ("S56", "S57", "S57b", "S58", "S58b", "S58c", "S59", "S60", "S60b", "S60c")
+SV2_CODES = ("S56", "S57", "S57b", "S58", "S58b", "S58c", "S59", "S60", "S60b", "S60c", "S60d")
 SV2_TEST_STARS = ((0.22, 0.30, 0.0), (0.45, 0.12, 37.0), (-1, 0.2, 10.0))   # Selbsttest QR: Stern so weit rechts ueber der
                              # QR-Zone (Ecke + Radius x Faktor, m) mit Radius und Drehung: nah genug, dass Blasen/Spritzer/
                              # Nebel hineinreichen; Faktor -1 = Stern genau ueber der Zone (Laeufer von S60b/c fallen hinein)

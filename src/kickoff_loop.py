@@ -132,6 +132,12 @@ def load(path=CONFIG, music=None):
                                  "werden auf dem Weg grau (Grund und Tinte gleich hell). Papier in eine eigene Welt")
     assert posters(cfg) % n == 0, (f"[color]: {len(col['worlds'])} Welten x {wf} Frames = {posters(cfg)} Plakate, kein "
                                    f"Vielfaches von [loop].frames {n}: Bahn und Stile sprangen am Neustart")
+    gd = cfg.get("ground")
+    if gd:
+        need = {"mode", "islands", "size_frac", "seed", "drift_frac", "warp_frac", "terraces", "gain", "lin_frac"}
+        assert gd.get("mode") in ("linear", "islands"), "[ground].mode: linear (Verlauf oben→unten) | islands (Inseln)"
+        assert gd["mode"] == "linear" or need <= gd.keys(), f"[ground] islands braucht {sorted(need - gd.keys())}"
+        assert gd["mode"] == "linear" or 0 < gd["size_frac"][0] <= gd["size_frac"][1], "[ground].size_frac = [min, max] > 0"
     seam = slice(col["split_level"] - 1, col["split_level"]) if split else slice(0, 0)   # Naht Grund | Licht
     ok = set(col.get("lilac_ok", []))                      # von Vadim ausdruecklich freigegeben (P6 Mode 04H, 2.10.)
     free = lambda i: {q.removeprefix("~") for q in color_pos(cfg, i)[1][color_pos(cfg, i)[2]].split("/")} <= ok  # noqa: E731
@@ -452,6 +458,8 @@ def poster_style(cfg, i):
                  seed=cfg["styles"]["seed"], fx_behind_title=code in cfg["type"].get("effects_behind_title", []))
     st.update(layout=layout, type_fn=type_layers,
               loop=dict(i=i, n=count(cfg), type=cfg["type"], qr=cfg["qr"], digital=None))
+    if "ground" in cfg:                                       # Inseln statt linearem Verlauf (styles.ground_shape); ohne
+        st["ground"] = cfg["ground"]                          # [ground] bleibt der Stil-Schluessel und damit der Cache gleich
     return st
 
 
@@ -931,6 +939,31 @@ def stars(cfg, codes):
     return path
 
 
+def grounds(paths, at=(0, 8, 12, 16, 23, 32, 40, 52)):
+    """Hintergrund-Bogen: der blanke Grund (ohne Stern, Satz, QR) je Variante eine Zeile, erste Zeile loop.toml.
+    Spalten = Plakate (Farbe des Plakats, dunkel und Papier, beide Welten). → previz/variants/grounds.png"""
+    rows = [("loop.toml", load())] + [(os.path.basename(p), load(p)) for p in paths]
+    font = S.font("DepartureMono-Regular.otf", 26)
+    tiles = []
+    for name, cfg in rows:
+        for i in at:
+            st = poster_style(cfg, i % posters(cfg))
+            c = S.Ctx(st, PREVIEW)
+            idx = S.dither(S.ground(c), c.N, st["D"], c.px, st.get("seed", 0), tuple(st.get("dither_shift", (0, 0))))
+            tiles.append((name, i, c.pal[idx].astype(np.uint8)))
+    h, w = tiles[0][2].shape[:2]
+    pw, ph, cap = w // 3, h // 3, 36
+    sheet = Image.new("RGB", (len(at) * (pw + 6), len(rows) * (ph + cap)), (14, 14, 18))
+    d = ImageDraw.Draw(sheet)
+    for k, (name, i, img) in enumerate(tiles):
+        x, y = (k % len(at)) * (pw + 6), (k // len(at)) * (ph + cap)
+        d.text((x + 4, y + 4), f"{name.removesuffix('.toml')} P{i + 1}", font=font, fill=(230, 230, 230))
+        sheet.paste(Image.fromarray(img).resize((pw, ph), Image.BOX), (x, y + cap))
+    path = os.path.join(PROJECT, "previz", "variants", "grounds.png")
+    sheet.save(path)
+    return path
+
+
 # ---------------------------------------------------------------- Selbsttest
 
 def _traced_sources(fn, *args):
@@ -1163,6 +1196,8 @@ def main():
         print(print_files(cfg))
     elif cmd == "stars":                                # Sterne aussuchen: Zyklus oder die genannten Codes
         print(stars(cfg, args[1:] or cfg["styles"]["cycle"]))
+    elif cmd == "grounds":                              # Hintergruende vergleichen: blanker Grund je Variante
+        print(grounds([a if os.path.exists(a) else os.path.join(PROJECT, "previz", a) for a in args[1:]]))
     elif cmd == "variants":
         print(variants(cfg, [int(a) - 1 for a in args[1:]] or [8]))
     elif cmd == "sheet":                                # schnelle Runde: Kontaktbogen + Plakat-Loop, kein Video
