@@ -33,6 +33,17 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
   Streifen → 0.35. I5/I6 bleiben streifiger, I7/I8 fließen. Lesbarkeit unverändert.
 - **Entschieden 3.10.: Grund bleibt linear** (Vadim: Inseln/Fluss haben den 8-Bit-Dither-Flair verloren, „subtil reicht“,
   I1 wäre okay). I1 → `archiv/review/geparkt/`, I2–I8 → `archiv/review/alt/`. Befund in `ENTSCHEIDUNGEN.md`.
+- **Verlauf V1–V3** (Vadim 3.10.: „linear, aber mit Rain/Melt zwischen den Stufen, subtil; Gradient so ausrichten, dass er
+  mit dem Loop Sinn ergibt, dunkler um den Stern bei F17 hinten“). `[ground]`: `melt_cells/_pow/_width_cells` (jede
+  Zellspalte nach unten verschoben, Bayer-Matrix fest → die Dither-Konturen tropfen), `mode = "depth"` (Verlauf radial vom
+  Fluchtpunkt `center = "vanish"` bzw. vom Stern `"star"`, je ferner desto radialer), `gain` (Spannweite).
+  **V1** linear + Melt · **V2** Fluchtpunkt + Melt, gain 1.8 · **V3** Stern-Tiefe + Melt, gain 1.8.
+  Befunde: Melt muss auf den ganzen Grund (der Nebel in `styles.ground` macht die sichtbaren Konturen), Tropfen ~1
+  Konturabstand lang (~36 Zellen) und 2 Zellen breit (1 verschwindet im Bayer). Bei gain 1 (heute: halbe Stufe) änderte
+  der gedrehte Verlauf ≤ 4 % der Pixel, mit 1.8 10–14 %. Auf Papier-Frames ist Stufe 0 das Papier: dort wird es um den
+  Fluchtpunkt heller (wie alles in den Negativ-Welten). Lesbarkeit/QR unverändert.
+- **Enden:** Z4/Z5 → `archiv/review/alt/` (bewertet, daher die neuen), W1/W2 → `archiv/review/geparkt/` (Vadim: „Idee
+  cool, erstmal parken“).
 - **Agenten (3.10.):** `pipeline` (Render-Tempo: Machbarkeit + Prototyp, eigener Branch, kein Merge) und `enden`
   (neue digitale Enden laut Übergabe unten: v1 nach hinten + Zoom, Schleuder-Varianten; eigener Branch, kein Merge).
 
@@ -59,7 +70,7 @@ Loop hinein (digital, 24 fps, dieselbe Bahn/Sterne/Farben), dann ändert der Ste
 - Nach jedem Render: Bildstreifen über die Zeit selbst ansehen (ffmpeg fps=1.5 → Bogen) + Report, **bevor** Vadim es sieht
   (Z4 v1 war kaputt und ging ungeprüft raus).
 
-**Sonst offen zur Wahl** (`previz/review/<Code>/`): Z4 v2, Z5, W1, W2 (Begriffe). Hintergrund entschieden: linear (3.10.).
+**Offen zur Wahl** (`previz/review/<Code>/`): V1–V3 (Verlauf mit Melt/Ausrichtung). Z4/Z5 archiviert, W1/W2 geparkt (3.10.).
 G1/N1 sind seit 3.10. in `loop.toml` (archiviert). Hauptversion `previz/v021/` (loop.toml, altes Ende).
 **Render-Tempo** (gemergt 74b61df, Bild bitgleich per Frame-Hash): `sheet` warm ~3.5 s, `preview` warm ~33 s / kalt ~57 s,
 `preview … --draft` ~20 s (Digitalteil auf Zweiern, Hardware-Encoder, `*_draft.mp4`, nicht zur Abnahme). Cache-Schlüssel nur

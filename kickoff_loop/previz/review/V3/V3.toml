@@ -1,0 +1,14 @@
+# V3 Stern-Tiefe + Melt: der Verlauf laeuft radial vom Stern aus, dunkel um ihn. Je kleiner (ferner) der Stern, desto mehr
+# radial (F17: dunkler Raum um den kleinen Stern), nah fast linear (der Riesenstern fuellt die Seite). Wandert mit der Bahn,
+# also mit dem Loop. Dazu Melt wie V1. Nur [ground].
+[ground]
+mode = "depth"
+center = "star"
+reach_frac = 1.1
+radial_frac = 0.9
+pocket_r_frac = 0.3  # bis zu diesem Sternradius (kurze Seite) ganz radial, groesser wird es anteilig linearer (F17 ~0.23)
+melt_cells = 36      # laengster Tropfen (Zellen), etwa ein Konturabstand des Verlaufs (~30 Zellen); 0 = aus
+melt_pow = 2.5       # Verteilung der Tropfenlaengen: hoch = fast alle kurz, wenige lange Faeden (Regen)
+melt_width_cells = 2 # Tropfenbreite (Zellen); 1 verschwindet im Bayer-Muster
+seed = 7
+gain = 1.8           # Spannweite: 1 = wie heute (halbe Palettenstufe, gedreht kaum sichtbar), 1.8 = fast eine volle Bayer-Rampe

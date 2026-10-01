@@ -1,0 +1,13 @@
+# V2 Fluchtpunkt + Melt (Vadim 3.10.: "Gradient so ausrichten, dass er mit dem Loop Sinn ergibt, dunkler wo der Stern bei
+# F17 mittig hinten ist"): der Verlauf laeuft radial vom Fluchtpunkt der Bahn ([spark].vanish), dort am dunkelsten, zum
+# Rand unten hell; dazu Melt wie V1. Steht auf allen Plakaten gleich. Nur [ground].
+[ground]
+mode = "depth"
+center = "vanish"    # vanish = Fluchtpunkt (steht fest) | star = folgt dem Stern
+reach_frac = 1.25    # nach so vielen kurzen Seiten vom Zentrum ist der Grund hell (1.25 = Fluchtpunkt → untere Ecken)
+radial_frac = 0.8    # 0 = linear oben→unten, 1 = ganz radial; Rest linear, damit oben weiter dunkler bleibt
+melt_cells = 36      # laengster Tropfen (Zellen), etwa ein Konturabstand des Verlaufs (~30 Zellen); 0 = aus
+melt_pow = 2.5       # Verteilung der Tropfenlaengen: hoch = fast alle kurz, wenige lange Faeden (Regen)
+melt_width_cells = 2 # Tropfenbreite (Zellen); 1 verschwindet im Bayer-Muster
+seed = 7
+gain = 1.8           # Spannweite: 1 = wie heute (halbe Palettenstufe, gedreht kaum sichtbar), 1.8 = fast eine volle Bayer-Rampe

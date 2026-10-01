@@ -134,11 +134,17 @@ def load(path=CONFIG, music=None):
                                    f"Vielfaches von [loop].frames {n}: Bahn und Stile sprangen am Neustart")
     gd = cfg.get("ground")
     if gd:
-        need = {"islands": {"islands", "size_frac", "drift_frac", "warp_frac"},
-                "flow": {"angle_deg", "waves", "wave_freq", "warp_frac", "flow_per_loop"}}.get(gd.get("mode"))
-        assert gd.get("mode") == "linear" or need, "[ground].mode: linear (Verlauf oben→unten) | islands | flow"
-        need = (need or set()) | ({"seed", "terraces", "gain", "lin_frac"} if need else set())
+        need = {"islands": {"islands", "size_frac", "drift_frac", "warp_frac", "seed", "terraces", "gain", "lin_frac"},
+                "flow": {"angle_deg", "waves", "wave_freq", "warp_frac", "flow_per_loop", "seed", "terraces", "gain",
+                         "lin_frac"},
+                "linear": set(),
+                "depth": {"center", "reach_frac", "radial_frac"} | ({"pocket_r_frac"} if gd.get("center") == "star" else set()),
+                }.get(gd.get("mode"))
+        assert need is not None, "[ground].mode: linear (Verlauf oben→unten) | depth | islands | flow"
+        need |= {"seed", "melt_pow"} if gd.get("melt_cells") else set()
         assert need <= gd.keys(), f"[ground] {gd['mode']} braucht {sorted(need - gd.keys())}"
+        assert gd.get("center", "vanish") in ("vanish", "star"), "[ground].center: vanish (Fluchtpunkt) | star (folgt dem Stern)"
+        assert 0 <= gd.get("radial_frac", 0) <= 1, "[ground].radial_frac 0..1 (0 = linear oben→unten, 1 = ganz radial)"
         assert not gd.get("islands") or 0 < gd["size_frac"][0] <= gd["size_frac"][1], "[ground].size_frac = [min, max] > 0"
         assert gd.get("mode") != "flow" or float(gd["flow_per_loop"]).is_integer(), \
             "[ground].flow_per_loop ganzzahlig, sonst springt der Grund am Loop-Neustart"
@@ -462,8 +468,8 @@ def poster_style(cfg, i):
                  seed=cfg["styles"]["seed"], fx_behind_title=code in cfg["type"].get("effects_behind_title", []))
     st.update(layout=layout, type_fn=type_layers,
               loop=dict(i=i, n=count(cfg), type=cfg["type"], qr=cfg["qr"], digital=None))
-    if "ground" in cfg:                                       # Inseln statt linearem Verlauf (styles.ground_shape); ohne
-        st["ground"] = cfg["ground"]                          # [ground] bleibt der Stil-Schluessel und damit der Cache gleich
+    if "ground" in cfg:                                       # Form des Grunds (styles.ground_shape); ohne [ground] bleibt
+        st["ground"] = dict(cfg["ground"], vanish=cfg["spark"]["vanish"])   # der Stil-Schluessel und damit der Cache gleich
     return st
 
 

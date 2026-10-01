@@ -1,0 +1,8 @@
+# V1 Linear + Melt (Vadim 3.10.: "linear, aber mit so Rain/Melt-Effekt zwischen den Stufen, subtil"): der Verlauf oben→unten
+# wie heute, jede Zellspalte ein Stueck nach unten verschoben, die Konturen zwischen den Dither-Dichten tropfen. Nur [ground].
+[ground]
+mode = "linear"      # linear | depth | islands | flow (styles.ground_shape)
+melt_cells = 36      # laengster Tropfen (Zellen), etwa ein Konturabstand des Verlaufs (~30 Zellen); 0 = aus
+melt_pow = 2.5       # Verteilung der Tropfenlaengen: hoch = fast alle kurz, wenige lange Faeden (Regen)
+melt_width_cells = 2 # Tropfenbreite (Zellen); 1 verschwindet im Bayer-Muster
+seed = 7             # Tropfenmuster, gleich auf allen Plakaten

@@ -255,7 +255,7 @@ def qr_matrix():
     return np.array(q.get_matrix(), bool)
 
 
-def ground_shape(c, lin):
+def ground_shape(c, lin, melt=True):
     """Form des Grunds, 0..1 auf dem Zellraster. Ohne st["ground"] (alle Projekte bis 3.10.) der lineare Verlauf lin,
     bitgleich wie bisher. Vadim 3.10.: "nicht einfach von oben nach unten ein Linear-Gradient". Werte aus [ground]:
       mode = islands: Metaballs (Summe von Gauss-Glocken), jede Insel faehrt ueber einen Umlauf (st["loop"]) einen
@@ -267,10 +267,26 @@ def ground_shape(c, lin):
         flow_per_loop Perioden pro Umlauf weiter (ganzzahlig: nahtlos, 0 = steht). islands > 0 mischt Inseln dazu.
       Fuer beide: terraces (0 = weich, n = harte Hoehenstufen), blocks_cells (0 = aus, k = Feld nur je k x k Zellen
       ausgewertet: grobe Quadrate), gain (Hoehe, 1 = so hell wie der lineare Verlauf unten), lin_frac (Rest des alten
-      Verlaufs), seed."""
+      Verlaufs), seed.
+      Vadim 3.10. zu islands/flow: "haben ihren 8-Bit-Dither-Flair verloren, linear am besten" (der Flair ist der
+      stetige Lauf ueber die Bayer-Schwellen). Deshalb:
+      mode = linear mit melt_cells: der lineare Verlauf, jede Zellspalte um 0..melt_cells nach unten verschoben
+        (Laenge ~ Zufall^melt_pow: meist kurz, wenige lange Faeden), je melt_width_cells Spalten gemeinsam. Befund 3.10.:
+        der Verlauf ist flach (~30 Zellen zwischen zwei Bayer-Dichten), kuerzere Tropfen kreuzen kaum eine Kontur. Die
+        Bayer-Matrix bleibt fest, so tropfen die
+        Konturen zwischen den Dither-Dichten pixelgenau ("rain/melt zwischen den Stufen, subtil").
+      mode = depth: der Verlauf laeuft (zu radial_frac) radial vom Zentrum aus statt von oben nach unten: dunkel im
+        Zentrum, nach reach_frac (kurze Seite) hell. center = "vanish" (Fluchtpunkt der Bahn, steht fest: dort ist der
+        Stern bei F17 klein hinten) | "star" (folgt dem Stern; radial_frac x min(1, pocket_r_frac / Sternradius):
+        fern ganz radial, nah fast linear, weil der grosse Stern die Seite ohnehin fuellt). melt_cells wie oben.
+      gain (linear/depth, Standard 1): Spannweite des Verlaufs. Befund 3.10.: bei 1 laeuft der Grund nur ueber eine halbe
+        Palettenstufe, ein radial gedrehter Verlauf aenderte am Plakat <= 4 % der Pixel; 1.8 = fast eine volle Bayer-Rampe."""
     gd = c.st.get("ground")
-    if not gd or gd["mode"] == "linear":
+    if not gd:
         return lin
+    if gd["mode"] in ("linear", "depth"):
+        f = gd.get("gain", 1.0) * (lin if gd["mode"] == "linear" else _depth(gd, c, lin))
+        return _melt(gd, c, f) if melt else f
     m = min(c.W, c.H)
     b = gd.get("blocks_cells", 0) * c.px
     X, Y = ((np.floor(c.cx / b) + 0.5) * b / m, (np.floor(c.cy / b) + 0.5) * b / m) if b else (c.cx / m, c.cy / m)
@@ -294,6 +310,32 @@ def ground_shape(c, lin):
     return gd["lin_frac"] * lin + gd["gain"] * f
 
 
+def _depth(gd, c, lin):
+    """Verlauf radial vom Fluchtpunkt bzw. Stern (dunkel dort), gemischt mit dem linearen (Einheit: kurze Seite)."""
+    m = min(c.W, c.H)
+    if gd["center"] == "vanish":
+        x0, y0, w = gd["vanish"][0] * c.W / m, gd["vanish"][1] * c.H / m, 1.0
+    else:
+        x0, y0, R, _ = c.L["star"]
+        x0, y0, w = x0 / m, y0 / m, min(1.0, gd["pocket_r_frac"] / max(R / m, 1e-6))
+    radial = np.clip(np.hypot(c.cx / m - x0, c.cy / m - y0) / gd["reach_frac"], 0, 1)
+    k = gd["radial_frac"] * w
+    return (1 - k) * lin + k * radial
+
+
+def _melt(gd, c, f):
+    """Rain/Melt: Zellspalte j um d_j Zellen nach unten verschoben, d = melt_cells * Zufall^melt_pow (fest je seed).
+    Immer auf dem fertigen Wertfeld des Grunds, sonst tropft nur die Form und die sichtbaren Konturen (Nebel) stehen."""
+    if not gd.get("melt_cells"):
+        return f
+    k = gd.get("melt_width_cells", 1)                         # Tropfenbreite: 1 Zelle verschwindet im 4x4-Bayer-Muster
+    n = -(-f.shape[1] // k)
+    d = np.floor(gd["melt_cells"] * np.random.default_rng(gd["seed"]).random(n) ** gd["melt_pow"]).astype(int)
+    d = np.repeat(d, k)[:f.shape[1]]
+    rows = np.clip(np.arange(f.shape[0])[:, None] - d[None, :], 0, f.shape[0] - 1)
+    return np.take_along_axis(f, rows, 0)
+
+
 def _islands(gd, rng, X, Y, t, A, B):
     """Inselfeld 0..1 auf der Seite A x B (kurze Seite = 1): Metaballs, fahren pro Umlauf einen Kreis."""
     if gd["mode"] == "islands" and gd["warp_frac"]:          # Kueste: Koordinaten mit zwei Wellen verbiegen
@@ -313,7 +355,10 @@ def ground(c):
     nx, ny = (c.xx + 0.5) / c.gw, (c.yy + 0.5) / c.gh
     grad = (0.35 * nx + ny) / 1.35 if c.W > c.H else ny
     neb = gaussian_filter(np.random.default_rng(26).standard_normal((c.gh, c.gw)), 88 * c.u / c.px)
-    return 0.025 + 0.085 * ground_shape(c, grad ** 1.3) + 0.01 * neb / neb.std()
+    v = 0.025 + 0.085 * ground_shape(c, grad ** 1.3, melt=False) + 0.01 * neb / neb.std()
+    gd = c.st.get("ground")
+    return _melt(gd, c, v) if gd and gd["mode"] in ("linear", "depth") else v   # Melt ueber Form + Nebel: die sichtbaren
+                                                                                 # Konturen kommen hier aus dem Nebel
 
 
 def background(c):
