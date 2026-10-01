@@ -762,8 +762,11 @@ def stars(cfg, codes):
 
 def selftest_frames(cfg):
     """Standardframes fuer `test` ohne Argumente, aus der Bahn statt fest (die alten 3/7/9 passten nur zu 16 Frames):
-    die drei kleinsten Sterne. Dort ist der QR frei (ein verbeultes Gluehen faellt auf) und der Frame nicht leer."""
-    r = [(star_at(cfg, i)[2], i) for i in range(count(cfg))]
+    die drei kleinsten Sterne. Dort ist der QR frei (ein verbeultes Gluehen faellt auf) und der Frame nicht leer.
+    Nur dunkler Grund: Gluehen- und Verlaufstest setzen helles Licht auf dunklem Grund voraus; Papier-Frames (C5b,
+    Grund L > 0.5) brauchen eine eigene Regel (offen)."""
+    dark = lambda i: to_oklab(np.array([[int(palette_hex(cfg, i)[0][k:k + 2], 16) for k in (1, 3, 5)]], float))[0, 0] < 0.5
+    r = [(star_at(cfg, i)[2], i) for i in range(count(cfg)) if dark(i)]
     return sorted(i for _, i in sorted(x for x in r if x[0] > 0)[:3])
 
 
@@ -788,8 +791,10 @@ def selftest(cfg, i=8):
     title = masks[0]
     xs = np.nonzero(title.any(0))[0]
     assert abs((xs[0] + xs[-1] + 1) / 2 - c.gw / 2) <= 0.5, "SPARK nicht waagerecht zentriert"
-    for (s, _, _), m in zip(lines, masks):
-        m &= level != 0                                 # ohne gekippte Pixel
+    for (s, _, _), full in zip(lines, masks):
+        m = full & (level != 0)                         # ohne gekippte Pixel. Kopie: masks wird unten mit F32 verglichen
+        if m.sum() < full.sum() / 2:                    # Zeile gekippt (dunkle Schrift auf Papier, C5b): kein Licht-Verlauf
+            continue
         rows = np.array([np.mean(level[y][m[y]]) for y in np.nonzero(m.any(1))[0]])
         assert rows[0] == top_level and rows[-1] == top_level - 1, f"{s}: Enden nicht flaechig {rows[0]:.2f} {rows[-1]:.2f}"
         period = len(S.bayer(4))                        # Bayer 4x4 fuellt Nachbarreihen verschieden: ueber 4 Reihen mitteln

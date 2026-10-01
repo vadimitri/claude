@@ -55,8 +55,10 @@ In `previz/review/` liegt, was offen ist (`geparkt/` = Alternativen, `alt/` = ve
    - `test` ohne Argumente bricht bei 32 Frames ab (QR-Glühen: Standardframes 3/7/9 haben den Stern am QR). `SELFTEST_FRAMES` auf freie Frames der neuen Bahn setzen.
 3. **Lesbarkeit** der Riesenframes: min 0.91 (Gate 0.95), der Riesenstern liegt über SPARK/KICK-OFF. Über Bahn oder Satz lösen.
 4. ~~Zeitachse T16~~ erledigt 2.10. (48 Wechsel pro Takt, Ton unter jedem Video, Blitz-Check aus).
-   Offen: `test` ohne Argumente ist rot. Auf B20 liegt der Stern in F1 über SPARK, und `selftest` stürzt ab,
-   wenn der Stern eine Titelzeile ganz deckt.
+   `test` ist wieder grün (2.10.). Der Test selbst hatte einen Fehler: `m &= level != 0` hat die Satzmasken an Ort
+   und Stelle verändert, deshalb schlug „Titel steht nicht fest" auf jedem Frame mit gekippter Schrift an.
+   Offen: Für Papier-Frames (C5b F17–28) gibt es noch keine Glüh-/Verlaufsregel. `test` nimmt deshalb nur Frames
+   mit dunklem Grund.
 5. Farbe: Urteil C4b/c, C5b/c, dann nach `loop.toml`.
 6. **Musik** nur IGOR, Custom-Mashup: Wo IGORs Drums kommen, etwas Eigenes. Maker Night fliegt raus
    (`kickoff_loop_music.py`, `[mashup]`). Das Raster-Format bleibt (`GRID_KEYS`).
