@@ -44,7 +44,7 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
 
 ## Nächste Schritte, in dieser Reihenfolge
 
-1. ~~Sterne in den Zyklus~~ erledigt 2.10.: S54c, S48d, S48c statt S18d, S19d, S45 (S50 nicht genommen). Vorher: Mit Vadim
+1. **Sterne in den Zyklus.** S50, S48c, S48d und S54c sind gewählt, `[styles].cycle` hat aber noch die alten 8. Mit Vadim
    klären, welche raus (32 Frames = 8 Stile × `hold_frames` 4). Alles muss im Bayer-Korn liegen („unter dem Dither-Layer").
    S50 hat noch flache Flächen, das ist laut Sterne-Agent eine Zeile.
 2. **Leere Frames im Code**, sonst bricht `preview`:
