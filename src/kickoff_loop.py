@@ -58,6 +58,7 @@ PREVIEW_CELL_PX = S.SIZES[PREVIEW][2] * S.BASE["R"]     # 1 * 4 = 4 px pro Zelle
 POSTER_ASPECT = S.SIZES[PREVIEW][0] / S.SIZES[PREVIEW][1]  # Breite / Hoehe (A3 = 1/sqrt 2)
 MODULE_CELLS = 2                                        # ein QR-Modul = 2 Zellen (so setzt es kickoff.layout)
 LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)   # Rec. 709: Anteil von R, G, B an der Helligkeit
+SUBDIV_PER_BAR = 48   # kleinstes gemeinsames Raster pro 4/4-Takt: 16tel (16) und 32tel-Triolen (48, T16)
 GRID_KEYS = ("bpm_carousel", "bpm_end", "sixteenth_s", "carousel_bars", "hits_s", "downbeats_s", "burst_s", "impact_s",
              "end_s")   # was die Zeitachse aus dem Musik-Raster braucht (kickoff_loop_music.py schreibt es)
 STAR_CLEAR = 1.6    # Selbsttest: ab diesem Vielfachen des Sternradius liegt kein Stern und kaum Schein mehr (background)
@@ -85,6 +86,11 @@ def load(path=CONFIG, music=None):
     music = "A" | "B": Mashup-Variante statt der in [music] eingetragenen (zum Vergleichen, ohne die toml zu aendern)."""
     with open(path, "rb") as f:
         cfg = tomllib.load(f)
+    if os.path.abspath(path) != os.path.abspath(CONFIG):    # Review-TOML: fehlende Schluessel aus loop.toml (aeltere Kopien)
+        with open(CONFIG, "rb") as f:
+            for sec, vals in tomllib.load(f).items():
+                for k, v in vals.items():
+                    cfg.setdefault(sec, {}).setdefault(k, v)
     if music:
         cfg["music"].update(file=f"ref/audio/mashup_{music}.wav", grid=f"ref/audio/mashup_{music}.json")
     n, col = cfg["loop"]["frames"], cfg["color"]
@@ -154,9 +160,19 @@ def load(path=CONFIG, music=None):
     g = m["grid"] = json.load(open(grid))
     miss = [k for k in GRID_KEYS if k not in g]
     assert not miss, f"[music].grid: {m['grid']} ohne {miss} (altes Songraster? Mashup-Raster aus kickoff_loop_music.py)"
-    cfg["loop"]["bpm"], cfg["video"]["cadence"] = g["bpm_carousel"], g["carousel_bars"]
-    bad = [per for per, _ in g["carousel_bars"] if 16 % per]
-    assert not bad, f"carousel_bars: {bad} Wechsel pro Takt gehen nicht in 16tel auf (1, 2, 4, 8, 16)"
+    cad = g["carousel_bars"]
+    per_bar = cfg["loop"]["changes_per_bar"]
+    if per_bar:                                          # festes Tempo (T16) ueber alle Karussell-Takte des Rasters
+        cad = [[per_bar, sum(bars for _, bars in cad)]]
+    cfg["loop"]["bpm"], cfg["video"]["cadence"] = g["bpm_carousel"], cad
+    bad = [per for per, _ in cad if SUBDIV_PER_BAR % per]
+    assert not bad, (f"Karussell: {bad} Wechsel pro Takt gehen nicht im Raster auf (Teiler von {SUBDIV_PER_BAR}: 16tel "
+                     "und 32tel-Triolen, z. B. 8 16 24 48)")
+    lm = cfg["music"]
+    for k in ("loop_file", "loop_grid"):
+        assert os.path.exists(os.path.join(PROJECT, lm[k])), f"[music].{k}: {lm[k]} fehlt"
+    lm["loop_grid"] = json.load(open(os.path.join(PROJECT, lm["loop_grid"])))
+    assert {"in_s", "sixteenth_s"} <= set(lm["loop_grid"]), "[music].loop_grid braucht in_s und sixteenth_s"
     assert abs(g["impact_s"] - g["burst_s"] - cfg["endcard"]["burst_beats"] * 60 / g["bpm_carousel"]) < 2e-3, \
         "[endcard].burst_beats passt nicht zur Luft im Mashup: uv run src/kickoff_loop_music.py neu bauen"
     assert len(cfg["styles"]["cycle"]) * cfg["styles"]["hold_frames"] == n, \
@@ -720,7 +736,11 @@ def stars(cfg, codes):
 
 # ---------------------------------------------------------------- Selbsttest
 
-SELFTEST_FRAMES = [2, 6, 8]    # Frame 3 (Stern gross am Datum), 7 und 9 (QR frei: dort faellt ein verbeultes Gluehen auf)
+def selftest_frames(cfg):
+    """Standardframes fuer `test` ohne Argumente, aus der Bahn statt fest (die alten 3/7/9 passten nur zu 16 Frames):
+    die drei kleinsten Sterne. Dort ist der QR frei (ein verbeultes Gluehen faellt auf) und der Frame nicht leer."""
+    r = [(star_at(cfg, i)[2], i) for i in range(count(cfg))]
+    return sorted(i for _, i in sorted(x for x in r if x[0] > 0)[:3])
 
 
 def selftest(cfg, i=8):
@@ -869,10 +889,11 @@ def main():
         _, ok, leg = frames(cfg)
         print(f"{len(ok)} Plakate, QR lesbar: {sum(ok)}/{len(ok)}, Lesbarkeit: {' '.join(f'{x:.2f}' for x in leg)}")
     elif cmd == "test":
-        for i in [int(a) - 1 for a in args[1:]] or SELFTEST_FRAMES:
+        for i in [int(a) - 1 for a in args[1:]] or selftest_frames(cfg):
             print(selftest(cfg, i))
-        import kickoff_loop_video as V
-        print(V.flash_selftest(cfg))
+        if cfg["checks"]["flash_gate"]:
+            import kickoff_loop_video as V
+            print(V.flash_selftest(cfg))
     elif cmd == "print":
         print(print_files(cfg))
     elif cmd == "stars":                                # Sterne aussuchen: Zyklus oder die genannten Codes
@@ -885,7 +906,7 @@ def main():
         tag = os.path.splitext(os.path.basename(var))[0] + "_" if var else ""   # B1.toml → review/B1_contact.png
         out = V.sheet(cfg, posters, ok, leg, os.path.join(PROJECT, "previz", "review" if var else "now"), tag)
         print(f"{out}/{tag}contact.png  QR {sum(ok)}/{len(ok)}, Lesbarkeit min {min(leg):.2f}")
-        subprocess.run(["open", os.path.join(out, tag + "contact.png"), os.path.join(out, tag + "loop.mp4")])
+        subprocess.run(["open", os.path.join(out, tag + "contact.png"), os.path.join(out, tag + "loop.mp4")]) if sys.stdout.isatty() else None
     elif cmd == "boil":                                 # Test: Digitalteil ohne | mit Boil nebeneinander
         import kickoff_loop_video as V
         out = V.boil_test(cfg)

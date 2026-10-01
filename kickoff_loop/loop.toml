@@ -12,6 +12,9 @@
 frames = 32          # Frames pro Loop. Vadim 1.10.: Farbe C1 (32 Frames, eine Reise), Tempo T16 (16.32/s, 32tel-Triolen
                      # auf IGOR); der Video-Loop ist von den Plakaten getrennt, leere Frames (Stern hinter dem Kopf) ok
 key_every = 2        # Stationen der Farbreise liegen auf jedem 2. Frame (aus der Plakatzeit, 1.10.: Video getrennt)
+changes_per_bar = 48 # Tempo: Plakatwechsel pro Takt, ueber das ganze Karussell (ersetzt die Takte im Musik-Raster).
+                     # Vadim 2.10. "alles auf Tempo 16": T16 = 32tel-Triolen = 48/Takt, auf IGOR (81.61 BPM) 16.32/s.
+                     # Teiler von 48 (8 = Achtel, 16 = 16tel, 24 = 16tel-Triolen). 0 = wie im Raster ([mashup] *_carousel)
 
 [color]
 # C1 Lange Reise (Vorschau 1.10., Uebergabe 2 "mehr Farbe", Form a): 32 Frames pro Loop, eine Farbreise, alles in OKLab
@@ -129,8 +132,13 @@ card_reveal_16ths = [0, 1, 2]   # Titel, Datum, QR setzen auf diesen 16teln nach
 # Mashup (Vadim 30.9.): IGOR-Brummen [→ IGOR-Beat] → Maker-Night-Drop auf dem Impact. Gebaut von
 # uv run src/kickoff_loop_music.py (Stellschrauben [mashup] unten), Befunde previz/music/report.txt.
 # Das Raster (JSON) sagt alles zur Zeitachse: Karussell-Takte, 16tel, Hits, Ausbruch, Impact, Ende (Zeiten ab Videoanfang).
-file = "ref/audio/mashup_B.wav"   # A = IGOR-Beat unter dem Karussell (81.61 BPM) | B = nur Brummen, 120-BPM-Raster
-grid = "ref/audio/mashup_B.json"
+file = "ref/audio/mashup_A.wav"   # A = IGOR-Beat unter dem Karussell (81.61 BPM) | B = nur Brummen, 120-BPM-Raster
+grid = "ref/audio/mashup_A.json"  # 2.10.: A, weil T16 auf IGOR steht (auf B waeren 48/Takt 24 Plakate/s)
+# Ton der Plakat-Loop-Videos (sheet, preview loop.mp4): bis der neue Song da ist IGOR, ab dem Einstieg in_s des Rasters
+# (Taktstrich), der Loop laeuft loop_passes-mal auf dessen Takt. Wechsel/s = changes_per_bar / Taktlaenge dieses Rasters.
+loop_file = "ref/audio/igors_theme.mp3"
+loop_grid = "ref/audio/igor_beats.json"
+loop_passes = 4            # Durchgaenge im Loop-Video: 32 Frames bei 16.32/s = 1.96 s, x 4 = 7.8 s (man hoert den Song)
 fade_out_s = 0.05          # nur gegen den Knack am Schnitt; das Video endet auf einem Taktstrich
 loudness_lufs = -14        # Vorschau/Reel: als feste Verstaerkung (kein Regler, der Drop bleibt so viel lauter wie gebaut)
 
@@ -141,6 +149,8 @@ jitter_rot_deg = 0.0      # Restdrehung von Foto zu Foto
 
 [checks]
 # Gates: Verstoesse stehen im report.txt der Version, die Vorschau wird trotzdem gebaut.
+flash_gate = false         # Blitz-Check (WCAG 2.3.1) messen und berichten. Vadim 2.10.: "soll weg, ist voellig okay, wenn
+                           # die Farben crazy gehen" → aus; die Werte darunter gelten nur, wenn er an ist
 flash_max_per_s = 3        # WCAG 2.3.1: hoechstens 3 Blitze pro Sekunde (Blitz = Paar gegenlaeufiger Helligkeitsspruenge)
 flash_min_delta = 0.10     # Helligkeitssprung (relative Luminanz 0..1), ab dem ein Wechsel zaehlt
 flash_max_area_frac = 0.25 # Flaechenanteil des Bildes, ab dem blitzende Pixel als Verstoss gelten

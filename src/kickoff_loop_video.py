@@ -56,7 +56,7 @@ class Timeline:
         fps = v["timeline_fps"]
         bar = 16 * g["sixteenth_s"]
         times, t = [], 0.0
-        for per, bars in g["carousel_bars"]:
+        for per, bars in v["cadence"]:                    # aus load(): Raster oder [loop].changes_per_bar (T16)
             for _ in range(per * bars):
                 times.append(t)
                 t += bar / per
@@ -215,6 +215,12 @@ def digital_phase(cfg, dt):
     return "card", dt - fly - hit
 
 
+def last_star(cfg):
+    """Letzter Frame des Loops mit Stern (Radius > 0): von dort bricht er aus. Leere Frames (Stern hinter dem Kopf,
+    Radius 0) haben keinen Ausbruch, 1/Radius waere durch null."""
+    return max(i for i in range(KL.count(cfg)) if KL.star_at(cfg, i)[2] > 0)
+
+
 def digital_style(cfg, dt):
     """Stil-Dict des Digitalteils, dt Sekunden nach dem Wechsel ins Digitale. Drei Abschnitte (Spider-Verse-Prinzip:
     der Bildrhythmus selbst ist der Uebergang, Stop-Motion auf Achteln → Rechner auf 24 fps):
@@ -231,11 +237,12 @@ def digital_style(cfg, dt):
     W, H = cfg["video"]["size_px"]
     pw, ph = S.SIZES[KL.PREVIEW][:2]
     ox, oy = digital_offset(cfg)
-    x, y, r, rot = KL.star_at(cfg, n - 1)
+    last = last_star(cfg)
+    x, y, r, rot = KL.star_at(cfg, last)
     per_s = cfg["video"]["cadence"][-1][0] / (4 * beat_s(cfg))                     # Plakatwechsel/s am Karussell-Ende
     spin = cfg["spark"]["spin_deg"] / n * per_s                                    # Grad pro Sekunde wie im Karussell
     phase, t = digital_phase(cfg, dt)
-    st = KL.poster_style(cfg, n - 1)
+    st = KL.poster_style(cfg, last)
     if phase in ("burst", "impact"):
         fly = e["burst_beats"] * beat_s(cfg)
         u = min(t / fly, 1) if phase == "burst" else 1.0
@@ -383,7 +390,9 @@ def flash_check(lum, cfg, chroma=None):
 
 
 def flash_text(flash, cfg):
-    """Eine Zeile Befund aus flash_check fuer Reports."""
+    """Eine Zeile Befund aus flash_check fuer Reports (None: Gate aus)."""
+    if flash is None:
+        return "aus ([checks].flash_gate = false, Vadim 2.10.)"
     ch = cfg["checks"]
     s = (f"{'ok' if flash['ok'] else 'VERSTOSS'} · allgemein: schlimmste Sekunde bei {flash['worst_at_s']:.1f} s "
          f"{flash['worst_area'] * 100:.0f} % der Flaeche ueber {ch['flash_max_per_s']} Blitze/s (Grenze "
@@ -464,6 +473,8 @@ def sheet_report(cfg, posters, qr_ok, legib, name=""):
     cta = [cta_legibility(cfg, i, p) for i, p in enumerate(posters)]
     paper = [i for i in range(n) if KL.is_paper(KL.color_pos(cfg, i)[1][0])]
     flash, lum, chroma = carousel_flash(cfg, posters)
+    if not cfg["checks"]["flash_gate"]:
+        flash = None
     jumps = switch_jumps(cfg, lum, chroma)
     inner = max((j for j in jumps if not j[1]), key=lambda j: j[4])
     below = [f"{i + 1:02d} ({x:.2f})" for i, x in enumerate(legib) if x < K.TIER[0]]
@@ -477,7 +488,9 @@ def sheet_report(cfg, posters, qr_ok, legib, name=""):
              f"Lesbarkeit JOIN US: min {min(cta):.2f} (dunkel {min((x for i, x in enumerate(cta) if i not in paper), default=1):.2f}"
              f", Papier {min((cta[i] for i in paper), default=float('nan')):.2f})",
              "Lila: ok (load prueft jedes Plakat, sonst gaebe es keinen Bogen)",
-             f"Blitz, Plakat bildfuellend, 8 Plakate/s, 2 Durchgaenge: {flash_text(flash, cfg)}",
+             f"Blitz, Plakat bildfuellend, {loop_fps(cfg):.2f} Plakate/s, 2 Durchgaenge: {flash_text(flash, cfg)}",
+             f"Loop-Video: {loop_fps(cfg):.2f} Plakate/s, {cfg['music']['loop_passes']} Durchgaenge = "
+             f"{n * cfg['music']['loop_passes'] / loop_fps(cfg):.2f} s, Ton {cfg['music']['loop_file']}",
              "Harte Weltwechsel (Helligkeit vorher → nachher, Flaeche mit Blitz-Sprung, Flaeche mit Rot-Uebergang):"]
     for k, world, a, b, jump, red in jumps:
         if world:
@@ -558,15 +571,37 @@ def sheet(cfg, posters, qr_ok, legib, out, tag=""):
     contact_sheet(cfg, posters, qr_ok, legib, [], os.path.join(out, tag + "contact.png"))
     with open(os.path.join(out, tag + "report.txt"), "w", encoding="utf-8") as f:
         f.write(sheet_report(cfg, posters, qr_ok, legib, tag.rstrip("_") or "loop.toml"))
+    loop_video(cfg, posters, os.path.join(out, tag + "loop.mp4"))
+    return out
+
+
+def loop_fps(cfg):
+    """Plakatwechsel pro Sekunde im Loop-Video: schnellstes Karusselltempo auf dem Takt von [music].loop_grid."""
+    return max(per for per, _ in cfg["video"]["cadence"]) / (16 * cfg["music"]["loop_grid"]["sixteenth_s"])
+
+
+def loop_video(cfg, posters, path):
+    """Plakat-Loop allein, halbe Groesse, loop_passes Durchgaenge im schnellsten Karusselltempo, mit Ton:
+    [music].loop_file ab dem Einstieg in_s seines Rasters (Taktstrich), genau so lang wie das Bild. Weil die Bildrate
+    aus demselben Raster kommt, liegt jeder Plakatwechsel auf dem Song-Raster (T16: auf jeder 32tel-Triole)."""
+    import kickoff_loop_music as KM
+    m, fps = cfg["music"], loop_fps(cfg)
+    frames_n = len(posters) * m["loop_passes"]
+    start = m["loop_grid"]["in_s"]
+    x = KM.decode(os.path.join(KL.PROJECT, m["loop_file"]))[round(start * KM.SR):round((start + frames_n / fps) * KM.SR)]
+    x = x * 10 ** ((m["loudness_lufs"] - KM.lufs(x)) / 20)
+    k = round(m["fade_out_s"] * KM.SR)
+    x[-k:] *= np.linspace(1, 0, k)[:, None]
+    wav = os.path.splitext(path)[0] + ".wav"
+    KM.write_wav(wav, x)
     h, w = posters[0].shape[:2]
-    bar_s = 16 * cfg["music"]["grid"]["sixteenth_s"]
-    fps = max(per for per, _ in cfg["video"]["cadence"]) / bar_s
-    ff = ffmpeg_writer(os.path.join(out, tag + "loop.mp4"), (w // 2, h // 2), fps)
-    for img in posters * 4:
+    ff = ffmpeg_writer(path, (w // 2, h // 2), fps, wav)
+    for img in posters * m["loop_passes"]:
         ff.stdin.write(np.asarray(Image.fromarray(img).resize((w // 2, h // 2), Image.BOX)).tobytes())
     ff.stdin.close()
     ff.wait()
-    return out
+    os.remove(wav)
+    return path
 
 
 def boil_test(cfg):
@@ -609,14 +644,10 @@ def preview(cfg, posters, qr_ok, legib):
     tfps, bpm = cfg["video"]["timeline_fps"], cfg["loop"]["bpm"]
     bar_s = 16 * cfg["music"]["grid"]["sixteenth_s"]
 
-    # 1. Plakat-Loop allein im schnellsten Karusselltempo, 3 Durchlaeufe (man soll den Neustart sehen)
+    # 1. Plakat-Loop allein im schnellsten Karusselltempo, mit Ton (man soll den Neustart sehen)
     h, w = posters[0].shape[:2]
     top_fps = max(per for per, _ in cfg["video"]["cadence"]) / bar_s
-    ff = ffmpeg_writer(os.path.join(out, "loop.mp4"), (w // 2, h // 2), top_fps)
-    for img in posters * 3:
-        ff.stdin.write(np.asarray(Image.fromarray(img).resize((w // 2, h // 2), Image.BOX)).tobytes())
-    ff.stdin.close()
-    ff.wait()
+    loop_video(cfg, posters, os.path.join(out, "loop.mp4"))
 
     # 2. Das Video: Platten → Kamera → Digitalteil, Musik
     plates = [photo_plate(cfg, img, k) for k, img in enumerate(posters)]
@@ -644,7 +675,7 @@ def preview(cfg, posters, qr_ok, legib):
     ff.wait()
 
     # 3. Pruefungen, Kontaktbogen, Report
-    flash = flash_check(np.array(lum), cfg, np.array(chroma))
+    flash = flash_check(np.array(lum), cfg, np.array(chroma)) if cfg["checks"]["flash_gate"] else None
     end_leg = KL.legibility(digital_style(cfg, (tl.total - tl.zoom_end - 1) / tfps), np.asarray(digital[-1]), "9x16")
     contact_sheet(cfg, posters, qr_ok, legib, stills, os.path.join(out, "contact.png"))
     ground = [float(KL.LUMA @ (np.array([int(c[j:j + 2], 16) for j in (1, 3, 5)]) / 255))
@@ -674,6 +705,8 @@ def preview(cfg, posters, qr_ok, legib):
                  f"{i + 1:02d}" for i, x in enumerate(legib) if x < K.TIER[0])),
              f"Endkarte: Lesbarkeit Titel+Datum {end_leg:.2f} {tier(end_leg)}",
              f"Blitz-Check (WCAG 2.3.1, vereinfacht): {flash_text(flash, cfg)}",
+             f"Ton: preview.mp4 {cfg['music']['file']}, loop.mp4 {cfg['music']['loop_file']} "
+             f"({cfg['music']['loop_passes']} Durchgaenge, {loop_fps(cfg):.2f} Plakate/s)",
              "", "Frame  Aushang  Farbe               S     Radius Grund  Lesbarkeit"]
     lines += [f"{i + 1:02d}     {'ja' if KL.is_key(cfg, i) else '  '}       {KL.station_label(cfg, i):<19} "
               f"{KL.style_code(cfg, i):<5} {KL.star_at(cfg, i)[2]:.2f}   {g:.2f}   {x:.2f} {tier(x)}"
