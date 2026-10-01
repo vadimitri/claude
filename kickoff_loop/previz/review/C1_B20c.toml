@@ -1,3 +1,4 @@
+# C1 auf Bahn B20c, T16, Ton, ohne Kamera-Stoesse (Vadim 2.10.: Farbe entscheiden). Farbe/Stile aus C1_B19.toml
 # SPARK Kick-off Loop · alle Stellschrauben an einem Ort. Begriffe: kickoff_loop/CLAUDE.md, Abschnitt "Begriffe".
 # Der Code (src/kickoff_loop*.py) enthaelt keine Gestaltungswerte, nur Logik. Was hier fehlt, ist Systemkonstante
 # und steht in src/styles.py (Paletten, Dither, Pixelraster) oder src/kickoff.py (Satz: Raender, Schriftgroessen).

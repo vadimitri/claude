@@ -891,8 +891,9 @@ def print_files(cfg):
 def main():
     args = sys.argv[1:]
     cmd = args[0] if args else "preview"
-    var = args[1] if cmd == "sheet" and len(args) > 1 else None   # sheet <variante.toml>: Variante neben loop.toml
-    cfg = load(var or CONFIG, music=args[1] if cmd == "preview" and len(args) > 1 else None)
+    arg = args[1] if len(args) > 1 else None
+    var = arg if cmd in ("sheet", "preview") and arg and arg.endswith(".toml") else None   # <variante.toml> neben loop.toml
+    cfg = load(var or CONFIG, music=arg if cmd == "preview" and arg and not var else None)
     if cmd == "frames":
         _, ok, leg = frames(cfg)
         print(f"{len(ok)} Plakate, QR lesbar: {sum(ok)}/{len(ok)}, Lesbarkeit: {' '.join(f'{x:.2f}' for x in leg)}")

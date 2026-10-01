@@ -1,3 +1,4 @@
+# C5 auf Bahn B20c, T16, Ton, ohne Kamera-Stoesse (Vadim 2.10.: Farbe entscheiden). Farbe/Stile aus C5.toml
 # SPARK Kick-off Loop · alle Stellschrauben an einem Ort. Begriffe: kickoff_loop/CLAUDE.md, Abschnitt "Begriffe".
 # Der Code (src/kickoff_loop*.py) enthaelt keine Gestaltungswerte, nur Logik. Was hier fehlt, ist Systemkonstante
 # und steht in src/styles.py (Paletten, Dither, Pixelraster) oder src/kickoff.py (Satz: Raender, Schriftgroessen).
@@ -17,18 +18,22 @@ changes_per_bar = 48 # Tempo: Plakatwechsel pro Takt, ueber das ganze Karussell 
                      # Teiler von 48 (8 = Achtel, 16 = 16tel, 24 = 16tel-Triolen). 0 = wie im Raster ([mashup] *_carousel)
 
 [color]
-# C1 Lange Reise (Vorschau 1.10., Uebergabe 2 "mehr Farbe", Form a): 32 Frames pro Loop, eine Farbreise, alles in OKLab
-# gemischt, kein harter Wechsel. 16 Stationen, eine auf jedem Aushang (Frame 1, 3 … 31), die Fotoframes dazwischen 50 %.
-# Alle 12 dunklen Colorways ausser P6 (Grund dithert zu Lila); 4 kommen zweimal (P13 P17 P14 P10, je >= 4 Stationen
-# Abstand), weil 12 nicht in 32 Frames aufgeht. Jeder Nachbar gegen Lila geprueft (load), Schritte OKLab 0.08-0.25.
-# Papier geht hier NICHT: gemischt mit Dunkel haben Grund und Tinte auf halbem Weg dieselbe Helligkeit (grau, Titel
-# unlesbar); load bricht ab. Papier nur mit hartem Wechsel (C2, C3).
-worlds = [["P11", "P20", "P15", "P13",    # blau: CHERENKOV > IKB 191 > CYANOTYPE > HOLOFOIL          F1-7
-           "P17", "P25", "P26",           # Neon: SIGNAL FLARE > AFTERHOURS > PALETTE ZERO (CGA)      F9-13
-           "P9", "P19", "P18", "P14",     # Glut: RED LASER > CHERRY BOMB > MOLTEN > TOTALITY         F15-21
-           "P10", "P13", "P17", "P14", "P10"]]   # Rueckweg: P1 GREEN > HOLOFOIL > SIGNAL > TOTALITY > P1 GREEN > (P11)
-world_frames = 32    # eine Welt = der ganze Loop ([loop].frames)
-steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P6 P9 P26) werden gedoppelt, nicht gemischt
+# C5 Split extrem: jeder Frame ein Split-Tone "Grund/Licht" aus zwei verschiedenen Welten, hart geschnitten, im
+# Wechsel dunkel / Papier. Papier-Splits aus Papier + Negativen dunkler Colorways (~). Alle 18 Colorways kommen vor,
+# P6 nur als Licht (Stufen 3-5 = Cyan/Weiss, sein Magenta liegt im Grund und faellt weg). Zufallssuche (seed 7) auf
+# grossen Farbabstand Grund-Ton zu Licht-Ton; load prueft Palette und Naht gegen Lila.
+worlds = [["~P21/P10", "~P19/~P13", "P20/P25", "P16/~P26",
+          "~P22/~P24", "~P9/~P15", "P11/P18", "~P14/P23",
+          "P20/P17", "P24/P22", "~P21/P6", "~P25/~P26",
+          "P15/P19", "~P10/P23", "P13/P9", "~P14/P16",
+          "P17/P10", "~P25/~P26", "P20/P9", "~P19/~P11",
+          "~P23/P13", "P24/P22", "~P21/P6", "~P18/P16",
+          "~P22/P20", "~P10/~P17", "P15/P18", "~P19/P21",
+          "~P23/P13", "~P25/~P26", "~P16/~P24", "~P9/~P11"]]
+world_frames = 32    # eine Welt = der ganze Loop, jede Station 1 Frame
+mix = "cut"          # harte Spruenge: jeder Frame eine eigene Colorway, kein Mischen (Vadim 2.10.)
+split_level = 3      # Stufen 0-2 (Grund, Schatten) aus der ersten Colorway, 3-5 (Licht, Titel) aus der zweiten
+steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P6 P9 P26) werden gedoppelt
 
 [styles]
 # Stern-Stile (Codes wie in styles/index.html), jeder haelt hold_frames Frames, dann der naechste; die Liste laeuft reihum.
