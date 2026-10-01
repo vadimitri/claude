@@ -188,11 +188,12 @@ def load(path=CONFIG, music=None):
     assert {"in_s", "sixteenth_s"} <= set(lm["loop_grid"]), "[music].loop_grid braucht in_s und sixteenth_s"
     assert abs(g["impact_s"] - g["burst_s"] - cfg["endcard"]["burst_beats"] * 60 / g["bpm_carousel"]) < 2e-3, \
         "[endcard].burst_beats passt nicht zur Luft im Mashup: uv run src/kickoff_loop_music.py neu bauen"
-    st = [cfg["styles"]["cycle"][(i // cfg["styles"]["hold_frames"]) % len(cfg["styles"]["cycle"])] for i in range(n)]
-    same = [i + 1 for i in range(n) if st[i] == st[(i + 1) % n] and st[i] not in cfg["styles"].get("repeat_ok", [])]
-    assert not same, f"[styles]: Frame {same} hat denselben Stern wie der naechste (Vadim 2.10.: immer Wechsel)"
-    assert len(cfg["styles"]["cycle"]) * cfg["styles"]["hold_frames"] == n, \
-        f"[styles]: {len(cfg['styles']['cycle'])} Stile x hold {cfg['styles']['hold_frames']} != {n} Frames (Stile fielen weg)"
+    P = posters(cfg)                                     # cycle: ein Umlauf (n) oder jede Welt eigene Sterne (alle Plakate)
+    st = [cfg["styles"]["cycle"][(i // cfg["styles"]["hold_frames"]) % len(cfg["styles"]["cycle"])] for i in range(P)]
+    same = [i + 1 for i in range(P) if st[i] == st[(i + 1) % P] and st[i] not in cfg["styles"].get("repeat_ok", [])]
+    assert not same, f"[styles]: Plakat {same} hat denselben Stern wie das naechste (Vadim 2.10.: immer Wechsel)"
+    assert len(cfg["styles"]["cycle"]) * cfg["styles"]["hold_frames"] in (n, P), \
+        f"[styles]: {len(cfg['styles']['cycle'])} Stile x hold {cfg['styles']['hold_frames']} != {n} Frames bzw. {P} Plakate"
     return cfg
 
 
