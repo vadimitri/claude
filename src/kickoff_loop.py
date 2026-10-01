@@ -36,6 +36,7 @@ import hashlib
 import json
 import os
 import sys
+import threading
 import tomllib
 from functools import lru_cache
 from multiprocessing import Pool
@@ -731,7 +732,7 @@ def _save_png(img, path):
         im.putpalette(np.stack([cols >> 16, (cols >> 8) & 255, cols & 255], 1).astype(np.uint8).ravel().tolist())
     else:
         im = Image.fromarray(img)
-    tmp = f"{path}.{os.getpid()}.tmp"
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"   # Threads (qr_scan) schreiben gleiche Schluessel
     im.save(tmp, format="PNG")
     os.replace(tmp, path)
 
@@ -761,7 +762,7 @@ def memo(name, key, fn=None):
         return None
     v = fn()
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.{os.getpid()}.tmp"
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"   # Threads (qr_scan) schreiben gleiche Schluessel
     json.dump({"v": v}, open(tmp, "w"))
     os.replace(tmp, path)
     return v
