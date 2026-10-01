@@ -3,6 +3,34 @@
 Session-Start: diese Datei, dann `uv run src/kickoff_loop.py sheet` (zeigt den Stand in ~10 s). Stellschrauben: `loop.toml`.
 Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Befunde, Verworfenes, Archiv) und Skill `spark-motion`.
 
+## Übergabe → nächste Session (Stand 2.10., 20 Uhr)
+
+**Auftrag (Vadim 2.10.): neues Ende als „digitaler Loop, der anders loopt“.** Nach dem Karussell geht es noch einmal in den
+Loop hinein (digital, 24 fps, dieselbe Bahn/Sterne/Farben), dann ändert der Stern seine **Bahn**:
+- **v1**: Der Stern fliegt nach hinten, bis er klein ist wie bei F17 (fernster Punkt, Radius ~0.23), von dort
+  **Zoom hinein mit Ease-in und Beschleunigung**.
+- **weitere Versionen**: Der Stern wird wie gewohnt klein Richtung Mitte und **fliegt dann weg wie geschleudert** (Schleuder:
+  Bahn tangential verlassen, beschleunigt raus, Drehung zieht an). Gern 2–3 Spielarten (Richtung, Tempo, Spin).
+- Verworfen dafür: **Z6–Z9** (Schwung-Zoom + Dither-Difference-Text, Vadim: „alle scheiße, löschen“; gelöscht, Code-Schalter
+  `zoom_dolls_per_beat`, `zoom_step_per_bar`, `card_reveal`, `card_diff` sind noch da). Z4/Z5 waren ihm zu wenig Momentum.
+- Was Vadim mag: Text **auf dem Beat** erscheinen lassen (aus Z5).
+
+**Wie bauen** (Vorschlag, Code-Stellen):
+- Neuer `[endcard].end_mode` (z. B. `"orbit"`) in `src/kickoff_loop_end.py`, eingehängt wie `words` in
+  `kickoff_loop_video.digital_phase/digital_style`. `KL.orbit(cfg, phase)` nimmt **gebrochene Phasen**: der digitale Loop
+  ist einfach die Bahn in 24 fps weitergerechnet; Stil/Farbe je ganzer Phase über `KL.poster_style(cfg, i)` (9:16-Satz wie
+  im Zoom, `layout` mischt Plakat → 9:16 über `digital.u`). Danach eine eigene Bahn (Blend von `orbit` in die neue
+  Trajektorie, Lage/Radius/Drehung pro Bild), Zoom hinein über `kickoff_loop_digital.zoom_spark` (braucht heute S33-Matrjoschka;
+  für andere Sterne Massstab/Mitte direkt über `star` steuern).
+- Zeitachse wie die Ausstiege: IGOR ungeschnitten (`[ending]`, Takt 5 = 11.76 s Boom, 19.85 s Stopp, 20.59 s Hit).
+- Nach jedem Render: Bildstreifen über die Zeit selbst ansehen (ffmpeg fps=1.5 → Bogen) + Report, **bevor** Vadim es sieht
+  (Z4 v1 war kaputt und ging ungeprüft raus).
+
+**Sonst offen zur Wahl** (`previz/review/<Code>/`): Z4 v2, Z5, W1, W2 (Begriffe), G1/G2 (Poly-Glitch statt S48c), N1 (neue
+Sterne S56–S60 in Welt 2, Bögen `review/S56/`). Hauptversion `previz/v021/` (loop.toml, altes Ende).
+**Render-Tempo**: Agent `render-speed` (Worktree `.claude/worktrees/agent-a9d4dafff3d6dd2bf`) optimiert die Pipeline; Ergebnis
+gemergt oder offen, siehe Git-Log. **Platte** war voll (Rohvideo eines Agenten): keine Rohvideos schreiben, `df -h` prüfen.
+
 ## Stand 2.10. (Abend)
 
 - **Offen zum Ansehen** in `previz/review/<Code>/` (je Ordner: TOML, `preview.mp4`, `loop.mp4`, Bögen, `report.txt`);
@@ -19,7 +47,7 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
       Begriffe sind **Vorschlag** (`words`), Vadim ersetzt.
     - **W2** = W1 + Endkarte fliegt als letzte Wand heran, QR auf dem Hit.
     - Vadim zu Z4/Z5: „das Ende muss das Momentum vom Loop matchen“, Text „mit Dither-Effekt mit Difference-Layer, kein
-      langer Fade, auf den Beat war cool“ → **Z6–Z9** (`zoom_dolls_per_beat` = Anfangstempo 3 Puppen/Beat, Drehung übernimmt
+      langer Fade, auf den Beat war cool“ → **Z6–Z9 (verworfen, gelöscht)** (`zoom_dolls_per_beat` = Anfangstempo 3 Puppen/Beat, Drehung übernimmt
       den Karussell-Spin; `zoom_step_per_bar` 48 = rastet im T16-Raster; `card_reveal` bayer|blocks|noise, `card_diff`):
       Z6 linear fließend + Bayer, Z7 linear T16 + Blöcke, Z8 bremst fließend + Rauschen, Z9 bremst T16 + Bayer.
       Befund: QR überall lesbar (letzte 5.5–5.8 s), Karten-Lesbarkeit mit Difference 0.66–0.71 (C) statt 0.98 mit
