@@ -1,0 +1,3 @@
+E1 Drop-Konzepte · 540x960 @ 24 fps · 8.83 s, Drop bei 2.958 s (Bild 71)
+Ton: IGOR 40.081-43.019 s (3 Beats Drums + Stopp-Beat), Sprung auf 48.884 s (Downbeat Takt 10, Raster 48.904) bis 54.759 s
+Karussell 16.32 Plakate/s, endet auf Frame 32

@@ -29,6 +29,11 @@ In `previz/review/` liegt, was offen ist (alles andere in `review/alt/`):
 - Agenten-Branches 2.10. (noch nicht gemergt): Farbe C4/C5/C6 `worktree-agent-a2a262b81035cc693`, Song M1a/M1b
   `worktree-agent-a557c00d9ff7e721f` (ersetzt `[mashup]`-Format, loop.toml zieht noch nicht mit), Digital D1a–d
   `worktree-agent-a044f64378a4c82d2` (`src/kickoff_loop_digital.py`), Tempo/Ton/Blitz-raus laeuft noch.
+- `E1a/E1b/E1c.mp4` + `E1_sheet.png` (2.10.): Drop-Konzepte, `uv run src/kickoff_loop_drop.py sheet|video`, Config
+  `review/E1.toml` `[drop]`. Ton: IGOR 40.081–43.019 s (Drums + IGORs eigener Stopp-Beat, -28 dB) → Sprung auf 48.884 s
+  (Downbeat Takt 10 mit Gesang, Raster 48.904, Anschlag gemessen 20 ms früher). E1a Pixel-Explosion (helle Zellen fliegen,
+  rasten auf Beats 1/2/3/5 als Endkarte ein), E1b Dimensionssprung (jeder Beat neue Colorway, Stern stempelt, Infos auf
+  Beats 0/2/4/6), E1c Wand (32 Plakate 4x8, Lauflicht T16, Klapp-Welle zur Endkarte). Urteil offen.
 - `tempo_T16.mp4`: Tempo mit IGOR darunter.
 - `S_rework_3.png`: die gewählten neuen Sterne.
 
