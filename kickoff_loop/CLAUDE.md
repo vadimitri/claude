@@ -30,8 +30,10 @@ Loop hinein (digital, 24 fps, dieselbe Bahn/Sterne/Farben), dann ändert der Ste
 Sterne S56–S60 in Welt 2, Bögen `review/S56/`). Hauptversion `previz/v021/` (loop.toml, altes Ende).
 **Render-Tempo** (gemergt 74b61df, Bild bitgleich per Frame-Hash): `sheet` warm ~3.5 s, `preview` warm ~33 s / kalt ~57 s,
 `preview … --draft` ~20 s (Digitalteil auf Zweiern, Hardware-Encoder, `*_draft.mp4`, nicht zur Abnahme). Cache-Schlüssel nur
-noch aus bildbestimmenden Quellen (`test` prüft das per Trace). Neue Sterne: `S57` verworfen, `S57b` weiter; S58b/c (weicheres
-Fluchtpunkt-Licht) und S60b/c (ohne komischen Rand) beim Sterne-Agenten in Arbeit (`review/S56/rework_*.png`). **Platte** war voll (Rohvideo eines Agenten): keine Rohvideos schreiben, `df -h` prüfen.
+noch aus bildbestimmenden Quellen (`test` prüft das per Trace). Neue Sterne: `S57` verworfen, `S57b` weiter; Rework gemergt
+(`review/S56/rework_S58.png`, `rework_S60.png`): **S58b** schwaches Fluchtpunkt-Licht (Speedlines tragen), **S58c** breiter
+Verlauf (F5 noch weicher gelber Schein), **S60b** Graffiti sauber ohne Hof/Doppelkontur (Lesbarkeit min 0.85 statt 0.71),
+**S60c** = S60b + Hauch Nebel. Noch nicht in N1 eingesetzt (N1 hat S58/S60): Vadims Wahl abwarten. **Platte** war voll (Rohvideo eines Agenten): keine Rohvideos schreiben, `df -h` prüfen.
 
 ## Stand 2.10. (Abend)
 
