@@ -39,13 +39,16 @@ import styles as S             # noqa: E402
 KEYS = ("carousel_bars", "runout_bars", "runout_hold_beats", "length_bars", "card_on")
 WORD_KEYS = ("words", "words_term_beats", "words_far_scale", "words_vanish_beats", "words_width_frac", "words_lead_frac",
              "words_lines")
-CARD_KEYS = ("card_moves", "card_in_beats", "card_overshoot", "card_dim_frac", "card_title_w_frac", "card_top_frac",
+CARD_KEYS = ("card_reveal", "card_diff", "card_moves", "card_in_beats", "card_overshoot", "card_dim_frac", "card_title_w_frac", "card_top_frac",
              "card_sub_frac", "card_gap_frac", "card_qr_module_cells", "card_qr_quiet_cells", "card_qr_y_frac",
              "card_glow_cells", "card_cta_cells", "card_cta_gap_cells", "card_info", "card_info_frac")
 CARD_PARTS = ("title", "what", "when", "cta", "qr", "info")
 EXIT_MAX_SCALE = 30.0   # Begriff an der Kamera vorbei: ab diesem Massstab ist er durch (nur noch Flaechen, nicht mehr gezeichnet)
 GLOW_E = 4              # Gluehen wie kickoff_loop.qr_glow "light": exp(-4) = 2 % am Ende von card_glow_cells
 GLOW_MIN = 0.02         # ... darunter unsichtbar im Korn (wie kickoff_loop.GLOW_MIN)
+REVEALS = ("bayer", "blocks", "noise")
+REVEAL_BLOCKS = (8, 4, 2)   # card_reveal "blocks": Blockgroesse (Zellen) im ersten, zweiten, dritten Drittel des Einsatzes
+REVEAL_SEED = 41           # card_reveal "noise": fester Zufall, gleiche Datei = gleiches Bild
 
 
 # ---------------------------------------------------------------- Konfiguration, Zeitachse
@@ -62,6 +65,7 @@ def grid(cfg):
     assert not e["runout_bars"] or runout_pow(cfg) >= 1, \
         f"[ending].runout_bars: mindestens {cfg['loop']['frames'] / cfg['loop']['changes_per_bar']:.2f} Takte (sonst schneller als T16)"
     assert not words or e["words_lines"] % 2 == 1, "[ending].words_lines ungerade (eine Zeile steht in der Mitte)"
+    assert not e["card_on"] or e["card_reveal"] in REVEALS, f"[ending].card_reveal: {' | '.join(REVEALS)}"
     assert not e["card_on"] or all(len(mv) == 5 and mv[0] in CARD_PARTS for mv in e["card_moves"]), \
         f"[ending].card_moves: [Teil, Beat, dx, dy, Massstab], Teil aus {CARD_PARTS}"
     ig = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "kickoff_loop",
@@ -322,8 +326,10 @@ def card_state(cfg, dt, group=1.0):
                       round(dx * gw * (1 - k), 2), round(dy * gh * (1 - k), 2)])
     first = min(at for _, at, *_ in e["card_moves"])
     dim = e["card_dim_frac"] * min(max((dt - first * b) / (e["card_in_beats"] * b), 0.0), 1.0)
-    lay = {k[5:]: e[k] for k in CARD_KEYS if k not in ("card_moves", "card_in_beats", "card_overshoot", "card_dim_frac")}
-    return dict(group=round(group, 5), parts=parts, dim=round(dim, 3), layout=lay)
+    lay = {k[5:]: e[k] for k in CARD_KEYS if k not in ("card_reveal", "card_diff", "card_moves", "card_in_beats",
+                                                       "card_overshoot", "card_dim_frac")}
+    return dict(group=round(group, 5), parts=parts, dim=round(dim, 3), layout=lay, reveal=e["card_reveal"],
+                diff=bool(e["card_diff"]))
 
 
 def card_masks(c, lay):
@@ -357,6 +363,25 @@ def card_masks(c, lay):
     return out
 
 
+def reveal(c, m, a, mode):
+    """Einsatz im Dither statt Blende (Vadim 2.10.: "mit so einem Dither-Effekt auftauchen, kein langer Fade"), a 0..1:
+    bayer  Zellen kippen in Bayer-Reihenfolge     noise  Zellen ploppen in fester Zufallsreihenfolge
+    blocks erst grobe Bloecke (REVEAL_BLOCKS), dann feiner, je im Bayer-Raster der Blockgroesse.
+    a >= 1 gibt m exakt zurueck."""
+    if a >= 1:
+        return m
+    if mode == "noise":
+        return m & (np.random.default_rng(REVEAL_SEED).random(m.shape) < a)
+    if mode == "blocks":
+        B = REVEAL_BLOCKS[min(int(a * len(REVEAL_BLOCKS)), len(REVEAL_BLOCKS) - 1)]
+        h, w = -(-m.shape[0] // B), -(-m.shape[1] // B)
+        pad = np.zeros((h * B, w * B), bool)
+        pad[:m.shape[0], :m.shape[1]] = m
+        blk = pad.reshape(h, B, w, B).any((1, 3)) & (S.tile(S.bayer(4), (h, w)) < a)
+        return S.up(blk, B)[:m.shape[0], :m.shape[1]]
+    return m & (bayer(c) < a)
+
+
 def card_layers(c, cs):
     """Endkarte als Ebenen: Hintergrund im Korn abdimmen (dim = Anteil Zellen auf Grund), dann je Teil die Maske im
     Animationsstand (warp um die eigene Mitte, dann um die Bildmitte mit group), Einblendung im Bayer-Korn. QR: Platte
@@ -379,7 +404,7 @@ def card_layers(c, cs):
             return m
         out = warp(c, m, s, dx, dy, (xs.min() + xs.max() + 1) / 2, (ys.min() + ys.max() + 1) / 2)
         out = warp(c, out, cs["group"]) if cs["group"] != 1 else out
-        return out & (thr < a) if a < 1 else out
+        return reveal(c, out, a, cs["reveal"])
 
     for name, a, s, dx, dy in cs["parts"]:
         if name == "qr":
@@ -392,15 +417,17 @@ def card_layers(c, cs):
             if not plate.any():
                 continue
             g = np.exp(-GLOW_E * distance_transform_edt(~plate) / (cs["layout"]["glow_cells"] * s * cs["group"]))
-            glow = (g > GLOW_MIN) & ~plate & (thr < a)
+            glow = reveal(c, (g > GLOW_MIN) & ~plate, a, cs["reveal"])
             u = KL.under(c)
             c.add("qr", glow, u + (hi - u) * g)
-            c.add("qr", plate & (thr < a), hi)
-            c.add("qr", mods & plate & (thr < a), lo)
+            c.add("qr", reveal(c, plate, a, cs["reveal"]), hi)
+            c.add("qr", reveal(c, mods & plate, a, cs["reveal"]), lo)
             continue
         m = place(base[name], a, s, dx, dy)
         if m.any():
-            c.add(name, m, c.lvl(c.N))     # Tinte, ohne Kippen: der Grund ist abgedimmt, die Schalen darunter zaehlen nicht
+            ink = np.full((c.gh, c.gw), c.lvl(c.N), np.float32)
+            c.add(name, m, KL.title_value(c, ink) if cs["diff"] else ink)   # diff: wie SPARK auf dem Plakat, Effekte
+                                                                            # laufen invertiert durch (Difference-Ebene)
 
 
 def card_check(st, img):

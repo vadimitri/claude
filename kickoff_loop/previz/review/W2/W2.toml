@@ -16,6 +16,8 @@ words_vanish_beats = 1.0
 words_width_frac = 0.86
 words_lead_frac = 1.18
 words_lines = 17
+card_reveal = "bayer"      # Einsatz im Korn (Z5/W2 wie gerendert)
+card_diff = false
 card_moves = [["title", 6.0, 0.0, 0.0, 1.0],       # SPARK, KICK-OFF, Datum fliegen als Ganzes heran (Beat 7-8)
               ["what", 6.0, 0.0, 0.0, 1.0],
               ["when", 6.0, 0.0, 0.0, 1.0],

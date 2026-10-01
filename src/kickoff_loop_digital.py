@@ -206,6 +206,7 @@ SHELL_FRAC = 0.42     # ... Anteil einer Puppe, der flaechige Schale ist (Rest =
 SHELL_FADE = 0.16     # ... Abklinglaenge der Luft nach innen (in Puppen)
 SHELL_VAL = (0.60, 0.38)   # ... Helligkeit der Schale: 0.60 aussen + 0.38 * Tiefe (0..1 ueber die Puppen)
 AIR_VAL, AIR_NOISE = 0.16, 0.22   # ... Luft: Grundwert und Rauschanteil
+LOG_FLOOR = 1e-300    # nur gegen log(0). Vorher 1e-9: ab ~45 Puppen (Schwung-Zoom Z6/Z7) lag jedes Pixel darunter → flache Flaeche
 NOISE_SEED_OFFSET = 5  # ... Rauschen mit seed + 5 (gleiches Korn wie das Plakat)
 
 
@@ -219,7 +220,7 @@ def zoom_spark(c):
     cx, cy, R, rot = c.L["star"]
     d, _ = styles.star_d(c, cx, cy, R, rot)
     n, z = c.st.get("dolls", 4), zm["dolls"]
-    q = np.log(np.maximum(d, 1e-9)) / np.log(DOLL_RATIO)
+    q = np.log(np.maximum(d, LOG_FLOOR)) / np.log(DOLL_RATIO)
     k, f = np.floor(q), q - np.floor(q)
     shell = (f < SHELL_FRAC) | (q >= n - 1 + z * (1 + zm["core_shrink"]))
     noise = np.random.default_rng(c.st.get("seed", 0) + NOISE_SEED_OFFSET).random(d.shape) - 0.5

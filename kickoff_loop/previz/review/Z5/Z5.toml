@@ -12,6 +12,8 @@ length_bars = 9.0          # bis Takt 10: der QR steht ~6 s (scannen)
 card_on = true
 # Einsatz je Teil: [Teil, Beat ab Karussell-Ende, Start-Versatz x (Bruchteil Bildbreite), y (Bildhoehe), Startmassstab].
 # Jeder Teil landet in card_in_beats mit Ease-out-back (schiesst ueber, setzt sich) und blendet im Korn ein.
+card_reveal = "bayer"      # Einsatz im Korn (Z5/W2 wie gerendert)
+card_diff = false
 card_moves = [["title", 8.0, 0.0, -0.12, 1.0],     # Takt 7: SPARK faellt von oben
               ["what", 9.0, -0.6, 0.0, 1.0],       # KICK-OFF von links
               ["when", 10.0, 0.6, 0.0, 1.0],       # Datum von rechts; Beat 11 = IGORs Stopp, Stille, alles steht

@@ -274,12 +274,24 @@ def zoom_times(cfg):
 
 
 def zoom_state(cfg, t):
-    """Zoom t Sekunden nach seinem Beginn: dict(dolls, u) mit u = Anteil der Zoomdauer, dolls = getauchte Puppen."""
+    """Zoom t Sekunden nach seinem Beginn: dict(dolls, u, total, t). u = Anteil der Zoomdauer, dolls = getauchte Puppen,
+    total = Puppen bis zum Ende, t = (gerastete) Zoomzeit.
+    zoom_dolls_per_beat (Vadim 2.10.: "das Ende muss das Momentum vom Loop matchen"): Anfangstempo statt Strecke, der
+    Zoom startet mit Schwung (linear = bleibt so schnell, ease_out = wird langsamer, Anfangssteigung gleich), die
+    Strecke folgt daraus. zoom_step_per_bar > 0: Zoomzeit rastet im Raster ein (48 = T16, wie das Karussell ruckt)."""
     import kickoff_loop_digital as KD
     e = cfg["endcard"]
     _, dur, _ = zoom_times(cfg)
+    step = e.get("zoom_step_per_bar", 0)
+    if step:
+        q = 4 * beat_s(cfg) / step
+        t = np.floor(t / q + 1e-9) * q
     u = min(max(t / dur, 0.0), 1.0)
-    return dict(u=u, dolls=e["zoom_dolls"] * KD.ease(e["zoom_ease"], e["zoom_ease_pow"], u))
+    total = e["zoom_dolls"]
+    if "zoom_dolls_per_beat" in e:
+        assert e["zoom_ease"] in ("linear", "ease_out"), "[endcard].zoom_dolls_per_beat: Schwung nur mit linear | ease_out"
+        total = e["zoom_dolls_per_beat"] * dur / beat_s(cfg) / (e["zoom_ease_pow"] if e["zoom_ease"] == "ease_out" else 1)
+    return dict(u=u, dolls=total * KD.ease(e["zoom_ease"], e["zoom_ease_pow"], u), total=total, t=float(t))
 
 
 def digital_style(cfg, dt):
@@ -328,10 +340,13 @@ def digital_style(cfg, dt):
             x0, y0, r0 = e["burst_star"][0] * W, e["burst_star"][1] * H, e["burst_star"][2] * W
         else:                                                                      # ... sonst genau im letzten Plakat
             x0, y0, r0 = ox + x * pw, oy + y * ph, r * pw
-        k = zs["dolls"] / e["zoom_dolls"]                                          # Mitte wandert mit dem Zoom
+        k = zs["dolls"] / zs["total"]                                              # Mitte wandert mit dem Zoom
         cx, cy = x0 + (e["zoom_center"][0] * W - x0) * k, y0 + (e["zoom_center"][1] * H - y0) * k
-        star = (cx, cy, r0 / KD.DOLL_RATIO ** zs["dolls"],
-                rot + spin * min(pre, e["burst_beats"] * b) + e["zoom_spin_deg_per_s"] * t)
+        if "zoom_dolls_per_beat" in e:                     # Schwung: dreht weiter wie im Karussell, mit derselben Kurve
+            turn = spin * zs["dolls"] / (e["zoom_dolls_per_beat"] / b)
+        else:
+            turn = e["zoom_spin_deg_per_s"] * zs["t"]
+        star = (cx, cy, r0 / KD.DOLL_RATIO ** zs["dolls"], rot + spin * min(pre, e["burst_beats"] * b) + turn)
         clip = lambda v: float(min(max(v, 0.0), 1.0))                              # noqa: E731
         zoom = dict(dolls=round(zs["dolls"], 6), core_shrink=e["core_shrink"],
                     type_out=clip(t / (e["type_out_beats"] * b)) if e["type_out_beats"] else 1.0,
@@ -378,6 +393,10 @@ def zoom_check(cfg, tl, digital, last_poster):
     phases = [digital_phase(cfg, k / fps)[0] for k in range(len(digital))]
     lum = [luminance(Image.fromarray(np.asarray(last_poster)))] + [luminance(im) for im in digital]
     ok_idx = [k for k in range(len(digital)) if phases[k] != "impact" and (k == 0 or phases[k - 1] != "impact")]
+    if cfg.get("ending", {}).get("card_on"):                    # Einsatz eines Kartenteils ist gewollt, kein Sprung
+        import kickoff_loop_end as KE
+        parts = [repr(KE.card_state(cfg, k / fps)["parts"]) for k in range(len(digital))]
+        ok_idx = [k for k in ok_idx if k == 0 or parts[k] == parts[k - 1]]
     steps = np.array([float(np.abs(lum[k + 1] - lum[k]).mean()) for k in ok_idx])
     med = float(np.median(steps))
     worst = int(steps.argmax())

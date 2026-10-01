@@ -1,0 +1,57 @@
+# Z7 Schwung-Ende (Vadim 2.10. zu Z4/Z5: "das Ende muss das Momentum vom Loop matchen", Text "mit Dither-Effekt mit
+# Difference-Layer auftauchen, kein langer Fade, auf den Beat war cool"): Karussell 4 Takte T16 endet auf F1 auf dem
+# Boom, der Zoom startet sofort mit Tempo. Zoom: Schwung, gleichmaessig weiter (linear), rastet im T16-Raster ein wie das Karussell (16.32/s). Text: Dither "blocks", Difference.
+
+[ending]
+carousel_bars = 4
+runout_bars = 0
+runout_hold_beats = 0.0
+length_bars = 9.0          # bis Takt 10: der QR steht ~6 s (scannen)
+card_on = true
+# Einsatz je Teil: [Teil, Beat ab Karussell-Ende, Start-Versatz x (Bruchteil Bildbreite), y (Bildhoehe), Startmassstab].
+# Ohne Bewegung: jeder Teil erscheint auf seinem Beat im Dither (card_reveal), Vadim: "kein langer Fade".
+card_reveal = "blocks"       # Einsatz im Dither: bayer | blocks (grob → fein) | noise (Zellen ploppen zufaellig)
+card_diff = true           # Schrift als Difference-Ebene ueber dem laufenden Zoom (wie SPARK auf den Plakaten)
+card_moves = [["title", 8.0, 0.0, 0.0, 1.0],      # Takt 7: SPARK auf der Eins, ohne Bewegung, nur Dither-Einsatz
+              ["what", 9.0, 0.0, 0.0, 1.0],       # KICK-OFF auf Beat 2
+              ["when", 10.0, 0.0, 0.0, 1.0],      # Datum auf Beat 3; Beat 11 = IGORs Stopp (Stille)
+              ["qr", 12.0, 0.0, 0.0, 1.0],        # Hit nach dem Stopp: QR, JOIN US, Info zusammen
+              ["cta", 12.0, 0.0, 0.0, 1.0],
+              ["info", 12.0, 0.0, 0.0, 1.0]]
+card_in_beats = 0.5       # Einsatz voll nach der Haelfte davon (kurz, kein Fade)
+card_overshoot = 1.70158   # Ease-out-back: 1.70158 = 10 % ueber das Ziel, 0 = reines Ease-out (kubisch)
+card_dim_frac = 0.0        # kein Abdimmen: Difference-Schrift traegt sich selbst
+card_title_w_frac = 0.74   # SPARK so breit (Bruchteil der Bildbreite). 9:16-Sicherheitszone: Inhalt 14-76 % der Hoehe
+card_top_frac = 0.14       # Oberkante SPARK (Bruchteil der Bildhoehe)
+card_sub_frac = 0.40       # KICK-OFF und Datum: Versalhoehe relativ zu SPARK
+card_gap_frac = 0.30       # Abstand zwischen den Zeilen (relativ zu SPARK)
+card_qr_module_cells = 4   # QR gross: 1 Modul = 4 Zellen (Plakat: 2), 29 Module → 116 Zellen = 43 % der Bildbreite
+card_qr_quiet_cells = 4    # Ruhezone um die Module (Zellen)
+card_qr_y_frac = 0.58      # Mitte des QR (Bruchteil der Bildhoehe)
+card_glow_cells = 16       # Gluehen um die Platte (Zellen)
+card_cta_cells = 12        # JOIN US Versalhoehe (Zellen)
+card_cta_gap_cells = 8     # JOIN US ueber der Platte (Zellen)
+card_info = ["ORT FOLGT"]  # PLATZHALTER unter dem QR (Ort steht noch nicht fest; kickoff.COPY["where"] geht vor)
+card_info_frac = 0.30      # Versalhoehe der Info relativ zu SPARK
+
+[endcard]
+end_mode = "zoom"
+end_frame = 1
+zoom_center = [0.50, 0.50]
+core_shrink = 1.0
+type_out_beats = 0.5       # Plakatsatz zerfaellt schneller (Schwung)
+fade_beats = 0.0           # kein Schwarz: die Karte steht bis zum Schluss
+info_cap_cells = 20
+info_lead_frac = 1.3
+info_y_frac = 0.50
+info_in_beats = 0.5
+burst_on = false
+impact_on = false
+zoom_dolls = 9.0           # ungenutzt: zoom_dolls_per_beat gibt das Tempo vor
+zoom_ease = "linear"
+zoom_dolls_per_beat = 3.0  # Anfangstempo in Puppen pro Beat: der Zoom uebernimmt den Schwung des Karussells
+zoom_step_per_bar = 48     # 48 = Zoom rastet auf 32tel-Triolen ein (T16, wie das Karussell), 0 = fluessig
+zoom_ease_pow = 2.0
+zoom_spin_deg_per_s = 20
+info = []
+info_at_beats = 0.0
