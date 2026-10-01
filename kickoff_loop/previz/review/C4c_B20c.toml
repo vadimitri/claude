@@ -1,0 +1,185 @@
+# C4c (Vadim 2.10. zu C4/C5: "zu hoher Kontrast zwischen zwei Frames, bunter Grund neben schwarzem"): dieselben Stationen wie C4, nur umsortiert. Bloecke a 8 im Wechsel: 4 grosse Hell-Dunkel-Spruenge pro Loop; innerhalb des Blocks nach Farbton (Regenbogen).
+# C4 auf Bahn B20c, T16, Ton, ohne Kamera-Stoesse (Vadim 2.10.: Farbe entscheiden). Farbe/Stile aus C4.toml
+# SPARK Kick-off Loop · alle Stellschrauben an einem Ort. Begriffe: kickoff_loop/CLAUDE.md, Abschnitt "Begriffe".
+# Der Code (src/kickoff_loop*.py) enthaelt keine Gestaltungswerte, nur Logik. Was hier fehlt, ist Systemkonstante
+# und steht in src/styles.py (Paletten, Dither, Pixelraster) oder src/kickoff.py (Satz: Raender, Schriftgroessen).
+#
+# Einheiten stehen im Namen: _s Sekunden · _deg Grad · _frac Bruchteil 0..1 · _px Pixel · _cells Zellen des Pixelrasters
+# (1 Zelle = 1 "8-Bit-Pixel", auf dem A3-Druck 12 px = 1 mm, in der Vorschau 4 px).
+# Plakatgeometrie: x/y = Bruchteil von Plakatbreite/-hoehe, Groessen = Bruchteil der kurzen Plakatseite.
+# Nach jeder Aenderung:  uv run src/kickoff_loop.py preview   → kickoff_loop/previz/vNNN/ (alte Versionen bleiben liegen)
+
+[loop]
+# Tempo kommt aus der Musik ([music].grid: Mashup A 81.61 BPM, B 120 BPM). Ein Umlauf = 1 Takt in 16teln.
+frames = 32          # Frames pro Loop. Vadim 1.10.: Farbe C1 (32 Frames, eine Reise), Tempo T16 (16.32/s, 32tel-Triolen
+                     # auf IGOR); der Video-Loop ist von den Plakaten getrennt, leere Frames (Stern hinter dem Kopf) ok
+key_every = 2        # Stationen der Farbreise liegen auf jedem 2. Frame (aus der Plakatzeit, 1.10.: Video getrennt)
+changes_per_bar = 48 # Tempo: Plakatwechsel pro Takt, ueber das ganze Karussell (ersetzt die Takte im Musik-Raster).
+                     # Vadim 2.10. "alles auf Tempo 16": T16 = 32tel-Triolen = 48/Takt, auf IGOR (81.61 BPM) 16.32/s.
+                     # Teiler von 48 (8 = Achtel, 16 = 16tel, 24 = 16tel-Triolen). 0 = wie im Raster ([mashup] *_carousel)
+
+[color]
+# C4 Kaleidoskop (Vadim 2.10.: "die Farben der Plakate wirklich alle, extremer"): jeder Frame springt hart in
+# eine andere Colorway, im Wechsel dunkel / hell. Alle 17 Kick-off-Colorways (ohne P6: Grund dithert zu Lila)
+# und 15 Negative (~ = Stufen umgedreht: dunkle werden Papier, Papier wird dunkel). Fehlt nur ~P15 (wie ~P11).
+worlds = [["~P23", "P11", "P17", "~P22",
+          "P20", "~P16", "P25", "~P21",
+          "P23", "~P11", "~P17", "P22",
+          "~P20", "P16", "~P25", "P21",
+          "P9", "~P24", "P18", "P14",
+          "P19", "P13", "P26", "P10",
+          "~P9", "P24", "~P18", "~P14",
+          "~P19", "~P13", "~P26", "~P10"]]
+world_frames = 32    # eine Welt = der ganze Loop, jede Station 1 Frame
+mix = "cut"          # harte Spruenge: jeder Frame eine eigene Colorway, kein Mischen (Vadim 2.10.)
+steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P6 P9 P26) werden gedoppelt
+
+[styles]
+# Stern-Stile (Codes wie in styles/index.html), jeder haelt hold_frames Frames, dann der naechste; die Liste laeuft reihum.
+# hold_frames = 2: Aushang und folgender Fotoframe teilen sich den Stil. 16 Frames / 2 = 8 Plaetze, jeder Stil genau einmal.
+# Vadim 1.10. (Sterne-Bogen previz/variants/stars.png): diese 8, in dieser Reihenfolge. Geparkt: S26 S46 S7 S44.
+# Raus: S14 S24 S40 S31-S31f (brechen Silhouette oder Lesbarkeit: S18 0.56, S31 0.84, S31f 0.89), S13 (Kindsterne im
+# Titel), S36 (Vadim 30.9.: "schmilzt"), Labor S15-S20 S28 (ignorieren die Bahn). Letzter Frame voller Koerper (S2):
+# er wird im Ausbruch bildfuellend, Ringe/Schalen flackern dort (Blitz-Check v004: 40 % statt 24 % der Flaeche).
+cycle = ["S31g",  # Lampe: der Stern als Lichtquelle, Bahnen aus den Spitzen (Gegenlicht)     F1-2
+         "S23",   # Anschnitt: tiefes XOR-Nest                                               F3-4
+         "S33",   # Matrjoschka: Schalen, die ins Korn laufen                                F5-6
+         "S18d",  # Moire im Stern: zwei Hoehenlinien-Sterne per XOR, harter Rand            F7-8
+         "S19d",  # Nest-Rosette                                                             F9-10
+         "S45",   # Facette: Kristall im Cel-Shading, Schatten als Ben-Day-Punktraster       F11-12
+         "S47",   # Praegung: das Nest als Hochdruck, Lichtkante + Schatten an jeder Platte  F13-14
+         "S2"]    # Verlauf, voller Koerper: F15-16 (Ausbruch ins Digitale)
+hold_frames = 4
+seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
+
+[spark]
+# Bumerang (Vadim 1.10.): "an den Seiten riesig, in der Mitte nach hinten/kleiner und an der Seite wieder riesig, wie ein
+# Boomerang nach hinten und wieder vorne, elliptisch". Ellipse um den Betrachter, er sitzt nahe dem hinteren Ende: der
+# Stern kommt links riesig herein, fliegt in die Tiefe, kommt rechts riesig zurueck, hinter dem Kopf ist er weg (leere
+# Frames). Die Zeit dort ist echt ("man fuehlt, wenn der Spark nicht genug Zeit hatte die Runde zu machen").
+# Der Stern ist groesser als sein Abstand beim Vorbeiflug (Comic): nur so ist er an den Seiten mehrere Frames riesig.
+# Gerechnet (1.10., 32 Frames): perspektivisch korrekt waere er nur 1 Frame pro Seite gross (Kepler-Varianten B4-B10).
+# Immer frontal, keine Kippung (Vadim 30.9.).
+source = "orbit"           # orbit = Bahn wird hier gerechnet (Werte unten) | resolve = Vadims Keyframes aus Resolve
+                           # (Projekt SPARK_Kickoff_Loop, Timeline Stern-Bahn; uv run src/kickoff_loop_resolve.py pull)
+vanish = [0.50, 0.20]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
+width = 0.7                # halbe Breite der Ellipse (Tiefe = 1). Schmaler = er fliegt enger an dir vorbei
+ahead = 1.3                # Mitte der Ellipse so weit vor dir (0 = du in der Mitte, hinter dem Kopf so lang wie vorn;
+                           # 0.85 = du sitzt am hinteren Ende, der Weg hinter dem Kopf ist kurz)
+kepler_frac = 0.0          # Tempo: 0 = gleichmaessig auf der Bahn, 1 = Flaechensatz (hinten schnell, fern langsam)
+front_dwell_frac = 0.6     # B20c (Vadim 2.10. gewaehlt): verweilt am Nahpunkt (gross), huscht durch die Ferne. 0 = gleichmaessig
+height = 0.205             # Bahn liegt so weit unter Augenhoehe (Einheit: Tiefe): nah = tiefer im Bild
+lens = 0.62                # Brennweite (kurze Plakatseite pro Einheit Abstand)
+size = 0.85                # Sterngroesse (Einheit: Tiefe). Fern Radius = lens*size/(1+ahead) = 0.22
+plane_roll_deg = 0         # Bahnebene um die Blickachse gedreht: 0 = waagerecht (links rein, rechts raus), 90 = senkrecht
+phase_shift_frames = -0.5  # Bahn um so viele Frames verschieben (gebrochen erlaubt): legt fest, welche Frames leer sind
+rot_start_deg = 0          # Drehung im ersten Frame
+spin_deg = 240             # Eigendrehung pro Umlauf. Vielfache von 60° schliessen nahtlos (6-zackiger Stern)
+
+[type]
+# Verlauf in den Buchstaben, pro Zeile von der Grundlinie (dunkler) bis zur Versalhoehe (hellste Stufe), in Palettenstufen.
+text_gradient_steps = 1.0
+# Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert. Titelblock steht in jedem
+# Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
+
+[qr]
+# JOIN US + QR gluehen ein (Vadim zu v005: keine harte Caption-Box, zurueck zum Gluehen von v003, aber sauber).
+# Die QR-Platte (Module + Ruhezone quiet_cells) steht flaechig in der hellsten Stufe, drumherum laeuft das Licht ins Plakat
+# aus: rein geometrisch aus dem Abstand zur Platte (kein Rauschen, der v003-Hof war verbeult), im Bayer-Korn auf dem
+# Zellraster. JOIN US steht frei darueber, ohne Kasten/Rand/Hof, und kippt pro Buchstabe hell/dunkel je nach Untergrund.
+# Vadim 1.10.: R2 Licht (Ruhezone 1 Modul, Lichtabfall). Varianten: uv run src/kickoff_loop.py variants 1 9 27 → qr_sheet.png
+quiet_cells = 2            # Ruhezone um die Module (Zellen, 1 Modul = 2 Zellen). Vadim 1.10.: "nicht so viel Padding",
+                           # R2 gewaehlt. Das Gluehen drumherum ist auch hell und hilft dem Scanner; QR wird je Frame dekodiert
+glow_cells = 12            # Reichweite des Gluehens ab Plattenkante (Zellen), am Ende noch 2 % (gauss und light)
+glow_shape = "round"       # round = Ecken runden sich nach aussen | square = bleibt eckig (Schachbrett-Abstand, 8-Bit)
+glow_profile = "light"     # gauss = weich, flache Kuppe | light = Lichtabfall (steil an der Platte, langer Schweif) |
+                           # linear = gleichmaessig | steps = linear, auf Palettenstufen gerundet: Ringe ohne Korn
+label_cap_cells = 9        # Versalhoehe JOIN US, fest (waechst nicht mit dem Titel). 9 = so breit wie die QR-Module (59/58)
+label_gap_cells = 4        # Luft zwischen JOIN US und Plattenkante (Zellen)
+
+[video]
+size_px = [1080, 1920]     # Ausgabe Breite x Hoehe (9:16 fuer Reel/Story)
+timeline_fps = 24          # Resolve-Timeline
+start_poster_frac = 0.38   # Plakathoehe / Bildhoehe am Anfang: Umgebung (Campus) gut sichtbar
+surround_luma = 0.22       # Grading: Umgebung jedes Fotos auf diese mittlere Helligkeit (0..1) ziehen. Sonst blitzt bei
+                           # 8 fps jeder Ortswechsel ueber das ganze Bild. Dunkler = Plakat leuchtet mehr, weniger Blitz
+end_cell_px = 4            # Zoom-Ende: 1 Plakatzelle = 4 Ausgabepixel (R3) → pixelgenauer Wechsel ins Digitale
+# Das Karussell (Plakatwechsel pro Takt je Abschnitt) kommt aus der Musik ([music].grid carousel_bars, gesetzt in
+# [mashup] a_carousel/b_carousel): die Takte liegen unter der Musik, die gerade laeuft. Es endet immer auf dem letzten
+# Frame, auf welchem Frame es anfaengt, ergibt sich daraus.
+zoom_stepped = false       # true = Kamera springt nur mit den Plakaten (reines Stop-Motion), false = faehrt fluessig
+roll_deg = -4.0            # Kamera rollt gleichmaessig von hier auf 0° (waagerecht am Zoom-Ende). Mehr Bewegung, kein Wackeln
+punch_frac = 0.0           # Stoss nach vorn auf jedem Drum-Hit (Vadim 2.10.: aus, 0) ([music].grid hits_s): Massstab +5 %, klingt ab
+punch_decay_beats = 0.25   # Abklingzeit des Stosses (Beats). Kurz = zackig, auf dem Schlag
+
+[endcard]
+# Digitalteil: ab hier rendert der Rechner in 24 fps weiter (haengt nicht, nur im Video). Der Wechsel der Bildrate IST
+# der Uebergang (Spider-Verse: Stop-Motion auf Achteln → fluessig). Drei Abschnitte, Zeiten in Beats des Songs:
+#   Ausbruch  der Stern bricht aus dem Papier, fliegt auf einen zu, bis er das Bild fuellt
+#   Impact    ein paar Bilder Negativ (Palette umgedreht), genau auf dem Hit
+#   Endkarte  9:16-Satz, der Stern dreht weiter, Titel/Datum/QR setzen auf 16teln nacheinander ein
+burst_beats = 0.5          # Ausbruch: so viele Beats vom letzten Plakat bis der Stern das Bild fuellt (endet auf dem Hit)
+burst_star = [0.50, 0.46, 1.6]  # Ziel des Ausbruchs: x, y (Bruchteil des 9:16-Bilds), Radius (Bruchteil der Bildbreite)
+impact_frames = 2          # Negativ-Bilder auf dem Hit (24 fps). 1 Blitz, WCAG erlaubt 3 pro Sekunde
+card_star = [0.50, 0.66, 0.62]  # Mitte und aeusserster Stern des Tunnels: x, y, Radius (wie oben)
+card_style = "S7"          # PLATZHALTER: Vadim 1.10. "keine Hypno-Endkarte", Endkarte wird am Ende in eigener Session neu
+                           # gemacht. Bis dahin: XOR-Nest als Tunnel, Sterne wachsen stetig aus der Mitte nach aussen
+card_zoom_stars_per_s = 0.9    # so viele neue Sterne pro Sekunde (Tempo des Sogs). Jedes Pixel kippt dabei ~1x/s: kein Blitz
+card_spin_deg_per_s = 12   # langsame Drehung in der Bildebene (frontal, keine Kippung)
+card_fps = 24              # Vadim 30.9.: "Framerate der digitalen Version ganz nice" → fluessig
+boil_cells = 0             # Boil (Test, Vadim 1.10.): Stern springt auf boil_on-teln um bis zu so viele ganze Zellen, 0 = aus
+boil_rot_deg = 1.5         # dazu so viel Drehung (+-), frontal
+boil_on = 2                # neue Lage alle so viele Bilder: 2 = auf Zweiern (12/s bei 24 fps), wie Zeichentrick
+boil_dither = true         # das Bayer-Korn wandert mit (es "kocht"), im ganzen Bild; flaechige Stufen (QR-Platte) bleiben ruhig
+card_reveal_16ths = [0, 1, 2]   # Titel, Datum, QR setzen auf diesen 16teln nach dem Impact ein (Tempo der Endmusik)
+
+[music]
+# Mashup (Vadim 30.9.): IGOR-Brummen [→ IGOR-Beat] → Maker-Night-Drop auf dem Impact. Gebaut von
+# uv run src/kickoff_loop_music.py (Stellschrauben [mashup] unten), Befunde previz/music/report.txt.
+# Das Raster (JSON) sagt alles zur Zeitachse: Karussell-Takte, 16tel, Hits, Ausbruch, Impact, Ende (Zeiten ab Videoanfang).
+file = "ref/audio/mashup_A.wav"   # A = IGOR-Beat unter dem Karussell (81.61 BPM) | B = nur Brummen, 120-BPM-Raster
+grid = "ref/audio/mashup_A.json"  # 2.10.: A, weil T16 auf IGOR steht (auf B waeren 48/Takt 24 Plakate/s)
+# Ton der Plakat-Loop-Videos (sheet, preview loop.mp4): bis der neue Song da ist IGOR, ab dem Einstieg in_s des Rasters
+# (Taktstrich), der Loop laeuft loop_passes-mal auf dessen Takt. Wechsel/s = changes_per_bar / Taktlaenge dieses Rasters.
+loop_file = "ref/audio/igors_theme.mp3"
+loop_grid = "ref/audio/igor_beats.json"
+loop_passes = 4            # Durchgaenge im Loop-Video: 32 Frames bei 16.32/s = 1.96 s, x 4 = 7.8 s (man hoert den Song)
+fade_out_s = 0.05          # nur gegen den Knack am Schnitt; das Video endet auf einem Taktstrich
+loudness_lufs = -14        # Vorschau/Reel: als feste Verstaerkung (kein Regler, der Drop bleibt so viel lauter wie gebaut)
+
+[simulation]
+# Nur fuer die Vorschau, solange es keine Fotos gibt: erfundene Waende statt Campus + Restfehler der Entzerrung.
+jitter_px = 0              # Versatz des Plakats von Foto zu Foto nach dem Entzerren (Pixel im Endbild)
+jitter_rot_deg = 0.0      # Restdrehung von Foto zu Foto
+
+[checks]
+# Gates: Verstoesse stehen im report.txt der Version, die Vorschau wird trotzdem gebaut.
+flash_gate = false         # Blitz-Check (WCAG 2.3.1) messen und berichten. Vadim 2.10.: "soll weg, ist voellig okay, wenn
+                           # die Farben crazy gehen" → aus; die Werte darunter gelten nur, wenn er an ist
+flash_max_per_s = 3        # WCAG 2.3.1: hoechstens 3 Blitze pro Sekunde (Blitz = Paar gegenlaeufiger Helligkeitsspruenge)
+flash_min_delta = 0.10     # Helligkeitssprung (relative Luminanz 0..1), ab dem ein Wechsel zaehlt
+flash_max_area_frac = 0.25 # Flaechenanteil des Bildes, ab dem blitzende Pixel als Verstoss gelten
+
+[mashup]
+# Musik als Mashup (Uebergabe 30.9., Punkt 4), zwei Varianten zum Anhoeren. Bauen: uv run src/kickoff_loop_music.py
+#   → ref/audio/mashup_A.wav/.json, mashup_B.wav/.json (Zeitraster fuers Video), previz/music/*.m4a + report.txt
+# A: IGOR im Original ab dem Einstieg ([music].grid in_s: Drone, Drum-Einsatz bei +1.6 s, dann Beat) → Maker-Night-Drop
+# B: nur das IGOR-Brummen aus dem Intro (bis 24.04 s kein Schlagzeug), ein Tiefpass oeffnet sich → Maker-Night-Drop
+# Uebergang in beiden gleich, kein Crossfade: das Abgeschnittene endet hart [endcard].burst_beats vor dem Impact (so
+# lang wie der Ausbruch im Bild), in dieser "Luft" klingt nur sein Hall nach, auf der Eins setzt der Drop ein.
+maker_night_tune_cents = 53    # Maker Night wird so viel hoeher neu synthetisiert (IGOR bleibt unangetastet, kein
+                               # Resampling). IGOR-Brummen gemessen: D2-Cluster +48..+65 Cent, D3 +45..+55 Cent
+end_bars = 2                   # Endkarte nach dem Impact in Takten Maker Night (120 BPM); die Datei endet auf dem Taktstrich
+air_tail = 0.5                 # Pegel des Halls in der Luft vor dem Impact (0 = Stille, 1 = so laut wie das Material)
+air_reverb_s = 1.5             # Laenge dieses Halls
+fade_cut_s = 0.005             # Entknacken an jeder Schnittkante (5 ms hoert man nicht als Blende)
+a_pre_bars = 0                 # A: so viele reine Drone-Takte vor dem Einstieg zusaetzlich (Songintro, 0 = wie v005)
+a_carousel = [[8, 1], [16, 3]] # A: Karussell [Wechsel pro Takt, Takte] auf dem IGOR-Raster (81.61 BPM). Summe der
+                               # Takte = Impact auf Taktstrich 4 (Loop-Neustart des Songs): 3.5 Durchgaenge a 16 Frames
+a_drop_db = 1.0                # A: Drop so viel lauter als der letzte IGOR-Takt (LUFS-Differenz)
+b_drone_from_s = 2.0           # B: ab dieser Songsekunde wird das Brummen genommen (ab ~1 s eingeschwungen)
+b_carousel = [[8, 1], [16, 4]] # B: Karussell auf dem 120-BPM-Raster der Maker Night: 1 Takt Achtel-Anlauf, dann
+                               # 4 Durchgaenge a 16 Frames (1 Takt in 16teln = 2 s pro Durchgang)
+b_lp_hz = [120, 12000]         # B: Tiefpass auf dem Brummen, zu (Anfang) → offen (Ende des Karussells)
+b_lp_curve = 1.5               # B: Verlauf des Oeffnens, 1 = gleichmaessig (in Oktaven), > 1 = bleibt laenger dunkel
+b_drop_db = 6.0                # B: Drop so viel lauter als das offene Brummen am Ende (LUFS-Differenz)

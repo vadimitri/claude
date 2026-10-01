@@ -140,7 +140,9 @@ def load(path=CONFIG, music=None):
     assert sp["ahead"] >= 0 and abs(sp["ahead"] - 1) > BEHIND_Z, \
         "[spark].ahead: 0..1 (Betrachter in der Bahn) oder > 1 (Bahn vor ihm), nicht ~1 (Stern durchfliegt den Kopf)"
     assert 0 <= sp["kepler_frac"] <= 1 and sp["width"] > 0, "[spark]: kepler_frac 0..1, width > 0"
-    assert 0 <= sp.get("front_dwell_frac", 0) < 1, "[spark].front_dwell_frac: 0 (gleichmaessig) bis < 1"
+    a, b, f = sp.get("front_dwell_frac", 0), sp.get("ends_dwell_frac", 0), sp.get("screen_frac", 0)
+    assert abs(a) + b < 1 and b >= 0, "[spark]: |front_dwell_frac| + ends_dwell_frac < 1 (sonst laeuft der Stern rueckwaerts)"
+    assert 0 <= f <= 1 and (f == 0 or sp["ahead"] > 1), "[spark].screen_frac: 0..1, nur mit ahead > 1 (Bahn vor dem Betrachter)"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
     q = cfg["qr"]
     for key, ok in (("glow_shape", ("round", "square")), ("glow_profile", ("gauss", "light", "linear", "steps"))):
@@ -356,32 +358,46 @@ def orbit(cfg, phase):
     sp, n = cfg["spark"], count(cfg)
     t = (phase + 0.5 + sp["phase_shift_frames"]) / n
     t -= sp.get("front_dwell_frac", 0) * np.sin(2 * np.pi * t) / (2 * np.pi)   # Tempo 1 - a cos: am Nahpunkt (t=0) langsam
-    X, Z = _ellipse(sp["width"], sp["ahead"], sp["kepler_frac"], t)
+    t -= sp.get("ends_dwell_frac", 0) * np.sin(4 * np.pi * t) / (4 * np.pi)    # 1 - b cos 2x: nah UND fern langsam
+    X, Z = _ellipse(sp, t)
     rot = float(sp["rot_start_deg"] + sp["spin_deg"] * phase / n)
     if Z <= BEHIND_Z:                                         # hinter/neben dem Kopf: kein Stern auf dem Plakat
         return 0.5, 0.5, 0.0, rot
-    ro = np.radians(sp["plane_roll_deg"])                   # Bahnebene um die Blickachse gedreht (0 = waagerecht)
-    u, v = X * np.cos(ro) - sp["height"] * np.sin(ro), X * np.sin(ro) + sp["height"] * np.cos(ro)
-    x = sp["vanish"][0] + sp["lens"] * u / Z
-    y = sp["vanish"][1] + sp["lens"] * POSTER_ASPECT * v / Z
-    r = sp["lens"] * sp["size"] / Z
+    x, y, r = _project(sp, X, Z)
     dx, dy = max(-x, 0, x - 1), max(-y, 0, y - 1) / POSTER_ASPECT   # Abstand der Mitte zum Plakat (Einheit kurze Seite)
     if dx * dx + dy * dy >= r * r:                            # ganz neben dem Plakat: leer, auch kein Schein
         return 0.5, 0.5, 0.0, rot
     return float(x), float(y), float(r), rot
 
 
-def _ellipse(width, ahead, kepler_frac, t):
-    """Punkt (X seitlich, Z vorn) der Bahnellipse zur Zeit t (0..1 = ein Umlauf, 0 = hinter dem Kopf, 0.5 = fern).
-    Zeit = Mischung aus Bogenlaenge (gleiches Tempo) und ueberstrichener Flaeche um den Betrachter (Flaechensatz);
-    numerisch invertiert auf ELLIPSE_SAMPLES Stuetzstellen."""
+def _project(sp, X, Z):
+    """Bahnpunkt(e) (X seitlich, Z vorn) → Plakat (x, y, Radius), Zentralprojektion (x ~ X/Z, Groesse ~ 1/Z)."""
+    ro = np.radians(sp["plane_roll_deg"])                   # Bahnebene um die Blickachse gedreht (0 = waagerecht)
+    u, v = X * np.cos(ro) - sp["height"] * np.sin(ro), X * np.sin(ro) + sp["height"] * np.cos(ro)
+    return (sp["vanish"][0] + sp["lens"] * u / Z, sp["vanish"][1] + sp["lens"] * POSTER_ASPECT * v / Z,
+            sp["lens"] * sp["size"] / Z)
+
+
+def _ellipse(sp, t):
+    """Punkt (X seitlich, Z vorn) der Bahnellipse zur Zeit t (0..1 = ein Umlauf, 0 = hinter dem Kopf bzw. Nahpunkt,
+    0.5 = fern). Zeit = Mischung aus Bogenlaenge (gleiches Tempo im Raum), ueberstrichener Flaeche um den Betrachter
+    (Flaechensatz, kepler_frac) und sichtbarem Weg der Sternspitzen auf dem Plakat (screen_frac: gleiches Tempo im
+    Bild, Mitte + Radius). Vadim 2.10. zu B20c: "wo der Spark ist und wie lange er wo braucht, fuehlt sich komisch an"
+    (Befund: hinter dem Titel kriecht er 0.08/Frame, an den Seiten hetzt er 0.26). Numerisch invertiert auf
+    ELLIPSE_SAMPLES Stuetzstellen."""
+    w, ahead, k = sp["width"], sp["ahead"], sp["kepler_frac"]
     ph = np.linspace(-np.pi, np.pi, ELLIPSE_SAMPLES)          # -pi = hinter dem Kopf, 0 = fern
-    X, Z = width * np.sin(ph), ahead + np.cos(ph)             # links herum nach vorn (wie bisher)
+    X, Z = w * np.sin(ph), ahead + np.cos(ph)                 # links herum nach vorn (wie bisher)
     arc = np.r_[0, np.cumsum(np.hypot(np.diff(X), np.diff(Z)))]
     area = np.r_[0, np.cumsum(0.5 * np.abs(X[:-1] * Z[1:] - X[1:] * Z[:-1]))]
-    T = (1 - kepler_frac) * arc / arc[-1] + kepler_frac * area / area[-1]
+    T = (1 - k) * arc / arc[-1] + k * area / area[-1]
+    f = sp.get("screen_frac", 0)
+    if f:                                                     # nur Bahnen ganz vor dem Betrachter (load prueft ahead > 1)
+        x, y, r = _project(sp, X, Z)
+        seen = np.r_[0, np.cumsum(np.hypot(np.diff(x), np.diff(y) / POSTER_ASPECT) + np.abs(np.diff(r)))]
+        T = (1 - f) * T + f * seen / seen[-1]
     p = np.interp(t % 1, T, ph)
-    return float(width * np.sin(p)), float(ahead + np.cos(p))
+    return float(w * np.sin(p)), float(ahead + np.cos(p))
 
 
 def star_at(cfg, i):
