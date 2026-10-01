@@ -48,7 +48,7 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
 - **Agenten (3.10.):** `pipeline` (Render-Tempo: Machbarkeit + Prototyp, eigener Branch, kein Merge) und `enden`
   (neue digitale Enden laut Übergabe unten: v1 nach hinten + Zoom, Schleuder-Varianten; eigener Branch, kein Merge).
 
-## Bahn-Enden O4, O5 (Agent `enden`, 3.10., offen zur Wahl)
+## Bahn-Enden O4, O5 (Agent `enden`, 3.10.; Vadim: nicht clean genug → Übergabe unten)
 
 `[endcard].end_mode = "orbit"` (`kickoff_loop_end.py`, Schlüssel `orbit_*` in `[ending]`): nach dem Karussell (4 Takte T16)
 läuft der Loop auf dem Bass-Boom (11.76 s) **genau einen Umlauf digital** weiter (`orbit_loops` 1, 1.96 s, 24 fps,
@@ -76,38 +76,46 @@ Endkarte auf den Beats danach (SPARK, KICK-OFF, Datum, QR, ~6 s stehen). Verglei
 - **Endfarbe offen, Vadim mochte Blau.** Sie folgt heute aus der Phase beim Stopp des Farbwechsels
   (`orbit_cycle_beats`): O5 Navy (Plakat 1, ~P23/P13), O4 Dunkelrot (Plakat 62, P9). Kein eigener Schalter.
 
-## Übergabe → nächste Session (Stand 2.10., 20 Uhr)
+## Übergabe → nächste Session: Ende absolut clean und flüssig (Stand 3.10., abends)
 
-**Auftrag (Vadim 2.10.): neues Ende als „digitaler Loop, der anders loopt“.** Nach dem Karussell geht es noch einmal in den
-Loop hinein (digital, 24 fps, dieselbe Bahn/Sterne/Farben), dann ändert der Stern seine **Bahn**:
-- **v1**: Der Stern fliegt nach hinten, bis er klein ist wie bei F17 (fernster Punkt, Radius ~0.23), von dort
-  **Zoom hinein mit Ease-in und Beschleunigung**.
-- **weitere Versionen**: Der Stern wird wie gewohnt klein Richtung Mitte und **fliegt dann weg wie geschleudert** (Schleuder:
-  Bahn tangential verlassen, beschleunigt raus, Drehung zieht an). Gern 2–3 Spielarten (Richtung, Tempo, Spin).
-- Verworfen dafür: **Z6–Z9** (Schwung-Zoom + Dither-Difference-Text, Vadim: „alle scheiße, löschen“; gelöscht, Code-Schalter
-  `zoom_dolls_per_beat`, `zoom_step_per_bar`, `card_reveal`, `card_diff` sind noch da). Z4/Z5 waren ihm zu wenig Momentum.
-- Was Vadim mag: Text **auf dem Beat** erscheinen lassen (aus Z5).
+**Auftrag (Vadim 3.10. zu O4/O5):** „Beide Versionen ergeben logisch und physisch nicht wirklich Sinn und haben zu wenig
+Schwung. Sie fühlen sich disconnected zum Loop an. **O4** stoppt irgendwie kurz, bewegt sich und dann nach hinten weiter, das
+ist keine flüssige Linie. **O5** kommt zu einem, schießt dann ein bisschen über, korrigiert und zoomt dann rein. Das muss
+**absolut clean und flüssig** sein.“ Neue Session nur dafür. Ausgang: `previz/review/O4/`, `O5/` (+ `Vergleich_O4_O5.mp4`),
+Code `src/kickoff_loop_end.py` (`end_mode = "orbit"`, `orbit_*`, Abschnitt „Bahn-Enden O4, O5“ oben). O1–O3 verworfen.
 
-**Wie bauen** (Vorschlag, Code-Stellen):
-- Neuer `[endcard].end_mode` (z. B. `"orbit"`) in `src/kickoff_loop_end.py`, eingehängt wie `words` in
-  `kickoff_loop_video.digital_phase/digital_style`. `KL.orbit(cfg, phase)` nimmt **gebrochene Phasen**: der digitale Loop
-  ist einfach die Bahn in 24 fps weitergerechnet; Stil/Farbe je ganzer Phase über `KL.poster_style(cfg, i)` (9:16-Satz wie
-  im Zoom, `layout` mischt Plakat → 9:16 über `digital.u`). Danach eine eigene Bahn (Blend von `orbit` in die neue
-  Trajektorie, Lage/Radius/Drehung pro Bild), Zoom hinein über `kickoff_loop_digital.zoom_spark` (braucht heute S33-Matrjoschka;
-  für andere Sterne Massstab/Mitte direkt über `star` steuern).
-- Zeitachse wie die Ausstiege: IGOR ungeschnitten (`[ending]`, Takt 5 = 11.76 s Boom, 19.85 s Stopp, 20.59 s Hit).
-- Nach jedem Render: Bildstreifen über die Zeit selbst ansehen (ffmpeg fps=1.5 → Bogen) + Report, **bevor** Vadim es sieht
-  (Z4 v1 war kaputt und ging ungeprüft raus).
+**Feste Vorgaben** (Vadim 3.10.): ab dem Wechsel ins Digitale **genau ein Umlauf**, dann die neue Bahn und weg („sonst zu
+teasing“). Musik-Sync zweitrangig (Padding/Sprünge macht Vadim am Ende). Richtung O4 (in die Tiefe) bzw. O5 (auf die Kamera
+im riesigen frontalen F1, dann Infinite Zoom mit dem Momentum) ist gewollt, nur die Ausführung nicht. Endfarbe offen, Vadim
+mochte Blau. Vorschauen mit Hardware-Encoder, Tempo vor Qualität.
 
-**Hauptversion `previz/v022/`** (3.10.: neuer Zyklus, S59b, Grund V3; altes Ende). Offen: neue Enden (Agent `enden`).
-Z4/Z5 archiviert, W1/W2 geparkt (3.10.).
-G1/N1 sind seit 3.10. in `loop.toml` (archiviert). Hauptversion `previz/v021/` (loop.toml, altes Ende).
-**Render-Tempo** (gemergt 74b61df, Bild bitgleich per Frame-Hash): `sheet` warm ~3.5 s, `preview` warm ~33 s / kalt ~57 s,
-`preview … --draft` ~20 s (Digitalteil auf Zweiern, Hardware-Encoder, `*_draft.mp4`, nicht zur Abnahme). Cache-Schlüssel nur
-noch aus bildbestimmenden Quellen (`test` prüft das per Trace). Neue Sterne: `S57` verworfen, `S57b` weiter; Rework gemergt
-(`archiv/review/alt/S56/rework_S58.png`, `rework_S60.png`): **S58b** schwaches Fluchtpunkt-Licht (Speedlines tragen), **S58c** breiter
-Verlauf (F5 noch weicher gelber Schein), **S60b** Graffiti sauber ohne Hof/Doppelkontur (Lesbarkeit min 0.85 statt 0.71),
-**S60c** = S60b + Hauch Nebel. Noch nicht in N1 eingesetzt (N1 hat S58/S60): Vadims Wahl abwarten. **Platte** war voll (Rohvideo eines Agenten): keine Rohvideos schreiben, `df -h` prüfen.
+**Hypothesen zur Ursache** (aus Code/TOML, noch nicht am Bild gemessen):
+- O5: `orbit_dive_drift_beats` 0.1 → die Mitte läuft in ~70 ms aus (bremst nach 2–3 Bildern hart), der Zoom (`zoom_spark`)
+  übernimmt um eine eigene Mitte: liest sich als Überschießen + Korrigieren. Dazu verweilt B20c vorn (`front_dwell_frac`
+  0.6): am Wurfpunkt F1 ist die Bahn fast still, „weiterfliegen“ hat kaum Schwung zum Übernehmen.
+- O4: Loslassen auf F14, wo B20c hinter dem Titel kriecht (Befund 2.10.: 0.08/Frame gegen 0.26 an den Seiten), danach x5/Beat
+  + `boost`: Stopp → Anfahren. Die Tangente ist im Raum gerade, im Bild biegt sie perspektivisch ab (keine gerade Linie).
+- Der bisherige Selbsttest misst nur Größensprung und Tempo-Verhältnis am Wechsel, **nicht Richtungsumkehr und Bremsen
+  danach** – deshalb grün trotz Überschießen.
+
+**Maßstab „clean“** (zuerst als Messung bauen, die an O4/O5 heute **anschlägt**, dann erst neu bauen): pro Bild im Bild-
+raum Geschwindigkeitsvektor der Sternmitte, d(ln Radius)/dt und Drehrate, über den ganzen Digitalteil.
+- stetig am Wechsel: Betrag und Richtung (Winkel < ~10°) wie der Schritt davor, kein Knick;
+- danach **nie langsamer** (jede Größe monoton steigend bis zum Verschwinden/Zudecken), **keine Umkehr** der Richtung
+  (Skalarprodukt aufeinanderfolgender Schritte > 0), Krümmung glatt (zweite Ableitung ohne Vorzeichensprung);
+- Zoom-Mitte = weitergerechnete Sternmitte (keine zweite Mitte, auf die zugesteuert wird).
+
+**Wie bauen** (Vorschlag): Release-Zustand aus `KL.orbit` per Differenzen nehmen (Lage, Geschwindigkeit, ln-Radius-Rate,
+Drehrate im Bildraum) und **eine** analytische Fortsetzung rechnen, die nur beschleunigt (konstanter bzw. wachsender Ruck
+entlang der bestehenden Richtung, kein Ausklingen, kein Blend auf ein Ziel). Wurfpunkt dort wählen, wo die Bahn **schnell**
+ist (Bahngeschwindigkeit je Frame aus `orbit` tabellieren), oder die Bahn im letzten Umlauf in den Wurf hinein beschleunigen
+lassen statt danach. O5: Zoom-Rate stetig aus der Größenrate des Sterns übernehmen, Mitte driftet mit dem Tempo weiter und
+wird nicht zurückgeholt. Erst Kurven plotten (Bahn + Tempo-Graph je Bild, wie `orbit.png`), selbst prüfen, dann `--draft`,
+dann Bildstreifen ansehen, dann Vadim.
+
+**Sonst Stand:** Hauptversion `previz/v022/` (Zyklus 3.10., S59b, Grund V3, altes Ende). Render-Pipeline: Agent `pipeline`
+(Hardware-Encoder für alle Vorschauen, Foto-Phase als Video-Segment im Cache, Digitalteil streamen, QR-Prüfung früh
+abbrechen; bitgleich) – Merge-Stand siehe Git-Log. **Platte:** keine Rohvideos schreiben, `df -h` prüfen.
 
 ## Stand 2.10. (Abend)
 
