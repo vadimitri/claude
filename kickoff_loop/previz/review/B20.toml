@@ -131,8 +131,8 @@ card_reveal_16ths = [0, 1, 2]   # Titel, Datum, QR setzen auf diesen 16teln nach
 # Mashup (Vadim 30.9.): IGOR-Brummen [→ IGOR-Beat] → Maker-Night-Drop auf dem Impact. Gebaut von
 # uv run src/kickoff_loop_music.py (Stellschrauben [mashup] unten), Befunde previz/music/report.txt.
 # Das Raster (JSON) sagt alles zur Zeitachse: Karussell-Takte, 16tel, Hits, Ausbruch, Impact, Ende (Zeiten ab Videoanfang).
-file = "ref/audio/mashup_B.wav"   # A = IGOR-Beat unter dem Karussell (81.61 BPM) | B = nur Brummen, 120-BPM-Raster
-grid = "ref/audio/mashup_B.json"
+file = "ref/audio/mashup_A.wav"   # 2.10. T16 auf IGOR. A = IGOR-Beat unter dem Karussell (81.61 BPM) | B = nur Brummen, 120-BPM-Raster
+grid = "ref/audio/mashup_A.json"
 fade_out_s = 0.05          # nur gegen den Knack am Schnitt; das Video endet auf einem Taktstrich
 loudness_lufs = -14        # Vorschau/Reel: als feste Verstaerkung (kein Regler, der Drop bleibt so viel lauter wie gebaut)
 
