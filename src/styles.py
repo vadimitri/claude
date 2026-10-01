@@ -257,33 +257,55 @@ def qr_matrix():
 
 def ground_shape(c, lin):
     """Form des Grunds, 0..1 auf dem Zellraster. Ohne st["ground"] (alle Projekte bis 3.10.) der lineare Verlauf lin,
-    bitgleich wie bisher. Vadim 3.10.: "nicht einfach von oben nach unten ein Linear-Gradient, sondern verschiedene
-    Islands". Inseln = Metaballs (Summe von Gauss-Glocken), jede Insel faehrt ueber einen Umlauf (st["loop"]) einen
-    geschlossenen Kreis: der Loop bleibt nahtlos, die Inseln stehen nicht wie ein Standbild. Werte aus [ground]:
-      islands, size_frac [min, max] (Radius, kurze Seite), seed, drift_frac (Kreisradius der Fahrt, kurze Seite),
-      warp_frac (wellige Kueste), terraces (0 = weich, n = n harte Hoehenstufen wie eine Hoehenkarte),
-      gain (Hoehe der Inseln, 1 = so hell wie der lineare Verlauf unten), lin_frac (so viel vom alten Verlauf bleibt)."""
+    bitgleich wie bisher. Vadim 3.10.: "nicht einfach von oben nach unten ein Linear-Gradient". Werte aus [ground]:
+      mode = islands: Metaballs (Summe von Gauss-Glocken), jede Insel faehrt ueber einen Umlauf (st["loop"]) einen
+        geschlossenen Kreis, der Loop bleibt nahtlos. islands, size_frac [min, max] (Radius, kurze Seite), drift_frac
+        (Kreisradius der Fahrt), warp_frac (wellige Kueste).
+      mode = flow (Vadim 3.10.: "harte Landmassen, aber mehr Stufen, eher ein Gradient, der flowy ist, im 8-Bit-Style"):
+        Verlauf in Richtung angle_deg, die Koordinaten von waves Wellen (zufaellige Richtung, wave_freq Perioden pro
+        kurzer Seite) quer verbogen, nacheinander (das Verbiegen faltet sich: fliesst statt wellt). Jede Welle laeuft
+        flow_per_loop Perioden pro Umlauf weiter (ganzzahlig: nahtlos, 0 = steht). islands > 0 mischt Inseln dazu.
+      Fuer beide: terraces (0 = weich, n = harte Hoehenstufen), blocks_cells (0 = aus, k = Feld nur je k x k Zellen
+      ausgewertet: grobe Quadrate), gain (Hoehe, 1 = so hell wie der lineare Verlauf unten), lin_frac (Rest des alten
+      Verlaufs), seed."""
     gd = c.st.get("ground")
     if not gd or gd["mode"] == "linear":
         return lin
     m = min(c.W, c.H)
-    X, Y = c.cx / m, c.cy / m
+    b = gd.get("blocks_cells", 0) * c.px
+    X, Y = ((np.floor(c.cx / b) + 0.5) * b / m, (np.floor(c.cy / b) + 0.5) * b / m) if b else (c.cx / m, c.cy / m)
     lp = c.st.get("loop") or {}
     t = 2 * np.pi * lp.get("i", 0) / max(lp.get("n", 1), 1)
     rng = np.random.default_rng(gd["seed"])
-    if gd["warp_frac"]:                                     # Kueste: Koordinaten mit zwei Wellen verbiegen (feste Phase)
-        a, b = rng.uniform(0, 2 * np.pi, 2)
-        X, Y = (X + gd["warp_frac"] * np.sin(9 * Y + a + t), Y + gd["warp_frac"] * np.sin(7 * X + b - t))
-    f = np.zeros(lin.shape)
-    for _ in range(gd["islands"]):
-        x0, y0 = rng.uniform(0, c.W / m), rng.uniform(0, c.H / m)
-        r, ph = rng.uniform(*gd["size_frac"]), rng.uniform(0, 2 * np.pi)
-        x0, y0 = x0 + gd["drift_frac"] * np.cos(t + ph), y0 + gd["drift_frac"] * np.sin(t + ph)
-        f += np.exp(-((X - x0) ** 2 + (Y - y0) ** 2) / r ** 2)
-    f = np.clip(f, 0, 1)
+    if gd["mode"] == "islands":
+        f = _islands(gd, rng, X, Y, t, c.W / m, c.H / m)
+    else:
+        a = np.radians(gd["angle_deg"])
+        for _ in range(gd["waves"]):
+            d, fr, ph = rng.uniform(0, 2 * np.pi), rng.uniform(*gd["wave_freq"]), rng.uniform(0, 2 * np.pi)
+            w = gd["warp_frac"] * np.sin(2 * np.pi * fr * (X * np.cos(d) + Y * np.sin(d)) + ph + gd["flow_per_loop"] * t)
+            X, Y = X - w * np.sin(d), Y + w * np.cos(d)       # quer zur Welle schieben
+        corners = np.array([0, c.W / m]) [:, None] * np.cos(a) + np.array([0, c.H / m])[None] * np.sin(a)
+        f = np.clip((X * np.cos(a) + Y * np.sin(a) - corners.min()) / np.ptp(corners), 0, 1)
+        if gd.get("islands"):
+            f = (f + _islands(gd, np.random.default_rng(gd["seed"] + 1), X, Y, t, c.W / m, c.H / m)) / 2
     if gd["terraces"]:
         f = np.floor(f * gd["terraces"] + 0.5) / gd["terraces"]
     return gd["lin_frac"] * lin + gd["gain"] * f
+
+
+def _islands(gd, rng, X, Y, t, A, B):
+    """Inselfeld 0..1 auf der Seite A x B (kurze Seite = 1): Metaballs, fahren pro Umlauf einen Kreis."""
+    if gd["mode"] == "islands" and gd["warp_frac"]:          # Kueste: Koordinaten mit zwei Wellen verbiegen
+        a, b = rng.uniform(0, 2 * np.pi, 2)
+        X, Y = (X + gd["warp_frac"] * np.sin(9 * Y + a + t), Y + gd["warp_frac"] * np.sin(7 * X + b - t))
+    f = np.zeros(X.shape)
+    for _ in range(gd["islands"]):
+        x0, y0 = rng.uniform(0, A), rng.uniform(0, B)
+        r, ph = rng.uniform(*gd["size_frac"]), rng.uniform(0, 2 * np.pi)
+        x0, y0 = x0 + gd["drift_frac"] * np.cos(t + ph), y0 + gd["drift_frac"] * np.sin(t + ph)
+        f += np.exp(-((X - x0) ** 2 + (Y - y0) ** 2) / r ** 2)
+    return np.clip(f, 0, 1)
 
 
 def ground(c):

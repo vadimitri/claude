@@ -2662,7 +2662,7 @@ def _blob(g, acc, cx, cy, rad, rng):
     acc[w] |= dx * dx + dy * dy < np.maximum(r, _cell(g) * SV_CELL_MIN) ** 2
 
 
-def c_impact(g):
+def c_impact(g, brush_loop=True):
     """S59 Impact (Still 03, ITSV "KRACK"): der Stern hell, darum Farbe wie gemalt: Kleckse mit Tropfen und Schweifen,
     einseitig geworfen (Faecher um eine Wurfrichtung, damit es Farbe ist und kein Burst), dazu eine grosse Pinselschlaufe
     (die pinke Ellipse im Still), die anschwillt und duenn auslaeuft. Die Kontur ist mehrmals von Hand nachgezogen, jede
@@ -2675,7 +2675,7 @@ def c_impact(g):
     qfree = _qr_free(g)
     keep = qfree > 0
     L = _lightfield(x, y, d)
-    v = np.where(d < 1, _dithered(N, L, N), bg(g) + 0.06 * glow(d, 0.3))
+    v = np.where(d < 1, _dithered(N, L, N), bg(g) + 0.06 * glow(d, 0.3) * brush_loop)
     # Pinselschlaufe hinter den Klecksen: Ellipse um den Stern, Breite schwillt an und laeuft aus
     ax_, bx_ = rng.uniform(*IMP_LOOP_R), rng.uniform(*IMP_LOOP_R) * 0.75
     tilt, t0 = np.radians(rot + rng.uniform(0, 180)), rng.uniform(0, 2 * np.pi)
@@ -2691,7 +2691,7 @@ def c_impact(g):
     for q in np.arange(0, ln[-1], 0.5 * c):                       # Stempel dicht genug: der Strich reisst nie
         k = min(np.searchsorted(ln, q), tt.size - 1)
         _disk(g, loop, px_[k], py_[k], width[k] * c)
-    v = np.where(loop & keep, _grain(IMP_LOOP_LEVEL, 0.5, N), v)
+    v = np.where(loop & keep & brush_loop, _grain(IMP_LOOP_LEVEL, 0.5, N), v)   # S59b: Zufall gezogen, nicht gemalt
     # Kleckse: einseitig in einem Faecher
     throw = np.degrees(np.arctan2(g.B / 2 - y0, g.A / 2 - x0)) - rot + rng.normal(0, 20)   # zur Plakatmitte
     specks = np.zeros(d.shape, bool)
@@ -2730,6 +2730,12 @@ def c_impact(g):
         v = v + (lvl / N - v) * ink
     g.lit = (d < 1) & (v >= 0.5)
     return np.clip(v, 0, 1)
+
+
+def c_impact_ohne_schlaufe(g):
+    """S59b Impact ohne Kreis (Vadim 3.10.: "bei S59 den Halo/Kreis entfernen, danach approved"): S59 ohne die gemalte
+    Pinselschlaufe und ohne Schein um den Stern. Kleckse, Tropfen und Skizzenkonturen liegen genau wie bei S59."""
+    return c_impact(g, brush_loop=False)
 
 
 def _spray(rng, m, cells, dens_max):
@@ -2982,6 +2988,7 @@ CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) steh
     ("S58b", c_tunnel_schwach, "Tunnel schwach", "S58 mit schwachem, kleinem Licht im Fluchtpunkt: die Speedlines tragen das Bild."),
     ("S58c", c_tunnel_verlauf, "Tunnel Verlauf", "S58 ohne Hotspot: breiter, weicher Verlauf ueber fast den ganzen Stern."),
     ("S59", c_impact, "Impact", "Still 03 KRACK: Farbkleckse, Pinselschlaufe, Kontur mehrfach versetzt in anderen Stufen nachgezogen."),
+    ("S59b", c_impact_ohne_schlaufe, "Impact ohne Kreis", "S59 ohne Pinselschlaufe und ohne Schein: nur Kleckse, Tropfen, Skizzenkonturen."),
     ("S60", c_graffiti, "Graffiti", "Spraydose: Wolke, zweite Outline, Fade-Fuellung, versetzte Outline, Spruehnebel, Laeufer, Glanz."),
     ("S60b", c_graffiti_clean, "Graffiti sauber", "S60 ohne Hof: klare Outline in Stufe 2, Fade-Fuellung, Laeufer, grosse Glanzsterne + Glanzpunkte."),
     ("S60c", c_graffiti_hauch, "Graffiti Hauch", "S60b mit hauchduennem Spruehnebel aussen an der Outline."),
@@ -3086,7 +3093,11 @@ URTEIL.update({"S58b": (4, "Loop", "Vadim 3.10.: zufrieden, nur ohne Rand (Kante
                "S60d": (4, "Loop", "Vadim 3.10.: S60 ohne Abstand zum Halo, ohne Pfuetze."),
                "S45": (2, "nicht gewaehlt", "Vadim 3.10.: oede, raus aus dem Loop (es gibt genug neue Sterne)."),
                "S48c": (3, "nicht gewaehlt", "Vadim 3.10.: alter Glitch raus, ersetzt durch den Poly-Glitch S48e."),
-               "S48e": (4, "Loop", "Vadim 3.10.: ersetzt S48c.")})
+               "S48e": (4, "Loop", "Vadim 3.10.: ersetzt S48c, bestaetigt."),
+               "S59": (3, "nicht gewaehlt", "Vadim 3.10.: Halo/Kreis entfernen -> S59b."),
+               "S59b": (5, "Loop", "Vadim 3.10.: S59 ohne Kreis, damit approved."),
+               "S58b": (5, "Loop", "Vadim 3.10.: approved (ohne Rand)."),
+               "S60d": (5, "Loop", "Vadim 3.10.: approved.")})
 KEPT =[c for c in BY if URTEIL[c][1] != "raus"]
 
 # Kick-off-Sichtung 2026-09-25 nachts (Vadim)
@@ -3284,7 +3295,7 @@ HAND_TEST_STARS = ((-0.13, 0.65, 0.87, 0.0), (0.95, 0.61, 0.64, 225.0))  # Selbs
                              # der Bahn haengt: mit der Ellipse (1.10. abends) sind Frame 1/16 leer, der Test war blind
 
 POLY_TEST_MIN_FRAC = 0.01    # Selbsttest Poly: so viel der Seite unter dem Titelblock muss der Bruch mindestens aendern
-SV2_CODES = ("S56", "S57", "S57b", "S58", "S58b", "S58c", "S59", "S60", "S60b", "S60c", "S60d")
+SV2_CODES = ("S56", "S57", "S57b", "S58", "S58b", "S58c", "S59", "S59b", "S60", "S60b", "S60c", "S60d")
 SV2_TEST_STARS = ((0.22, 0.30, 0.0), (0.45, 0.12, 37.0), (-1, 0.2, 10.0))   # Selbsttest QR: Stern so weit rechts ueber der
                              # QR-Zone (Ecke + Radius x Faktor, m) mit Radius und Drehung: nah genug, dass Blasen/Spritzer/
                              # Nebel hineinreichen; Faktor -1 = Stern genau ueber der Zone (Laeufer von S60b/c fallen hinein)

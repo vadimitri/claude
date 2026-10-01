@@ -134,10 +134,14 @@ def load(path=CONFIG, music=None):
                                    f"Vielfaches von [loop].frames {n}: Bahn und Stile sprangen am Neustart")
     gd = cfg.get("ground")
     if gd:
-        need = {"mode", "islands", "size_frac", "seed", "drift_frac", "warp_frac", "terraces", "gain", "lin_frac"}
-        assert gd.get("mode") in ("linear", "islands"), "[ground].mode: linear (Verlauf oben→unten) | islands (Inseln)"
-        assert gd["mode"] == "linear" or need <= gd.keys(), f"[ground] islands braucht {sorted(need - gd.keys())}"
-        assert gd["mode"] == "linear" or 0 < gd["size_frac"][0] <= gd["size_frac"][1], "[ground].size_frac = [min, max] > 0"
+        need = {"islands": {"islands", "size_frac", "drift_frac", "warp_frac"},
+                "flow": {"angle_deg", "waves", "wave_freq", "warp_frac", "flow_per_loop"}}.get(gd.get("mode"))
+        assert gd.get("mode") == "linear" or need, "[ground].mode: linear (Verlauf oben→unten) | islands | flow"
+        need = (need or set()) | ({"seed", "terraces", "gain", "lin_frac"} if need else set())
+        assert need <= gd.keys(), f"[ground] {gd['mode']} braucht {sorted(need - gd.keys())}"
+        assert not gd.get("islands") or 0 < gd["size_frac"][0] <= gd["size_frac"][1], "[ground].size_frac = [min, max] > 0"
+        assert gd.get("mode") != "flow" or float(gd["flow_per_loop"]).is_integer(), \
+            "[ground].flow_per_loop ganzzahlig, sonst springt der Grund am Loop-Neustart"
     seam = slice(col["split_level"] - 1, col["split_level"]) if split else slice(0, 0)   # Naht Grund | Licht
     ok = set(col.get("lilac_ok", []))                      # von Vadim ausdruecklich freigegeben (P6 Mode 04H, 2.10.)
     free = lambda i: {q.removeprefix("~") for q in color_pos(cfg, i)[1][color_pos(cfg, i)[2]].split("/")} <= ok  # noqa: E731

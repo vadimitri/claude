@@ -69,14 +69,15 @@ steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P
 # Vadim 3.10.: N1 uebernommen (Welt 2 eigene Folge mit den Spider-Verse-Sternen), dazu: S45 raus ("oede", es gibt genug
 # neue Sterne), alter Glitch S48c raus, ersetzt durch den Poly-Glitch S48e (G1), S58 → S58b (Rework, ohne 1-px-Kante),
 # S60 → S60d (S60 ohne Pfuetze, Halo ohne Luecke). Freie Plaetze von S45 mit den zwei von Vadim bestaetigten neuen Sternen
-# (S58b, S60d) in Welt 1 und S59 in Welt 2 (dort stehen S58b/S60d schon). Belegung ist ein Vorschlag, Vadim kann tauschen.
+# (S58b, S60d) in Welt 1 und S59 in Welt 2 (dort stehen S58b/S60d schon). Vadim 3.10.: S48e, S58b, S60d approved, Belegung
+# so lassen (er meldet sich, wenn nicht); S59 → S59b (ohne Kreis/Halo, damit approved).
 cycle = ["S33", "S33", "S33", "S33", "S48d", "S23", "S54c", "S47",       # Welt 1 F1-8   (F1-4 Matrjoschka vorn)
          "S50", "S14", "S24", "S54c", "S31", "S19d", "S50", "S54c",      # F9-16
          "S31e", "S18d", "S31g", "S58b", "S48e", "S26", "S50", "S60d",   # F17-24 (F20, F24 waren S45)
          "S54c", "S14", "S24", "S19d", "S48e", "S54c", "S47", "S23",     # F25-32
          "S33", "S33", "S33", "S33", "S58b", "S23", "S54c", "S47",       # Welt 2 F1-8: F5 Tunnel
-         "S59", "S14", "S24", "S54c", "S56", "S19d", "S50", "S54c",      # F9 Impact, F13 Neonblasen
-         "S31e", "S18d", "S31g", "S59", "S48e", "S26", "S60d", "S57b",   # F20 Impact (war S45), F23 Graffiti, F24 Collage
+         "S59b", "S14", "S24", "S54c", "S56", "S19d", "S50", "S54c",      # F9 Impact, F13 Neonblasen
+         "S31e", "S18d", "S31g", "S59b", "S48e", "S26", "S60d", "S57b",   # F20 Impact (war S45), F23 Graffiti, F24 Collage
          "S54c", "S14", "S24", "S19d", "S48e", "S54c", "S47", "S23"]
 repeat_ok = ["S33"]  # darf mehrere Frames hintereinander stehen (Vadim 2.10.: Matrjoschka am Anfang)
 hold_frames = 1     # jeder Frame ein eigener Stern
