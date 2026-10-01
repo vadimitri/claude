@@ -67,3 +67,18 @@ Selbsttest QR frei (Zellen mit Effekt in der QR-Zone; mit Sperre | Gegenprobe oh
 Selbsttest Laeufer am fertigen Plakat (Anzahl, Median Abweichung von senkrecht, Grad): page rot 0: (8, 0.3),
   page rot 37: (12, 2.8); Gegenprobe Schwerkraft auf dem Stern rot 37: (10, 37.8) -> schlaegt an
 uv run src/kickoff_loop.py test: gruen.
+
+---------------------------------------------------------------- Rework 2.10. (Vadims Urteil)
+S57 raus, S57b weiter (URTEIL). S58: "Licht im Fluchtpunkt wie Spotlight" -> S58b schwach (Spitze 3.6, exp 0.2), S58c
+breiter Verlauf (Spitze 4.1, (1 - r/1.3)^1.6, kein Hotspot; 4.4 gab eine gelbe Scheibe, weil Stufe 3 -> 4 den Farbton
+springt). S60: "komischer Rand" -> S60b sauber (ohne Wolke, ohne helle zweite Outline, ohne Nebel; Outline 4 Zellen in
+Stufe 2, Fade, Laeufer, grosse Glanzsterne + Glanzpunkte), S60c = S60b mit hauchduennem Nebel (0.8 Zellen, Dichte 0.35).
+Boegen: rework_S58.png (S58 | S58b | S58c, F1 5 9 13 24), rework_S60.png (S60 | S60b | S60c, F5 9 13 17 24).
+S58b  F1 L0.935  F5 0.912  F9 0.869  F13 0.943  F24 0.833   QR 5/5   Lila max 0.033
+S58c  F1 L0.884  F5 0.902  F9 0.775  F13 0.940  F24 0.767   QR 5/5   Lila max 0.024
+S60b  F5 L0.932  F9 0.865  F13 0.846  F17 0.885  F24 0.860   QR 5/5   Lila max 0.007
+S60c  F5 L0.930  F9 0.866  F13 0.855  F17 0.887  F24 0.856   QR 5/5   Lila max 0.007
+(S60 zum Vergleich: min 0.71; ohne Wolke/Hof steigt die Lesbarkeit auf min 0.85.)
+Selbsttest QR frei jetzt mit drittem Teststern genau ueber der Zone (Laeufer fallen hinein): mit Sperre 0 bei allen,
+Gegenprobe S56 5580, S57 1389, S57b 1444, S59 1471, S60 5010, S60b 253, S60c 246 (S58/b/c malen nur im Stern).
+Laeufer-Test unveraendert gruen (0.3 / 2.8 Grad, Gegenprobe 37.8). kickoff_loop.py test gruen.

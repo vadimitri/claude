@@ -2288,6 +2288,16 @@ TUN_LEVEL_P = (0.3, 0.25, 0.25, 0.2) # ... und wie oft (im Still mischen sich du
 TUN_DASH_P = 0.3             # Anteil gestrichelter Linien
 TUN_DASH_CELLS = (5, 16)     # Strichlaenge (Zellen), Luecke halb so lang
 TUN_CORE = 0.28              # Licht im Fluchtpunkt: faellt ueber so viele Sternradien exponentiell ab
+# Vadim 2.10. zu S58: "das Licht im Fluchtpunkt nicht so stark oder groesserer Gradient, das sieht aus wie Spotlight".
+# Licht = (Spitzenstufe, Profil, Reichweite in Sternradien): "exp" steil an der Quelle (S58, heller Kreis), "soft"
+# (1 - r/Reichweite)^TUN_SOFT_POW ohne Spitze: ein breiter Verlauf, die Speedlines tragen das Fluchtbild.
+TUN_LIGHT = {"S58": (4.85, "exp", TUN_CORE),
+             "S58b": (3.6, "exp", 0.2),      # schwach: kaum ueber dem Grund am Fluchtpunkt (TUN_BASE[0] = 3.3)
+             "S58c": (4.1, "soft", 1.3)}     # breiter Verlauf ueber fast den ganzen Stern, kein Hotspot: Spitze kaum
+                                             # ueber Stufe 4 (4.4 gab eine gelbe Scheibe, Befund F5: Stufe 3 -> 4 springt
+                                             # in vielen Paletten den Farbton, jede Flaeche ueber 4 liest sich als Kreis)
+TUN_SOFT_POW = 1.6           # Verlauf "soft": flach am Fluchtpunkt (keine Kante, kein Kreis), laeuft weich zum Rand aus
+TUN_LINE_GLOW = {"S58": 3.0, "S58b": 2.0, "S58c": 4.0}   # Linien werden zum Fluchtpunkt heller ueber Reichweite x TUN_CORE
 TUN_BASE = (3.3, 1.5)        # Grund des Tunnels: Stufe am Fluchtpunkt .. am Sternrand (aussen dunkler = Tiefe)
 TUN_BASE_REACH = 1.3         # ... erreicht am Rand nach so vielen Sternradien vom Fluchtpunkt
 TUN_DOT_CELLS = 4.0          # Ben-Day-Raster im Grund (fest auf der Seite), Punkte eine Stufe tiefer
@@ -2346,6 +2356,15 @@ GRF_DRIP_W_CELLS = (1.0, 2.2)  # halbe Breite (Zellen), am Ende ein Tropfen 1.4x
 GRF_SHINE_CELLS = 2.5        # Glanzstrich so weit innen an den Flanken zum Licht
 GRF_SHINE_SPAN = (0.15, 0.55)  # ... ueber diesen Anteil der Flanke
 GRF_GLINT_CELLS = (5, 10)    # Glanzstern: Armlaenge (Zellen)
+# Vadim 2.10. zu S60: "muss nochmal gereworked werden, da ist dieser Rand, der komisch aussieht" (Spruehwolke als Hof,
+# helle Doppelkontur). S60b sauber: keine Wolke, keine zweite Outline, kein Nebel; klare Outline in Stufe 2 (oberste der
+# ersten Colorway: andere Farbe als die Fuellung in 3-5 und hebt sich vom Grund ab; die dunkle Outline von S60 verschwand
+# auf dunklem Grund), Fade, Laeufer, groessere Glanzsterne + Glanzpunkte. S60c = S60b mit hauchduennem Nebel.
+GRF_CLEAN_OUTLINE_LEVEL = 2
+GRF_CLEAN_OUTLINE_CELLS = 4.0   # breiter als S60: Stufe 2 auf dunklem Grund ist leise, 3 Zellen lasen sich als Haarlinie
+GRF_CLEAN_GLINT_CELLS = (8, 14)  # Glanzstern groesser als in S60 (dort kaum zu sehen)
+GRF_SHINE_DOTS = 3           # Glanzpunkte (1-2 Zellen) neben dem Glanzstern
+GRF_HAZE = (0.8, 0.35)       # S60c: Nebel nur aussen an der Outline, (Abfall in Zellen, Dichte an der Kante)
 
 
 def _grain(level, L, N):
@@ -2564,7 +2583,7 @@ def c_collage_kritzel(g):
     return c_collage(g, scribble=True)
 
 
-def c_tunnel(g):
+def c_tunnel(g, code="S58"):
     """S58 Tunnel (Still 02, ITSV #22: Peter B. vor Fluchtlinien, Licht rechts). IM Stern ein Fluchtbild: aus einem hellen
     Fluchtpunkt neben der Mitte laufen Speedlines als Keile (am Fluchtpunkt haarfein, zum Rand breit) in vier Helligkeiten
     wie im Still (dunkel, mittel, hell, Licht), ein Teil gestrichelt; der Grund wird zum Rand dunkler und traegt dort
@@ -2595,14 +2614,30 @@ def c_tunnel(g):
         on = inside & (rr > r0) & (da * rr < hw * rr)
         if dash:
             on &= ((rr / dl + ph) % 1.5) < 1
-        light = np.exp(-rr / (3 * TUN_CORE))                    # zum Fluchtpunkt hin heller
+        light = np.exp(-rr / (TUN_LINE_GLOW[code] * TUN_CORE))  # zum Fluchtpunkt hin heller
         v = np.where(on, (lvl - 0.15 - 0.6 * (1 - light)) / N, v)
-    core = np.exp(-rr / TUN_CORE)
-    v = np.maximum(v, core * (N - 0.15) / N)                    # Licht im Fluchtpunkt, im Korn
+    peak, prof, reach = TUN_LIGHT[code]
+    if prof == "exp":
+        core = np.exp(-rr / reach)
+    else:
+        core = np.clip(1 - rr / reach, 0, 1) ** TUN_SOFT_POW
+    v = np.maximum(v, core * peak / N)                          # Licht im Fluchtpunkt, im Korn (peak nie genau eine Stufe)
     rim = d >= 1 - TUN_RIM_CELLS * c / R
     v = np.where(inside, np.where(rim, _dithered(TUN_RIM_LEVEL + 0.4, 0.6, N), v), bg(g) + 0.06 * glow(d, 0.3))
     g.lit = inside & (v >= 0.5)
     return np.clip(v, 0, 1)
+
+
+def c_tunnel_schwach(g):
+    """S58b Tunnel schwach (Vadim 2.10. zu S58: "sieht aus wie Spotlight"): dasselbe Fluchtbild, das Licht im
+    Fluchtpunkt nur knapp ueber dem Grund und klein; die Speedlines tragen das Bild."""
+    return c_tunnel(g, "S58b")
+
+
+def c_tunnel_verlauf(g):
+    """S58c Tunnel Verlauf: statt Hotspot ein breiter, weicher Verlauf ueber fast den ganzen Stern (flach am
+    Fluchtpunkt, keine Kante), Linien werden ueber eine weite Strecke zum Fluchtpunkt heller."""
+    return c_tunnel(g, "S58c")
 
 
 def _blob(g, acc, cx, cy, rad, rng):
@@ -2695,7 +2730,7 @@ def _spray(rng, m, cells, dens_max):
     return m | (rng.random(m.shape) < p)
 
 
-def c_graffiti(g):
+def c_graffiti(g, mode="wall"):
     """S60 Graffiti (eigene Interpretation, Spraydose an der Wand): Spruehwolke hinter dem Piece, helle zweite Outline
     (Hintergrundlinie), Fuellung mit Fade von unten (Stufe 3) nach oben (hellste Stufe), wolkig von Hand, dunkle Outline
     etwas neben der Fuellung (zweiter Arbeitsgang). Jede Lage hat Spruehnebel (Dichte faellt exponentiell, zufaellige
@@ -2710,6 +2745,8 @@ def c_graffiti(g):
     keep = qfree > 0
     kc = c / R                                                   # eine Zelle in Sternprofilen (gut genug fuer Baender)
     v = bg(g).astype(np.float64)
+    if mode != "wall":
+        return _graffiti_clean(g, mode, x0, y0, R, rot, x, y, d, rng, keep, kc, v)
     # Spruehwolke hinter dem Piece: Stern-nahe Wolke mit welligem Rand
     th = np.arctan2(y, x)
     wave = 1 + 0.08 * np.sin(3 * th + rng.uniform(0, 6.3)) + 0.05 * np.sin(7 * th + rng.uniform(0, 6.3))
@@ -2733,7 +2770,36 @@ def c_graffiti(g):
     v = np.where(back, _grain(GRF_BACK_LEVEL, 0.6, N), v)
     outline = inner & ~(d < 1)
     v = np.where(outline, _dithered(GRF_OUTLINE_LEVEL + 0.5, 0.5, N), v)
-    # Laeufer: von der Unterkante der Fuellung senkrecht nach unten
+    v, drips = _graffiti_drips(g, v, d, R, rot, keep, fill_v)
+    v = _graffiti_shine(g, v, x0, y0, R, rot, rng, keep, kc, GRF_GLINT_CELLS, 0)
+    g.lit = (fill | drips) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def _graffiti_clean(g, mode, x0, y0, R, rot, x, y, d, rng, keep, kc, v):
+    """S60b/S60c: Fuellung mit Fade, klare Outline in Stufe 2 (versetzt), Laeufer, Glanz. S60c mit hauchduennem Nebel
+    aussen an der Outline."""
+    N, c = g.N, _cell(g)
+    sxo, syo = GRF_OUTLINE_SHIFT_CELLS
+    out_d = distance_transform_edt(~(sd(x - sxo * kc, y - syo * kc, rot) < 1))
+    body = d < 1
+    outline = (out_d < GRF_CLEAN_OUTLINE_CELLS) & ~body
+    if mode == "haze":
+        outline = _spray(rng, outline | body, *GRF_HAZE) & ~body & (keep | (out_d < GRF_CLEAN_OUTLINE_CELLS))
+    up_ = np.clip(0.5 - (g.Y - y0) / (2 * R * 0.9), 0, 1)
+    fade = GRF_FILL[0] + (GRF_FILL[1] - GRF_FILL[0]) * up_ + GRF_FILL_NOISE * _star_noise(g, x, y, rot, 5, GRF_SEED + 1)
+    fill_v = np.clip(fade - 0.2, 0, N - 0.15) / N
+    v = np.where(body, fill_v, v)
+    v = np.where(outline, _grain(GRF_CLEAN_OUTLINE_LEVEL, 0.6, N), v)
+    v, drips = _graffiti_drips(g, v, d, R, rot, keep, fill_v)
+    v = _graffiti_shine(g, v, x0, y0, R, rot, rng, keep, kc, GRF_CLEAN_GLINT_CELLS, GRF_SHINE_DOTS)
+    g.lit = (body | drips) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def _graffiti_drips(g, v, d, R, rot, keep, fill_v):
+    """Laeufer: von der Unterkante der Fuellung senkrecht nach unten (Schwerkraft auf der Seite), Farbe der Fuellung."""
+    c = _cell(g)
     body = d < 1
     bottom = body & ~np.roll(body, -1, 0)
     bottom[-1] = False
@@ -2761,8 +2827,13 @@ def c_graffiti(g):
             drips |= one & ~body
             v = np.where(one & ~body, fill_v[i, j], v)
     g.drips = drips
-    # Glanz: Striche innen an den Flanken zum Licht, zwei Glanzsterne oben links
-    shine = np.zeros(d.shape, np.float32)
+    return v, drips
+
+
+def _graffiti_shine(g, v, x0, y0, R, rot, rng, keep, kc, glint_cells, dots):
+    """Glanz: Striche innen an den Flanken zum Licht, zwei Glanzsterne an den Spitzen oben links, dazu dots Glanzpunkte."""
+    N, c = g.N, _cell(g)
+    shine = np.zeros(v.shape, np.float32)
     for k in range(6):
         nrm = np.radians(rot + TIP_DEG + 60 * k + 30)
         if np.cos(nrm) * LIGHT[0] + np.sin(nrm) * LIGHT[1] <= 0.15:
@@ -2773,16 +2844,31 @@ def c_graffiti(g):
     tips_lit = sorted(range(6), key=lambda k: -np.cos(np.radians(rot + TIP_DEG + 60 * k) - np.arctan2(LIGHT[1], LIGHT[0])))
     for k in tips_lit[:2]:
         gx, gy = _polar(x0, y0, R, rot, TIP_DEG + 60 * k, rng.uniform(0.55, 0.8))
-        arm = rng.uniform(*GRF_GLINT_CELLS) * c * (1 if k == tips_lit[0] else 0.6)
+        arm = rng.uniform(*glint_cells) * c * (1 if k == tips_lit[0] else 0.6)
         for e in ((1, 0), (0, 1)):
             for q in np.linspace(-1, 1, int(4 * arm / c) + 2):
                 _pen(g, shine, np.array([[gx + q * arm * e[0], gy + q * arm * e[1]]]), np.array([1.0]))
                 if abs(q) < 0.3:                                 # Mitte dicker: Stern statt Kreuz
                     _pen(g, shine, np.array([[gx + q * arm * e[0] + c * e[1], gy + q * arm * e[1] + c * e[0]]]),
                          np.array([1.0]))
-    v = np.where((shine > 0.5) & keep, (N - 0.1) / N, v)
-    g.lit = (fill | drips) & (v >= 0.5)
-    return np.clip(v, 0, 1)
+        dm = np.zeros(v.shape, bool)
+        for _ in range(dots if k == tips_lit[0] else 0):        # Glanzpunkte neben dem grossen Glanzstern
+            b = rng.uniform(0, 2 * np.pi)
+            _disk(g, dm, gx + 1.6 * arm * np.cos(b), gy + 1.6 * arm * np.sin(b), rng.uniform(0.7, 1.5) * c)
+        shine[dm] = 1.0
+    return np.where((shine > 0.5) & keep, (N - 0.1) / N, v)
+
+
+def c_graffiti_clean(g):
+    """S60b Graffiti sauber (Vadim 2.10. zu S60: "dieser Rand, der komisch aussieht"): ohne Spruehwolke, ohne helle
+    zweite Outline, ohne Nebel. Fuellung mit Fade, klare Outline in Stufe 2 etwas versetzt (andere Farbe als die Fuellung,
+    hebt sich vom Grund ab), Laeufer, grosse Glanzsterne und Glanzpunkte."""
+    return c_graffiti(g, "clean")
+
+
+def c_graffiti_hauch(g):
+    """S60c Graffiti Hauch: S60b mit hauchduennem Spruehnebel aussen an der Outline (eine Zelle, licht)."""
+    return c_graffiti(g, "haze")
 
 
 CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) stehen unter ihrem Stamm
@@ -2857,8 +2943,12 @@ CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) steh
     ("S57", c_collage, "Collage", "Still 01 Hobie: Scherenschnitt auf versetzten Papierlagen (gerade Schnitte, gerissener Rand), jedes Plakat neu gelegt."),
     ("S57b", c_collage_kritzel, "Collage Kritzel", "S57 + lose Kritzelkonturen ueber allem (Hobies orange Linien), dunkle Tusche knapp innen."),
     ("S58", c_tunnel, "Tunnel", "Still 02: im Stern ein Fluchtbild, Speedlines aus einem hellen Fluchtpunkt, Ben-Day zum Rand."),
+    ("S58b", c_tunnel_schwach, "Tunnel schwach", "S58 mit schwachem, kleinem Licht im Fluchtpunkt: die Speedlines tragen das Bild."),
+    ("S58c", c_tunnel_verlauf, "Tunnel Verlauf", "S58 ohne Hotspot: breiter, weicher Verlauf ueber fast den ganzen Stern."),
     ("S59", c_impact, "Impact", "Still 03 KRACK: Farbkleckse, Pinselschlaufe, Kontur mehrfach versetzt in anderen Stufen nachgezogen."),
     ("S60", c_graffiti, "Graffiti", "Spraydose: Wolke, zweite Outline, Fade-Fuellung, versetzte Outline, Spruehnebel, Laeufer, Glanz."),
+    ("S60b", c_graffiti_clean, "Graffiti sauber", "S60 ohne Hof: klare Outline in Stufe 2, Fade-Fuellung, Laeufer, grosse Glanzsterne + Glanzpunkte."),
+    ("S60c", c_graffiti_hauch, "Graffiti Hauch", "S60b mit hauchduennem Spruehnebel aussen an der Outline."),
 ]
 BY = {c[0]: c for c in CANDS}
 CMP = {"S26v1": c_xortitel_alt, "S30v1": c_versatz_alt, "S31b2": c_lichtfall_kurz}   # alte Fassungen, nur Vergleich
@@ -2942,6 +3032,13 @@ URTEIL.update({"S50": (5, "Loop", "Vadim 1.10.: kommt rein, so wie er ist."),
 URTEIL.update({c: (3, "Loop", "neu, Vadim hat noch nicht gewaehlt. Soll S48c abloesen, wenn gut.") for c in ("S48e", "S48f")})
 # Vadim 2.10.: "neue Sterne nach den Spider-Verse-Referenzen" (Stills 06, 01, 02, 03) + Graffiti-Spark
 URTEIL.update({c: (3, "Loop", "neu, Vadim hat noch nicht gewaehlt.") for c in ("S56", "S57", "S57b", "S58", "S59", "S60")})
+# Vadims Urteil 2.10. (rework_S58.png, rework_S60.png): von S57/S57b kommt nur S57b weiter; S58 Licht wie Spotlight;
+# S60 komischer Rand
+URTEIL.update({"S57": (1, "raus", "Vadim 2.10.: nur S57b kommt weiter, nicht S57 (S57b baut darauf auf, bleibt im Code)."),
+               "S57b": (4, "Loop", "Vadim 2.10.: kommt weiter."),
+               "S58": (3, "Loop", "Vadim 2.10.: Licht im Fluchtpunkt zu stark, sieht aus wie Spotlight -> S58b/S58c."),
+               "S60": (2, "Loop", "Vadim 2.10.: muss gereworked werden, komischer Rand (Hof, helle Doppelkontur) -> S60b/S60c."),
+               **{c: (3, "Loop", "neu (Rework 2.10.), Vadim hat noch nicht gewaehlt.") for c in ("S58b", "S58c", "S60b", "S60c")}})
 KEPT =[c for c in BY if URTEIL[c][1] != "raus"]
 
 # Kick-off-Sichtung 2026-09-25 nachts (Vadim)
@@ -3139,9 +3236,10 @@ HAND_TEST_STARS = ((-0.13, 0.65, 0.87, 0.0), (0.95, 0.61, 0.64, 225.0))  # Selbs
                              # der Bahn haengt: mit der Ellipse (1.10. abends) sind Frame 1/16 leer, der Test war blind
 
 POLY_TEST_MIN_FRAC = 0.01    # Selbsttest Poly: so viel der Seite unter dem Titelblock muss der Bruch mindestens aendern
-SV2_CODES = ("S56", "S57", "S57b", "S58", "S59", "S60")
-SV2_TEST_STARS = ((0.22, 0.30, 0.0), (0.45, 0.12, 37.0))   # Selbsttest QR: Stern so weit rechts ueber der QR-Zone (Ecke +
-                             # Radius x Faktor, m) mit Radius und Drehung: nah genug, dass Blasen/Spritzer/Nebel hineinreichen
+SV2_CODES = ("S56", "S57", "S57b", "S58", "S58b", "S58c", "S59", "S60", "S60b", "S60c")
+SV2_TEST_STARS = ((0.22, 0.30, 0.0), (0.45, 0.12, 37.0), (-1, 0.2, 10.0))   # Selbsttest QR: Stern so weit rechts ueber der
+                             # QR-Zone (Ecke + Radius x Faktor, m) mit Radius und Drehung: nah genug, dass Blasen/Spritzer/
+                             # Nebel hineinreichen; Faktor -1 = Stern genau ueber der Zone (Laeufer von S60b/c fallen hinein)
 SV2_TEST_TOL = 0.11          # ... Abweichung vom Grund (bg) ausserhalb des Sterns, die noch Schein ist (glow <= 0.10)
 SV2_TEST_BODY_CELLS = 9      # ... so viele Zellen um den Stern zaehlen zum Stern (S60: Outline + zweite Outline = 6)
 DRIP_TEST_ROT = (0.0, 37.0)  # Selbsttest Laeufer: Drehungen des Sterns (37: weder Spiegelachse noch Spitze senkrecht)
@@ -3245,7 +3343,8 @@ def selftest_sv2_qr(codes=SV2_CODES):
                 zone = _qr_zone(g0)
                 ys, xs = np.nonzero(zone)
                 corner = (xs.max() * _cell(g0), ys.min() * _cell(g0))     # Ecke oben rechts der Zone (m)
-                star = (corner[0] + f * (1 + rr), corner[1] - f * 0.3, rr)
+                star = ((corner[0] + f * (1 + rr), corner[1] - f * 0.3, rr) if f >= 0 else
+                        (0.5 * corner[0], corner[1] - 0.9 * rr, rr))
                 st, c, g = _sv2_g(8, star, rot)
                 v = BY[code][1](g)
                 x0, y0, R, rot_, x, y = _local(g)
@@ -3255,7 +3354,7 @@ def selftest_sv2_qr(codes=SV2_CODES):
     SV2_KEEP_QR = True
     print("Selbsttest QR frei (Zellen mit Effekt in der QR-Zone; mit Sperre | Gegenprobe ohne):",
           {k: (got[(k, True)], got[(k, False)]) for k in codes})
-    blind = [k for k in codes if k != "S58" and got[(k, False)] == 0]
+    blind = [k for k in codes if not k.startswith("S58") and got[(k, False)] == 0]
     assert not blind, f"Test blind: ohne Sperre kein Effekt in der QR-Zone bei {blind}"
     bad = {k: got[(k, True)] for k in codes if got[(k, True)]}
     assert not bad, f"Effekte in JOIN US + QR: {bad}"
