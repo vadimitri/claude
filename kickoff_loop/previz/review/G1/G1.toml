@@ -1,0 +1,8 @@
+# G1: Glitch in Poly/Dreiecken statt S48c (Vadim 2.10.: "eine weitere Glitch-Version, die wenn sie gut ist die alte
+# abloest, ein Glitch in Poly-/Dreiecksversion"). S48e Linsenfehler Poly: der Stern zerbricht in Dreiecks-Scherben statt waagerechter Baender (direkter Nachfolger von S48c). Auf F21 und F29 (dort steht in loop.toml S48c).
+# Nur [styles].cycle geaendert, Rest aus loop.toml.
+[styles]
+cycle = ["S33", "S33", "S33", "S33", "S48d", "S23", "S54c", "S47",       # F1-8   (F1-4 Matrjoschka vorn)
+         "S50", "S14", "S24", "S54c", "S31", "S19d", "S50", "S54c",      # F9-16
+         "S31e", "S18d", "S31g", "S45", "S48e", "S26", "S50", "S45",     # F17-24
+         "S54c", "S14", "S24", "S19d", "S48e", "S54c", "S47", "S23"]

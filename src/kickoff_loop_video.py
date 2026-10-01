@@ -673,7 +673,8 @@ def sheet_report(cfg, posters, qr_ok, legib, name=""):
 def next_version():
     base = os.path.join(KL.PROJECT, "previz")
     os.makedirs(base, exist_ok=True)
-    nums = [int(d[1:]) for d in os.listdir(base) if d[0] == "v" and d[1:].isdigit()]
+    old = os.path.join(base, "archiv", "versionen")            # archivierte Versionen zaehlen mit (Nummern bleiben eindeutig)
+    nums = [int(d[1:]) for b in (base, old) if os.path.isdir(b) for d in os.listdir(b) if d[0] == "v" and d[1:].isdigit()]
     path = os.path.join(base, f"v{max(nums, default=0) + 1:03d}")
     os.makedirs(path)
     return path
@@ -967,25 +968,30 @@ def export(cfg, posters):
 
 
 def gallery():
-    """kickoff_loop/previz/index.html: alle Versionen, neueste oben (Video, Plakat-Loop, Kontaktbogen, Report)."""
+    """kickoff_loop/previz/index.html: oben die offenen Varianten (previz/review/<Code>/), darunter die Versionen von
+    loop.toml (vNNN), neueste oben. Je Eintrag Video, Plakat-Loop, Report, Bogen, Config. Archiv: previz/archiv/."""
     import html
     base = os.path.join(KL.PROJECT, "previz")
-    vs = sorted((d for d in os.listdir(base) if d[0] == "v" and d[1:].isdigit()), reverse=True)
+    rev = os.path.join(base, "review")
+    items = [(f"review/{d}", d) for d in sorted(os.listdir(rev)) if os.path.isdir(os.path.join(rev, d))] \
+        if os.path.isdir(rev) else []
+    items += [(v, v) for v in sorted((d for d in os.listdir(base) if d[0] == "v" and d[1:].isdigit()), reverse=True)]
     parts = []
-    for v in vs:
-        rep = open(os.path.join(base, v, "report.txt"), encoding="utf-8").read() if os.path.exists(
-            os.path.join(base, v, "report.txt")) else ""
-        parts.append(f'<h2 id="{v}">{v}</h2><div class="row"><video src="{v}/preview.mp4" controls playsinline></video>'
-                     f'<video src="{v}/loop.mp4" autoplay loop muted playsinline></video><div><pre>{html.escape(rep)}</pre>'
-                     f'<p><a href="{v}/contact.png">Kontaktbogen</a> · <a href="{v}/loop.toml">loop.toml dieser Version</a>'
-                     f'</p></div></div>')
+    for rel, name in items:
+        d = os.path.join(base, rel)
+        files = sorted(os.listdir(d))
+        rep = open(os.path.join(d, "report.txt"), encoding="utf-8").read() if "report.txt" in files else ""
+        vids = "".join(f'<video src="{rel}/{f}" controls playsinline{" loop muted autoplay" if f == "loop.mp4" else ""}>'
+                       f'</video>' for f in ("preview.mp4", "loop.mp4") if f in files)
+        links = " · ".join(f'<a href="{rel}/{f}">{f}</a>' for f in files if f.endswith((".png", ".toml", ".mp4")))
+        parts.append(f'<h2 id="{name}">{name}</h2><div class="row">{vids}<div><pre>{html.escape(rep)}</pre>'
+                     f'<p>{links}</p></div></div>')
     page = f"""<!doctype html><html lang="de"><meta charset="utf-8"><title>Kick-off Loop · Vorschau</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"><style>{S.CSS}
 .row{{display:grid;grid-template-columns:minmax(0,300px) minmax(0,260px) 1fr;gap:18px;align-items:start}}
 video{{width:100%}}pre{{white-space:pre-wrap;font-size:12px;margin:0}}
 @media(max-width:900px){{.row{{grid-template-columns:1fr}}}}</style><main><h1>SPARK Kick-off Loop · Vorschau</h1>
-<p class="d">Jede Version = ein Lauf von <code>uv run src/kickoff_loop.py preview</code>
-mit der loop.toml, die daneben liegt.
-Links das Video (mit Musik v1), Mitte der Plakat-Loop allein. Detailvarianten: <a href="variants/">variants/</a>.</p>
+<p class="d">Oben offene Varianten (<code>previz/review/&lt;Code&gt;/</code>), darunter Versionen von loop.toml
+(<code>uv run src/kickoff_loop.py preview</code>). Alles Entschiedene/Alte: <a href="archiv/">archiv/</a>.</p>
 {"".join(parts)}</main></html>"""
     open(os.path.join(base, "index.html"), "w", encoding="utf-8").write(page)
