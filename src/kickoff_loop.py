@@ -95,7 +95,8 @@ def load(path=CONFIG, music=None):
     col.setdefault("mix", "oklab")                         # ohne Angabe: wie bis 1.10. (gerade Linie in OKLab)
     col.setdefault("chroma_boost_frac", 0.0)
     col.setdefault("split_level", None)
-    assert col["mix"] in ("oklab", "rainbow"), "[color].mix: oklab | rainbow"
+    assert col["mix"] in ("oklab", "rainbow", "cut"), "[color].mix: oklab | rainbow | cut (harte Spruenge, kein Mischen)"
+    cut = col["mix"] == "cut"
     if col["mix"] == "rainbow":
         lo, hi = col.get("rainbow_avoid_hue_deg", (None, None))
         assert lo is not None and 0 <= lo < hi <= 360, \
@@ -107,16 +108,16 @@ def load(path=CONFIG, music=None):
     wf, key = col["world_frames"], cfg["loop"]["key_every"]
     for w, st in enumerate(col["worlds"]):
         where = f"[color] Welt {w + 1} {st}"
-        bad = [p for p in st if len(p.split("/")) > 2 or any(q not in P_CODES for q in p.split("/"))]
+        bad = [p for p in st if len(p.split("/")) > 2 or any(q.removeprefix("~") not in P_CODES for q in p.split("/"))]
         assert st and not bad, (f"{where}: unbekannte oder lila Codes {bad}. Erlaubt: {sorted(P_CODES)}, "
-                                "Split-Tone als \"Grund/Licht\", z. B. \"P11/P18\"")
+                                "Split-Tone als \"Grund/Licht\", z. B. \"P11/P18\", Negativ als \"~P11\"")
         bad = [p for p in st if len({is_paper(q) for q in p.split("/")}) > 1]
         assert not bad, f"{where}: Split {bad} kreuzt Papier mit Dunkel (Licht und Grund waeren gleich hell)"
         assert wf % len(st) == 0, f"{where}: {wf} Frames pro Welt nicht durch {len(st)} Stationen teilbar"
-        assert (wf // len(st)) % key == 0, (f"{where}: jede Station soll auf einem Aushang liegen, Abstand {wf // len(st)}"
+        assert cut or (wf // len(st)) % key == 0, (f"{where}: jede Station soll auf einem Aushang liegen, Abstand {wf // len(st)}"
                                             f" Frames ist kein Vielfaches von key_every {key}")
         mixed = {is_paper(p) for p in st}
-        assert len(mixed) == 1, (f"{where}: Papier ({[p for p in st if is_paper(p)]}) und dunkle Gruende in einer Welt "
+        assert cut or len(mixed) == 1, (f"{where}: Papier ({[p for p in st if is_paper(p)]}) und dunkle Gruende in einer Welt "
                                  "werden auf dem Weg grau (Grund und Tinte gleich hell). Papier in eine eigene Welt")
     assert posters(cfg) % n == 0, (f"[color]: {len(col['worlds'])} Welten x {wf} Frames = {posters(cfg)} Plakate, kein "
                                    f"Vielfaches von [loop].frames {n}: Bahn und Stile sprangen am Neustart")
@@ -205,7 +206,7 @@ RAINBOW_SAMPLES = 36         # Stuetzstellen, an denen ein Farbton-Weg auf das L
 def is_paper(p):
     """Papier-Colorway: der Grund (Stufe 0) ist heller als die Tinte (letzte Stufe), z. B. P16 P21-P24.
     Split-Station "P23/P16": zaehlt der Grund."""
-    pal = S.hexpal(P_CODES[p.split("/")[0]]) @ LUMA
+    pal = station(p.split("/")[0], 2) @ LUMA
     return bool(pal[0] > pal[-1])
 
 
@@ -213,10 +214,14 @@ def station(p, steps, split_level=None):
     """Palette einer Station auf `steps` Stufen: kuerzere Paletten (CGA, 4 Stufen) werden gedoppelt, nicht gemischt,
     damit die reine Station genau so aussieht wie ihr Original.
     Split-Tone "P11/P18" (Vadim 1.10.: "interdimensional"): Stufen unter split_level aus P11 (Grund, Schatten), ab
-    split_level aus P18 (Licht, Tinte). Das Korn zwischen den beiden Haelften mischt die Welten im Bild."""
+    split_level aus P18 (Licht, Tinte). Das Korn zwischen den beiden Haelften mischt die Welten im Bild.
+    Negativ "~P11" (Vadim 2.10.: "extremer"): Stufen umgedreht, aus einer dunklen Colorway wird Papier (heller Grund,
+    dunkle Tinte), aus Papier eine dunkle. Geht auch als Haelfte eines Splits: "~P11/P23", "P20/~P22"."""
     if "/" in p:
         ground, light = p.split("/")
         return np.concatenate([station(ground, steps)[:split_level], station(light, steps)[split_level:]])
+    if p.startswith("~"):
+        return station(p[1:], steps)[::-1]
     pal = S.hexpal(P_CODES[p])
     return pal[np.round(np.arange(steps) * (len(pal) - 1) / (steps - 1)).astype(int)]
 
@@ -280,6 +285,8 @@ def palette_hex(cfg, i):
     in OKLab gemischt. OKLab statt RGB, weil gleiche Schritte dort gleich gross aussehen (kein Grau-Loch in der Mitte)."""
     col = cfg["color"]
     _, st, k, t, per = color_pos(cfg, i)
+    if col["mix"] == "cut":                                         # harte Spruenge: die Station haelt, kein Mischen
+        return ["#%02X%02X%02X" % tuple(int(v) for v in c) for c in station(st[k], col["steps"], col["split_level"])]
     a = to_oklab(station(st[k], col["steps"], col["split_level"]))
     b = to_oklab(station(st[(k + 1) % len(st)], col["steps"], col["split_level"]))
     rgb = from_oklab(mix_lab(a, b, t, per, col))
@@ -312,7 +319,8 @@ def station_label(cfg, i):
     w, st, k, t, per = color_pos(cfg, i)
     world = f"W{w + 1} " if len(cfg["color"]["worlds"]) > 1 else ""
     nxt = st[(k + 1) % len(st)]
-    return world + (st[k] if t == 0 or nxt == st[k] else f"{st[k]}>{nxt} {round(100 * t / per)}%")
+    hold = t == 0 or nxt == st[k] or cfg["color"]["mix"] == "cut"
+    return world + (st[k] if hold else f"{st[k]}>{nxt} {round(100 * t / per)}%")
 
 
 # ---------------------------------------------------------------- Geometrie
