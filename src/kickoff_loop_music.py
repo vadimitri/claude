@@ -3,16 +3,20 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy", "scipy"]
 # ///
-"""Musik des Kick-off-Loops, M2: reiner IGOR-Zusammenschnitt. Brummen → IGORs Drums → DROP = Sprung in den B-Teil.
+"""Musik des Kick-off-Loops, M3: reiner IGOR-Schnitt, 16-20 s. Brumm-Einblende → IGORs Drums → Luft → DROP → Ausklang.
 
-Vadim 2.10.: M1 (synthetische 808, 32tel-Hats) "zu ernst, zu trocken, harter Techno". M2 nimmt nur IGOR: das Brummen
-aus dem Intro, seine Drums ab in_s (igor_beats.json), und auf dem Drop springt der Song auf einen Downbeat im B-Teil
-(~46-49 s), wo Tyler singt; das Original laeuft unter der Endkarte weiter. Alle Schnitte liegen auf IGORs Taktstrichen.
-Eigene Overlays (Klatschen, Tamburin, Marimba) sind raus (Vadim: "erst den IGOR-Zusammenschnitt raw", Entwurf in 6b0d667).
+  Einblende  IGOR im Original ab einem Taktstrich vor seinem Drum-Einsatz (in_s): erst Brummen, dann setzen seine Drums
+             ein, ohne Schnitt. Darauf ein Tiefpass, der sich oeffnet, und ein Lautstaerke-Fade, wie Variante B vom 30.9.
+  Luft       das Material endet air_bars vor dem Drop, nur sein Hall klingt nach (wie die alte "Luft", air_tail/reverb)
+  Drop       auf der Eins Sprung in den B-Teil (45.963 s, Tyler singt ab ~47.0 s), kurz Original
+  Ausklang   Tiefpass schliesst und Pegel faellt auf null, waehrend das Bild in den Stern zoomt und auf Schwarz blendet
 
-  uv run src/kickoff_loop_music.py [toml]   (Standard kickoff_loop/previz/review/M2a.toml, Abschnitt [mashup])
-  → kickoff_loop/ref/audio/mashup_M2{a,b,c}.wav + .json (Raster fuers Video), boil_test.wav
-    kickoff_loop/previz/music/mashup_M2{a,b,c}.m4a + boil_test.m4a (-14 LUFS) + report.txt (Befunde)
+Vadim 2.10. zu M2: "M2a, aber alles kuerzer (16-20 s), Loop zu langsam, Brumm-Fade-in wie frueher, kleine Pause mit
+Reverb, jetzt springt das zu sehr". Eigene Toene sind raus (M2-Runde: "Xylophon komplett raus").
+
+  uv run src/kickoff_loop_music.py [toml]   (Standard kickoff_loop/previz/review/M3a.toml, Abschnitt [mashup])
+  → kickoff_loop/ref/audio/mashup_M3{a,b}.wav + .json (Raster fuers Video)
+    kickoff_loop/previz/music/mashup_M3{a,b}.m4a (-14 LUFS) + report.txt (Befunde)
 
 Das Video importiert dieses Modul (decode, lufs, write_wav, SR): die Namen bleiben.
 """
@@ -29,7 +33,7 @@ import makernight_audio as A
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT = os.path.join(ROOT, "kickoff_loop")
-CONFIG = os.path.join(PROJECT, "previz", "review", "M2a.toml")
+CONFIG = os.path.join(PROJECT, "previz", "review", "M3a.toml")
 AUDIO = os.path.join(PROJECT, "ref", "audio")
 OUT = os.path.join(PROJECT, "previz", "music")
 SR = A.SR                                 # 48 kHz wie igor_beats.json (Songzeit = Sample-Index / 48000)
@@ -39,7 +43,7 @@ TRUE_PEAK_MAX = -1.0                      # dBTP-Grenze der Hoerversion (Streami
 LIMIT = 0.79                              # Hoerversion: Limiter-Decke -2 dBFS, AAC legt ~1 dB Ueberschwinger drauf (Befund M1a)
 HAT_HZ = (4000, 12000)                    # Band fuer die Raster-Messung am Sprung (Hats: scharfe Anschlaege)
 ONSET_HOP = 48                            # 1 ms Aufloesung der Onset-Huellkurve
-SEED = 2                                  # Zufall der Boil-Ticks, reproduzierbar
+LP_OPEN_HZ = 12000                        # ab hier gilt der Tiefpass als offen: Ausklang startet dort, Einblende endet dort
 
 
 # ---------------------------------------------------------------- Konfiguration
@@ -49,23 +53,25 @@ def load(path):
     with open(path, "rb") as f:
         cfg = tomllib.load(f)
     mx = cfg.get("mashup", {})
-    for k in ("variants", "end_bars", "fade_out_beats", "fade_cut_s"):
-        assert k in mx, f"{path}: [mashup].{k} fehlt (M2-Format, siehe previz/review/M2a.toml)"
+    for k in ("variants", "land_bar", "fade_cut_s", "lp_hz", "lp_curve", "air_tail", "air_reverb_s"):
+        assert k in mx, f"{path}: [mashup].{k} fehlt (M3-Format, siehe previz/review/M3a.toml)"
     grid = json.load(open(os.path.join(AUDIO, "igor_beats.json")))
-    burst = cfg["endcard"]["burst_beats"]
+    lo, hi = mx["lp_hz"]
+    assert 20 < lo < hi < SR / 2.2, "[mashup].lp_hz: [zu, offen] in Hz, aufsteigend, unter 21 kHz"
+    land = grid["in_s"] + mx["land_bar"] * grid["bar_s"]
+    assert 40 < land < 60, f"[mashup].land_bar: Sprung auf {land:.2f} s, gewuenscht B-Teil ~46-49 s"
+    burst = cfg["endcard"]["burst_beats"] / 4
     for v in mx["variants"]:
-        for k in ("segments", "carousel", "land_bar", "stop_beats"):
+        for k in ("from_bar", "bars", "fade_in_s", "lp_open_bars", "air_bars", "after_bars", "fade_out_bars"):
             assert f"{v}_{k}" in mx, f"[mashup].{v}_{k} fehlt"
-        bars = sum(b for _, b, _ in mx[f"{v}_segments"])
-        assert sum(b for _, b in mx[f"{v}_carousel"]) == bars, \
-            f"[mashup].{v}_carousel: Summe der Takte muss {bars} sein (= Takte der Segmente, Drop am Ende)"
-        stop = mx[f"{v}_stop_beats"]
-        assert stop == 0 or stop >= burst, f"[mashup].{v}_stop_beats: 0 (kein Stillstand) oder >= burst_beats ({burst})"
-        for sb, b, fx in mx[f"{v}_segments"]:
-            assert fx in ("raw", "wall", "stutter"), f"[mashup].{v}_segments: fx {fx!r} (raw | wall | stutter)"
-            assert grid["in_s"] + sb * grid["bar_s"] >= 0, f"[mashup].{v}_segments: Takt {sb} liegt vor Songanfang"
-        land = grid["in_s"] + mx[f"{v}_land_bar"] * grid["bar_s"]
-        assert 40 < land < 60, f"[mashup].{v}_land_bar: Sprung auf {land:.2f} s, gewuenscht ~48 s (B-Teil)"
+        get = lambda k: mx[f"{v}_{k}"]                                        # noqa: E731
+        assert isinstance(get("bars"), int) and get("bars") > 0, f"[mashup].{v}_bars: ganze Takte (Karussell)"
+        assert grid["in_s"] + get("from_bar") * grid["bar_s"] >= 0, f"[mashup].{v}_from_bar: vor dem Songanfang"
+        assert get("from_bar") + get("bars") <= mx["land_bar"], f"[mashup].{v}: Material ueberlappt den Sprung"
+        assert burst <= get("air_bars") < get("bars"), \
+            f"[mashup].{v}_air_bars: zwischen Ausbruch ({burst} Takt) und Laenge des Karussells"
+        assert get("lp_open_bars") <= get("bars") - get("air_bars"), f"[mashup].{v}_lp_open_bars: laenger als Material"
+        assert 0 < get("fade_out_bars") <= get("after_bars"), f"[mashup].{v}_fade_out_bars: 0 < fade <= after_bars"
     return cfg, grid
 
 
@@ -100,6 +106,7 @@ def write_wav(path, x):
 
 
 def declick(x, sec, start=True, end=True):
+    """Lineare Mini-Blende an den Schnittkanten (Millisekunden, gegen den Knack), keine hoerbare Ueberblendung."""
     k = min(n(sec), len(x) // 2)
     x = x.copy()
     if start:
@@ -109,80 +116,69 @@ def declick(x, sec, start=True, end=True):
     return x
 
 
-def put(buf, t, s, g=1.0, pan=0.0):
-    """Mono-Schlag s bei Sekunde t in den Stereo-Puffer (Pan -1..1, gleiche Leistung)."""
-    i = n(t)
-    if i >= len(buf) or i < 0:
-        return
-    s = s[:len(buf) - i] * g
-    buf[i:i + len(s), 0] += s * np.sqrt(1 - pan)
-    buf[i:i + len(s), 1] += s * np.sqrt(1 + pan)
+def sweep(x, f_of_t):
+    return np.stack([A.sweep_lp(x[:, c], f_of_t) for c in range(2)], 1)
 
+
+def air(pre, sec, mx):
+    """Die Luft vor dem Drop: nur der Hall des Abgeschnittenen (die letzten 4 * `sec` davor), `sec` lang, blendet zum
+    Drop hin aus. Hall statt Stille, damit die Pause nach Absicht klingt und nicht nach Aussetzer (wie 30.9.)."""
+    last = pre[-n(sec * 4):]
+    wet = A.reverb(np.concatenate([last, np.zeros((n(sec), 2))]), mx["air_reverb_s"])[len(last):]
+    return declick(wet * mx["air_tail"], mx["fade_cut_s"], start=False)
+
+
+# ---------------------------------------------------------------- Song
 
 def build(cfg, grid, song, v):
-    """Eine Variante: (Audio, Raster-Dict, Befund-Dict). Zeiten ab Videoanfang in Sekunden."""
+    """Eine Variante: (Audio, Raster-Dict). Zeiten ab Videoanfang in Sekunden."""
     mx = cfg["mashup"]
+    get = lambda k: mx[f"{v}_{k}"]                                            # noqa: E731
     bar, beat = grid["bar_s"], grid["beat_s"]
-    six = bar / 16
-    segs = mx[f"{v}_segments"]
-    impact = sum(b for _, b, _ in segs) * bar
-    stop = mx[f"{v}_stop_beats"] * beat
-    burst = impact - cfg["endcard"]["burst_beats"] * beat
-    end = impact + mx["end_bars"] * bar
-    land = grid["in_s"] + mx[f"{v}_land_bar"] * grid["bar_s"]
+    impact = get("bars") * bar
+    stop = impact - get("air_bars") * bar                                     # hier endet das Material, Luft beginnt
+    end = impact + get("after_bars") * bar
+    fade_from = end - get("fade_out_bars") * bar
+    land = grid["in_s"] + mx["land_bar"] * bar
+    s0 = grid["in_s"] + get("from_bar") * bar                                 # Songzeit von Videosekunde 0
+    lo, hi = mx["lp_hz"]
+    # Einblende: Original ab s0, Tiefpass oeffnet ueber lp_open_bars (Kurve > 1 = bleibt laenger dunkel), Pegel-Fade
+    pre = song[n(s0):n(s0) + n(stop)].copy()
+    t_open = get("lp_open_bars") * bar
+    pre = sweep(pre, lambda t: lo * (hi / lo) ** (min(t / t_open, 1) ** mx["lp_curve"]) if t < t_open else SR / 2.2)
+    k = n(get("fade_in_s"))
+    pre[:k] *= (np.linspace(0, 1, k) ** 2)[:, None]                           # quadratisch: leise Anfaenge bleiben leise
+    pre = declick(pre, mx["fade_cut_s"], start=False)
     x = np.zeros((n(end), 2))
-    song_map, hits = [], []
-    # ---- vor dem Drop: Song-Segmente auf dem Raster aneinander, je mit Effekt
-    t = 0.0
-    for sb, b, fx in segs:
-        s0 = grid["in_s"] + sb * bar
-        seg = song[n(s0):n(s0) + n(b * bar)].copy()
-        if fx == "wall":                                       # Party nebenan: Tiefpass oeffnet sich ueber das Segment
-            lo, hi = mx["wall_lp_hz"]
-            seg = np.stack([A.sweep_lp(seg[:, c], lambda s: lo * (hi / lo) ** ((s / (b * bar)) ** 2)) for c in range(2)], 1)
-        if fx == "stutter":                                    # IGORs letzter Beat zerhackt: 16tel-, dann 32tel-Triolen
-            for per, from_beat in ((24, 2), (48, 3)):
-                step = bar / per
-                a = n((b - 1) * bar + from_beat * beat)
-                z = n((b - 1) * bar + (from_beat + 1) * beat)
-                sl = declick(seg[a:a + n(step)], 0.002)
-                for i in range(a, z, n(step)):
-                    seg[i:i + len(sl)] = sl[:len(seg[i:i + len(sl)])]
-        seg = declick(seg, mx["fade_cut_s"]) * 10 ** (mx["pre_db"] / 20)
-        x[n(t):n(t) + len(seg)] += seg
-        song_map.append(dict(video_s=round(t, 4), song_s=round(s0, 4), bars=b, fx=fx))
-        for h in grid["hits_s"]:
-            if sb * bar <= h < (sb + b) * bar and t + h - sb * bar < impact - stop:
-                hits.append(round(t + h - sb * bar, 4))
-        t += b * bar
-    if stop:                                                   # Stillstand: Stille bis zum Drop
-        x[n(impact - stop):n(impact)] = 0
-        x[:n(impact - stop)] = declick(x[:n(impact - stop)], mx["fade_cut_s"], start=False)
-    # Drop: Sprung in den B-Teil, das Original laeuft unter der Endkarte, letzter Beat blendet aus
+    x[:len(pre)] = pre
+    x[len(pre):n(impact)] = air(pre, n(impact) / SR - len(pre) / SR, mx)[:n(impact) - len(pre)]
+    # Drop + Ausklang: B-Teil im Original, im letzten Stueck schliesst der Tiefpass und der Pegel faellt auf null
     drop = declick(song[n(land):n(land) + n(end) - n(impact)], mx["fade_cut_s"], end=False)
-    fo = n(mx["fade_out_beats"] * beat)
-    drop[-fo:] *= np.linspace(1, 0, fo)[:, None]
-    x[n(impact):] += drop
-    hits.append(round(impact, 4))
+    f0, fl = n(fade_from - impact), n(end - fade_from)
+    tail = drop[f0:]
+    tail = sweep(tail, lambda t: hi * (lo / hi) ** (min(t / (fl / SR), 1) ** mx["lp_curve"]))
+    tail *= (np.cos(np.linspace(0, np.pi / 2, len(tail))) ** 2)[:, None]       # Ausblende auf exakt 0 am Ende
+    drop[f0:] = tail
+    x[n(impact):] = drop
     x *= PEAK / np.abs(x).max()
-    carousel = mx[f"{v}_carousel"]
-    changes, tc = [], 0.0
-    for per, bars in carousel:
-        changes += [round(tc + k * bar / per, 6) for k in range(per * bars)]
-        tc += bars * bar
-    name = f"M2{v}"
-    info = dict(variant=name, file=f"ref/audio/mashup_{name}.wav", sr=SR, note=mx[f"{v}_note"],
-                bpm_carousel=grid["bpm"], bpm_end=grid["bpm"], sixteenth_s=round(six, 6),
-                triplet32_s=round(bar / 48, 6), carousel_bars=carousel, changes_s=changes,
-                sixteenths_s=[round(k * six, 6) for k in range(int(round(impact / six)) + 1)],
-                downbeats_s=[round(k * bar, 6) for k in range(int(round(end / bar)) + 1)],
-                hits_s=sorted(hits), stop_s=round(impact - stop, 6), burst_s=round(burst, 6),
-                drop_s=round(impact, 6), impact_s=round(impact, 6), end_s=round(end, 6),
-                jump_song_s=round(land, 5), song_map=song_map + [dict(video_s=round(impact, 4), song_s=round(land, 4),
-                                                                      bars=mx["end_bars"], fx="drop")],
-                explain="Zeiten ab Videoanfang. drop_s = impact_s = Sprung in den B-Teil (jump_song_s, Songzeit). "
-                        "stop_s = Stillstand beginnt (= impact_s, wenn keiner), burst_s = Ausbruch. hits_s: IGORs "
-                        "Drum-Hits im Video + Drop. song_map: welches Stueck Song wo im Video liegt.")
+    hits = [round(h + grid["in_s"] - s0, 4) for h in grid["hits_s"] if 0 <= h + grid["in_s"] - s0 < stop]
+    per = cfg["loop"]["changes_per_bar"] or 48
+    name = f"M3{v}"
+    info = dict(variant=name, file=f"ref/audio/mashup_{name}.wav", sr=SR, note=get("note"),
+                bpm_carousel=grid["bpm"], bpm_end=grid["bpm"], sixteenth_s=round(bar / 16, 6),
+                carousel_bars=[[per, get("bars")]],
+                sixteenths_s=[round(i * bar / 16, 6) for i in range(16 * get("bars") + 1)],
+                downbeats_s=[round(i * bar, 6) for i in range(int(end / bar + 1e-6) + 1)] +
+                            ([round(end, 6)] if (end / bar) % 1 > 1e-6 else []),
+                hits_s=hits + [round(impact, 4)], air_s=round(stop, 6),
+                burst_s=round(impact - cfg["endcard"]["burst_beats"] * beat, 6),
+                drop_s=round(impact, 6), impact_s=round(impact, 6), fade_from_s=round(fade_from, 6),
+                fade_s=round(end - fade_from, 6), end_s=round(end, 6), song_in_s=round(s0, 5),
+                jump_song_s=round(land, 5),
+                explain="Zeiten ab Videoanfang. 0..air_s IGOR im Original ab song_in_s (Brummen, dann Drums), mit "
+                        "Tiefpass- und Pegel-Einblende. air_s..drop_s Luft (nur Hall). drop_s = impact_s = Sprung in "
+                        "den B-Teil (jump_song_s, Songzeit). fade_from_s..end_s Ausklang auf Stille (fade_s lang) = "
+                        "Zeit fuer Zoom + Fade to Black. hits_s: IGORs Drum-Hits + Drop.")
     return x, info
 
 
@@ -204,20 +200,26 @@ def grid_phase(song, a, b, in_s, six):
     return 1000 * float(offs[int(np.argmax(score))])
 
 
-def cuts(x, info):
-    """Befund an den Schnitten: groesster Sample-Sprung +-2 ms um jede Schnittkante gegen den 99.9-%-Wert des ganzen
-    Stuecks (> 1 = Knack-Verdacht), und Pegel des letzten Beats vor dem Drop gegen den davor (IGORs Stopp = still)."""
+def db(x, a, b):
+    return 20 * np.log10(np.sqrt((x[n(a):n(b)] ** 2).mean()) + 1e-12)
+
+
+def checks(x, t, bar):
+    """Befunde am fertigen Audio: Einblende steigt, Luft leiser als davor, Drop-Sprung, kein Knack, Ende auf Stille."""
     jump = np.abs(np.diff(x, axis=0)).max(1)
     typ = np.percentile(jump, 99.9)
-    at = [m["video_s"] for m in info["song_map"][1:]]
-    worst = max(jump[n(c) - n(0.002):n(c) + n(0.002)].max() / typ for c in at)
-    beat, imp = 60 / info["bpm_carousel"], info["impact_s"]
-
-    def db(a, b):
-        return 20 * np.log10(np.sqrt((x[n(a):n(b)] ** 2).mean()) + 1e-9)
-    return (f"  Schnitte {', '.join(f'{c:.2f}' for c in at)} s: max. Sample-Sprung {worst:.2f}x des 99.9-%-Werts "
-            f"({'ok, kein Knack' if worst <= 1 else 'KNACK?'}); letzter Beat vor dem Drop {db(imp - beat, imp):.1f} dBFS, "
-            f"Beat davor {db(imp - 2 * beat, imp - beat):.1f}, erster Beat danach {db(imp, imp + beat):.1f}")
+    worst = max(jump[n(c) - n(0.002):n(c) + n(0.002)].max() / typ for c in (t["air_s"], t["drop_s"]))
+    q = t["air_s"] / 4
+    rise = [db(x, i * q, (i + 1) * q) for i in range(4)]
+    last = np.abs(x[-n(0.01):]).max()
+    return [f"  Einblende (Viertel bis zur Luft): {' → '.join(f'{r:.0f}' for r in rise)} dBFS "
+            f"({'ok, steigt' if all(b > a for a, b in zip(rise, rise[1:])) else 'steigt NICHT stetig'})",
+            f"  Luft {t['drop_s'] - t['air_s']:.2f} s: {db(x, t['air_s'], t['drop_s']):.1f} dBFS gegen den Takt davor "
+            f"{db(x, t['air_s'] - bar, t['air_s']):.1f}, erster Takt nach dem Drop "
+            f"{db(x, t['drop_s'], min(t['drop_s'] + bar, t['fade_from_s'])):.1f} dBFS",
+            f"  Schnitte {t['air_s']:.2f} / {t['drop_s']:.2f} s: max. Sample-Sprung {worst:.2f}x des 99.9-%-Werts "
+            f"({'ok, kein Knack' if worst <= 1 else 'KNACK?'}); letzte 10 ms Spitze {20 * np.log10(last + 1e-12):.0f} "
+            f"dBFS ({'ok, klingt aus' if last < 1e-3 else 'endet NICHT in Stille'})"]
 
 
 def hear(wav, x, m4a):
@@ -233,67 +235,37 @@ def hear(wav, x, m4a):
             f"({'ok' if not clip else 'CLIPPING'})")
 
 
-def boil_test(x, info, mx):
-    """Boil-Test: Endkarte ab dem Drop, dazu ein trockener Tick auf jedem Boil-Wechsel (alle boil_on Bilder bei
-    boil_fps, auf Zweiern = 12/s). Die Ticks liegen auf dem Bildraster, nicht auf dem Musikraster."""
-    a = n(info["impact_s"])
-    y = x[a:a + n(mx["boil_s"])].copy()
-    A.rng = np.random.default_rng(SEED)
-    tick = A.bp(A.noise(0.03), 2500, 6000) * A.env(0.03, 0.0003, 0.004)
-    tick *= 0.5 / np.abs(tick).max() * 10 ** (mx["boil_db"] / 20)
-    dt = mx["boil_on"] / mx["boil_fps"]
-    times = np.arange(0, mx["boil_s"] - 0.03, dt)
-    for k, t in enumerate(times):
-        put(y, t, tick, pan=0.4 * (-1) ** k)
-    y = declick(y, mx["fade_cut_s"])
-    return y * PEAK / np.abs(y).max(), dt, times
-
-
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else CONFIG
     cfg, grid = load(path)
     mx = cfg["mashup"]
     os.makedirs(OUT, exist_ok=True)
     song = decode(os.path.join(AUDIO, "igors_theme.mp3"))
-    rep = [f"Musik M2 (reiner IGOR-Schnitt, Sprung in den B-Teil) · uv run src/kickoff_loop_music.py "
-           f"{os.path.relpath(path, ROOT)}", "",
-           "B-Teil beginnt 45.963 s (Song-Takt 8); Tylers Gesang setzt bei ~47.0 s ein (Band 300-3400 Hz +6 dB gegen "
-           "davor, gemessen 2.10.). Naechster Downbeat zu 48 s: 48.904 s (Takt 9), da singt er schon.", ""]
+    land = grid["in_s"] + mx["land_bar"] * grid["bar_s"]
+    ph = grid_phase(song, land, land + 4 * grid["bar_s"], grid["in_s"], grid["sixteenth_s"])
+    ph0 = grid_phase(song, grid["in_s"], grid["in_s"] + 4 * grid["bar_s"], grid["in_s"], grid["sixteenth_s"])
+    rep = [f"Musik M3 (IGOR-Schnitt 16-20 s) · uv run src/kickoff_loop_music.py {os.path.relpath(path, ROOT)}", "",
+           f"Sprung auf Songzeit {land:.3f} s (B-Anfang, Tyler ab ~47.0 s). Phase (Kamm-Fit Hat-Band, 4 Takte): B-Teil "
+           f"{ph:+.0f} ms, IGORs Drums ab in_s {ph0:+.0f} ms gegen das Raster, Differenz {ph - ph0:+.0f} ms "
+           f"({'ok' if abs(ph - ph0) <= 20 else 'PRUEFEN'}, Grenze 20 ms ~ Raster-Streuung 19 ms)", ""]
     for v in mx["variants"]:
-        x, info = build(cfg, grid, song, v)
-        name = info["variant"]
+        x, t = build(cfg, grid, song, v)
+        name = t["variant"]
         wav = os.path.join(AUDIO, f"mashup_{name}.wav")
         write_wav(wav, x)
-        json.dump(info, open(os.path.join(AUDIO, f"mashup_{name}.json"), "w"), indent=1)
+        json.dump(t, open(os.path.join(AUDIO, f"mashup_{name}.json"), "w"), indent=1)
         lu, tp = ebur(x)
-        land = info["jump_song_s"]
-        ph = grid_phase(song, land, land + 4 * grid["bar_s"], grid["in_s"], grid["sixteenth_s"])
-        ph0 = grid_phase(song, grid["in_s"], grid["in_s"] + 4 * grid["bar_s"], grid["in_s"], grid["sixteenth_s"])
-        pre = lufs(x[n(info["impact_s"] - 2 * grid["bar_s"]):n(info["stop_s"])])
-        post = lufs(x[n(info["impact_s"]):n(info["impact_s"] + 2 * grid["bar_s"])])
-        segs = " | ".join(f"{m['video_s']:.2f} s: Song {m['song_s']:.2f} s x{m['bars']} {m['fx']}" for m in info["song_map"])
-        rep += [f"{name}: {info['note']}",
-                f"  Zeitachse (Video): {segs}",
-                f"  {'Stillstand ' + format(info['stop_s'], '.2f') + ' s, ' if info['stop_s'] < info['impact_s'] else ''}"
-                f"Ausbruch {info['burst_s']:.2f} s, DROP {info['drop_s']:.3f} s "
-                f"= Sprung auf Songzeit {land:.3f} s, Ende {info['end_s']:.2f} s",
-                f"  Sprung-Phase (Kamm-Fit Hat-Band, 4 Takte): ab Songzeit {land:.2f} s {ph:+.0f} ms, IGORs Drums vor dem "
-                f"Drop (ab in_s) {ph0:+.0f} ms, Differenz {ph - ph0:+.0f} ms "
-                f"({'ok' if abs(ph - ph0) <= 20 else 'PRUEFEN'}, Grenze 20 ms ~ Raster-Streuung 19 ms)",
-                f"  Lohnt sich: 2 Takte nach dem Drop {post:.1f} LUFS gegen 2 Takte davor {pre:.1f} LUFS "
-                f"({post - pre:+.1f} LU)",
-                cuts(x, info),
-                f"  Karussell {' + '.join(f'{b}x{p}' for p, b in info['carousel_bars'])} (Takte x Wechsel) = "
-                f"{len(info['changes_s'])} Wechsel; {len(info['hits_s'])} Hits",
+        drums = grid["in_s"] - t["song_in_s"]
+        rep += [f"{name}: {t['note']}",
+                f"  Verlauf: 0 s Einblende (Song {t['song_in_s']:.2f} s, Brummen; Tiefpass offen bei "
+                f"{mx[v + '_lp_open_bars'] * grid['bar_s']:.2f} s), IGORs Drum-Loop ab {drums:.2f} s (erster Hit "
+                f"{drums + grid['hits_s'][0]:.2f} s), Luft {t['air_s']:.2f} s, Ausbruch {t['burst_s']:.2f} s, "
+                f"DROP {t['drop_s']:.3f} s, Ausklang {t['fade_from_s']:.2f}-{t['end_s']:.2f} s ({t['fade_s']:.2f} s)",
+                f"  Laenge {t['end_s']:.2f} s, Karussell {t['carousel_bars'][0][1]} Takte x {t['carousel_bars'][0][0]} = "
+                f"{t['carousel_bars'][0][0] * t['carousel_bars'][0][1]} Wechsel (16.32/s), {len(t['hits_s'])} Hits",
+                *checks(x, t, grid["bar_s"]),
                 f"  WAV {lu:.1f} LUFS, True Peak {tp:.1f} dBTP, Spitze -1 dBFS statisch",
                 hear(wav, x, os.path.join(OUT, f"mashup_{name}.m4a")), ""]
-        if v == mx["variants"][0]:
-            y, dt, times = boil_test(x, info, mx)
-            bw = os.path.join(AUDIO, "boil_test.wav")
-            write_wav(bw, y)
-            rep += [f"Boil-Test {os.path.relpath(bw, PROJECT)}: Endkarte {name} ab Drop, {mx['boil_s']:g} s, "
-                    f"{len(times)} Ticks alle {1000 * dt:.1f} ms ({1 / dt:g}/s = {mx['boil_fps']} fps auf "
-                    f"{mx['boil_on']}ern)", hear(bw, y, os.path.join(OUT, "boil_test.m4a")), ""]
     open(os.path.join(OUT, "report.txt"), "w", encoding="utf-8").write("\n".join(rep))
     print("\n".join(rep))
 
