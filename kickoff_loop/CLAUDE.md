@@ -107,6 +107,19 @@ mochte Blau. Vorschauen mit Hardware-Encoder, Tempo vor Qualität.
 - Der bisherige Selbsttest misst nur Größensprung und Tempo-Verhältnis am Wechsel, **nicht Richtungsumkehr und Bremsen
   danach** – deshalb grün trotz Überschießen.
 
+**Befund 1.10. abends (gemessen, Wegwerfskript, noch nicht im Code):** Messung je Videobild ab 4 Bildern vor dem Wechsel
+(Mitte, ln R) schlägt am alten Stand an: **O4** Bildtempo der Mitte fällt nach dem Wurf 24 von 25 Schritten (46 → 20 px/Bild,
+dann bis 3) = „stoppt kurz“; die Bahn im Bild ist gerade (Hypothese „biegt ab“ falsch). **O5** Wachstumsrate springt am
+Wechsel x8.1 (0.008 → 0.064/Bild), Mitte bremst 87 → 0 px in ~8 Bildern = „schießt über, korrigiert“; Sehfluss
+(|v| + g·W/2) fällt 7x. Geometrie B20c: S33 liegt nur auf F1–F4, alle am/nach dem Nahpunkt (dort g = 0, Mitte seitlich
+110 px/Bild) → „weiter links und auf mich zu“ geht physisch nur mit Zurückbiegen.
+**Bauplan (beschlossen, nicht gebaut):** O4 → **O6**: 1/Z direkt steuern (R = R0 + R0'·F, Mitte = c0 + v0·F,
+F = ∫ k^(t/b)): exakte Perspektive einer Geraden, Bildtempo und Schrumpfen wachsen bis zum Fluchtpunkt, kein 3D/`_travel`/
+`boost` mehr. O5 → **O7**: Kamera taucht schon im Anflug ein (`orbit_dive_lead_beats`, Start ~F30, g0 > 0), g = g0·k^(t/b)
+nur steigend, Mitte gleitet mit v0·R0/R aus (keine Umkehr, kein Ziel), S33-Schnitt auf F1 wie im Loop; `zoom_spark`:
+Rauschen als 2 Oktaven, die mit dem Zoom skalieren (bei z = 0 = Plakat), Bewegungsunschärfe über Unterbilder
+(`orbit_dive_shutter_frac`) statt Tempo-Deckel x1.5. Offen: k so wählen, dass Sehfluss nie fällt (grob k ≥ 4–15/Beat).
+
 **Maßstab „clean“** (zuerst als Messung bauen, die an O4/O5 heute **anschlägt**, dann erst neu bauen): pro Bild im Bild-
 raum Geschwindigkeitsvektor der Sternmitte, d(ln Radius)/dt und Drehrate, über den ganzen Digitalteil.
 - stetig am Wechsel: Betrag und Richtung (Winkel < ~10°) wie der Schritt davor, kein Knick;
