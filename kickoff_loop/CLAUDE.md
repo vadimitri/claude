@@ -3,7 +3,16 @@
 Session-Start: diese Datei, dann `uv run src/kickoff_loop.py sheet` (zeigt den Stand in ~10 s). Stellschrauben: `loop.toml`.
 Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Befunde, Verworfenes, Archiv) und Skill `spark-motion`.
 
-## Stand 2.10.
+## Stand 2.10. (Ende)
+
+- **Zum Ansehen** in `previz/review/`:
+  - `NOW_preview.mp4`: ganzes Video, aktueller Loop mit allen 18 Sternen.
+  - `Z1/Z2/Z3_preview.mp4` + `_zoom.png`: Infinite Zoom in die Matrjoschka, auf M3a. Z1 beschleunigt, Z2 bremst ab
+    und hat das Negativ auf dem Drop, Z3 = Z2 + Platzhalter-Text (noch unlesbar: zu breit, XOR zerreißt).
+- **Gemergt**: Musik M3a/M3b (`review/M3a.toml`, `M3b.toml`) und Zoom (`[endcard].end_mode`, Z-TOMLs). `loop.toml` hat noch
+  das alte Ende und Mashup A. Wenn Vadim Z1/Z2 und M3a/M3b gewählt hat: deren Abschnitte nach `loop.toml`.
+- Die Musik schneidet Vadim ggf. selbst (`kickoff_loop_resolve.py schnitt`).
+
 
 Der **Video-Loop ist von den Campus-Plakaten getrennt**, soll aber so aussehen, dass man die Frames als Plakate nutzen
 könnte (Vadim 2.10.).
