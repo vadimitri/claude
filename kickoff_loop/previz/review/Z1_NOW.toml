@@ -1,0 +1,60 @@
+# Z1 (Zoom beschleunigend, M3a) auf dem aktuellen Loop: nur [endcard] + [music], Rest aus loop.toml
+[endcard]
+# --- Ende neu (2.10., Vadim nach E1: "Loop beenden bei einem Spark, der frontal gross in der Mitte ist, dann Infinite
+# Zoom da rein, beschleunigt oder decelerated, dann zu Black"). Code: kickoff_loop_video.digital_style (zoom),
+# kickoff_loop_digital.zoom_spark/zoom_type/blackout. Zeiten in Beats des Karussells (IGOR), Ende = end_s des Rasters.
+end_mode = "zoom"          # zoom = Infinite Zoom in den Stern | card = alter Platzhalter (Nest-Tunnel)
+end_frame = 1              # Karussell endet auf diesem Frame. B20c F1: Stern frontal, genau mittig (0.50/0.50), Radius 1.76, S33
+zoom_center = [0.50, 0.50] # Zoom-Mitte (Bruchteil des 9:16-Bilds), die Sternmitte wandert mit dem Zoom dorthin
+core_shrink = 1.0          # Kern der Matrjoschka zieht sich pro getauchter Puppe um so viele Puppen zurueck: innen oeffnen
+                           # sich neue Puppen (0 = Kern waechst mit, man zoomt in eine Flaeche)
+type_out_beats = 1.0       # Titelblock + QR zerfallen in so vielen Beats im Bayer-Korn (ab Zoom-Beginn)
+fade_beats = 2.0           # Fade to Black im Korn: so viele Beats vor dem Ende (fade_s im Raster gewinnt, falls vorhanden)
+info_cap_cells = 20        # Platzhalter-Info: Versalhoehe (Zellen), Clash wie der Titel
+info_lead_frac = 1.3       # Zeilenabstand (Vielfaches der Versalhoehe)
+info_y_frac = 0.50         # Mitte des Info-Blocks (Bruchteil der Bildhoehe)
+info_in_beats = 0.5        # Info setzt in so vielen Beats im Korn ein
+# Z1: beschleunigend. Kein Ausbruch, kein Impact: das Karussell endet auf F1 und die Kamera taucht sofort ein,
+# langsam, dann immer schneller (der Sog), Fade to Black am Ende.
+burst_on = false           # Ausbruch (Stern fliegt auf die Kamera zu) vor dem Zoom
+impact_on = false          # Negativ-Bilder auf dem Drop
+zoom_dolls = 9.0           # so viele Puppen taucht die Kamera ein (1 Puppe = Massstab 1/0.64 = x1.56)
+zoom_ease = "ease_in"      # ease_in = beschleunigt | ease_out = bremst ab | linear
+zoom_ease_pow = 2.5        # Steilheit des Easings (1 = linear)
+zoom_spin_deg_per_s = 20   # Drehung in der Bildebene waehrend des Zooms (frontal)
+info = []                  # keine Info
+info_at_beats = 0.0
+# Digitalteil: ab hier rendert der Rechner in 24 fps weiter (haengt nicht, nur im Video). Der Wechsel der Bildrate IST
+# der Uebergang (Spider-Verse: Stop-Motion auf Achteln → fluessig). Drei Abschnitte, Zeiten in Beats des Songs:
+#   Ausbruch  der Stern bricht aus dem Papier, fliegt auf einen zu, bis er das Bild fuellt
+#   Impact    ein paar Bilder Negativ (Palette umgedreht), genau auf dem Hit
+#   Endkarte  9:16-Satz, der Stern dreht weiter, Titel/Datum/QR setzen auf 16teln nacheinander ein
+burst_beats = 0.5          # Ausbruch: so viele Beats vom letzten Plakat bis der Stern das Bild fuellt (endet auf dem Hit)
+burst_star = [0.50, 0.46, 1.6]  # Ziel des Ausbruchs: x, y (Bruchteil des 9:16-Bilds), Radius (Bruchteil der Bildbreite)
+impact_frames = 2          # Negativ-Bilder auf dem Hit (24 fps). 1 Blitz, WCAG erlaubt 3 pro Sekunde
+card_star = [0.50, 0.66, 0.62]  # Mitte und aeusserster Stern des Tunnels: x, y, Radius (wie oben)
+card_style = "S7"          # PLATZHALTER: Vadim 1.10. "keine Hypno-Endkarte", Endkarte wird am Ende in eigener Session neu
+                           # gemacht. Bis dahin: XOR-Nest als Tunnel, Sterne wachsen stetig aus der Mitte nach aussen
+card_zoom_stars_per_s = 0.9    # so viele neue Sterne pro Sekunde (Tempo des Sogs). Jedes Pixel kippt dabei ~1x/s: kein Blitz
+card_spin_deg_per_s = 12   # langsame Drehung in der Bildebene (frontal, keine Kippung)
+card_fps = 24              # Vadim 30.9.: "Framerate der digitalen Version ganz nice" → fluessig
+boil_cells = 0             # Boil (Test, Vadim 1.10.): Stern springt auf boil_on-teln um bis zu so viele ganze Zellen, 0 = aus
+boil_rot_deg = 1.5         # dazu so viel Drehung (+-), frontal
+boil_on = 2                # neue Lage alle so viele Bilder: 2 = auf Zweiern (12/s bei 24 fps), wie Zeichentrick
+boil_dither = true         # das Bayer-Korn wandert mit (es "kocht"), im ganzen Bild; flaechige Stufen (QR-Platte) bleiben ruhig
+card_reveal_16ths = [0, 1, 2]   # Titel, Datum, QR setzen auf diesen 16teln nach dem Impact ein (Tempo der Endmusik)
+
+[music]
+# Mashup (Vadim 30.9.): IGOR-Brummen [→ IGOR-Beat] → Maker-Night-Drop auf dem Impact. Gebaut von
+# uv run src/kickoff_loop_music.py (Stellschrauben [mashup] unten), Befunde previz/music/report.txt.
+# Das Raster (JSON) sagt alles zur Zeitachse: Karussell-Takte, 16tel, Hits, Ausbruch, Impact, Ende (Zeiten ab Videoanfang).
+file = "ref/audio/mashup_M3a.wav"   # 2.10. Musik M3 (Musik-Agent), Zeiten fuer Zoom/Fade aus dem Raster   # A = IGOR-Beat unter dem Karussell (81.61 BPM) | B = nur Brummen, 120-BPM-Raster
+grid = "ref/audio/mashup_M3a.json"  # 2.10.: A, weil T16 auf IGOR steht (auf B waeren 48/Takt 24 Plakate/s)
+# Ton der Plakat-Loop-Videos (sheet, preview loop.mp4): bis der neue Song da ist IGOR, ab dem Einstieg in_s des Rasters
+# (Taktstrich), der Loop laeuft loop_passes-mal auf dessen Takt. Wechsel/s = changes_per_bar / Taktlaenge dieses Rasters.
+loop_file = "ref/audio/igors_theme.mp3"
+loop_grid = "ref/audio/igor_beats.json"
+loop_passes = 4            # Durchgaenge im Loop-Video: 32 Frames bei 16.32/s = 1.96 s, x 4 = 7.8 s (man hoert den Song)
+fade_out_s = 0.05          # nur gegen den Knack am Schnitt; das Video endet auf einem Taktstrich
+loudness_lufs = -14        # Vorschau/Reel: als feste Verstaerkung (kein Regler, der Drop bleibt so viel lauter wie gebaut)
+
