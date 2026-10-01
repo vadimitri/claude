@@ -3,16 +3,28 @@
 Session-Start: diese Datei, dann `uv run src/kickoff_loop.py sheet` (zeigt den Stand in ~10 s). Stellschrauben: `loop.toml`.
 Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Befunde, Verworfenes, Archiv) und Skill `spark-motion`.
 
-## Stand 2.10. (Ende)
+## Stand 2.10. (Abend)
 
-- **Zum Ansehen** in `previz/review/`:
-  - `NOW_preview.mp4`: ganzes Video, aktueller Loop mit allen 18 Sternen.
-  - `Z1/Z2/Z3_preview.mp4` + `_zoom.png`: Infinite Zoom in die Matrjoschka, auf M3a. Z1 beschleunigt, Z2 bremst ab
-    und hat das Negativ auf dem Drop, Z3 = Z2 + Platzhalter-Text (noch unlesbar: zu breit, XOR zerreißt).
-- **Gemergt**: Musik M3a/M3b (`review/M3a.toml`, `M3b.toml`) und Zoom (`[endcard].end_mode`, Z-TOMLs). `loop.toml` hat noch
-  das alte Ende und Mashup A. Wenn Vadim Z1/Z2 und M3a/M3b gewählt hat: deren Abschnitte nach `loop.toml`.
-- Die Musik schneidet Vadim ggf. selbst (`kickoff_loop_resolve.py schnitt`).
-
+- **Offen zum Ansehen** in `previz/review/<Code>/` (je Ordner: TOML, `preview.mp4`, `loop.mp4`, Bögen, `report.txt`);
+  Übersicht: `previz/index.html`. Alles Alte/Entschiedene: `previz/archiv/` (v001–v020, `review/alt|geparkt/<Code>/`).
+  - **Ausstiege** (`src/kickoff_loop_end.py`, `[ending]`), alle auf IGOR **ungeschnitten** ab 22.435 s (Vadim: M3-Schnitt
+    „nicht smooth“, die Musik schneidet er später selbst). IGOR-Ereignisse ab Videoanfang: Takt 5 = 11.76 s Bass-Boom,
+    19.85 s Stopp (1 Beat Stille), 20.59 s stärkster Hit, 23.53 s B-Teil.
+    - **Z4** Auslauf + Zoom: 2 Takte T16, 1 Umlauf bremst ab wie ein Glücksrad (kubisch, Anfangstempo = T16), landet auf
+      F1 auf dem Boom, Kamera bremst mit; Zoom aus dem Stand (ease_in), Schwarz auf IGORs Stopp.
+    - **Z5** Zoom + Endkarte: Zoom bremst ab, dimmt ab Takt 7 im Korn; SPARK fällt, KICK-OFF/Datum gleiten ein, Stille,
+      QR springt auf dem Hit aus der Mitte auf (Ease-out-back), QR groß (4 Zellen/Modul) mittig, steht bis Takt 10.
+    - **W1** Begriffe: Loop endet auf F17 (ganz hinten), Stern fährt in den Fluchtpunkt, Begriffswände (HARDWARE × 17
+      untereinander) fliegen je Beat heran (Sigmoid im log. Maßstab), alte stürzt vorbei, XOR, je Begriff nächste Colorway.
+      Begriffe sind **Vorschlag** (`words`), Vadim ersetzt.
+    - **W2** = W1 + Endkarte fliegt als letzte Wand heran, QR auf dem Hit.
+  - **G1/G2** Poly-Glitch statt S48c (F21, F29): S48e Dreiecks-Scherben (Nachfolger), S48f Glasbruch/Facetten.
+    `G1/bahn_S48c_e_f_gross.png` = Vergleich groß.
+- **In `loop.toml` seit 2.10. abends:** S54c auf F12/F16/F25 („Vundzwanzig“ als 25 gelesen), S50 auf F15 (S13, S2 damit
+  nicht mehr im Loop); **Farbwelt 2** mit den reinen Plakat-Colorways (Tokyo = Afterhours P25, Molten P18, Red Laser P9,
+  Absolute Zero P23, Mode 04H P6 **mit** Magenta: `lilac_ok`, Vadim: „fällt nicht unter die Lila-Regel“) → 64 Plakate;
+  **SPARK zeigt die Effekte dahinter** invertiert (`title_value`, lokaler Grund), außer F13 (`title_plain_frames`).
+  Endet noch mit dem alten Ende (Mashup A); wenn Vadim einen Ausstieg wählt: dessen `[ending]` + `[endcard]` nach `loop.toml`.
 
 Der **Video-Loop ist von den Campus-Plakaten getrennt**, soll aber so aussehen, dass man die Frames als Plakate nutzen
 könnte (Vadim 2.10.).
@@ -76,8 +88,9 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
 7. **Endkarte neu**, keine Hypno. Heute Platzhalter (Nest-Tunnel). Boil (`boil`) nur mit Vadims Ja.
 
 **So arbeiten** (2.10. nachgeschärft, für schnelles Iterieren):
-- **Gewähltes steht nur in `loop.toml`.** `previz/review/` enthält nur, was gerade offen ist. Nach jeder Wahl sofort
-  aufräumen: Entschiedenes nach `review/alt/`, Alternativen nach `review/geparkt/`.
+- **Gewähltes steht nur in `loop.toml`.** `previz/review/` enthält nur, was gerade offen ist, **ein Ordner pro Variante**
+  (Vadim 2.10.: „MP4s und Contact-Sheets jeder Version in einem Ordner“). Nach jeder Wahl sofort aufräumen:
+  Entschiedenes nach `archiv/review/alt/<Code>/`, Alternativen nach `archiv/review/geparkt/<Code>/`.
 - **Nichts Freigegebenes rauswerfen.** Ein schlechter Messwert kommt in den Report, die Entscheidung trifft Vadim.
 - **Varianten klein halten:** In eine Review-TOML nur den geänderten Abschnitt schreiben, `load` ergänzt den Rest aus
   `loop.toml`. So wirkt jede spätere Entscheidung automatisch auf alle offenen Varianten, und niemand muss Varianten
@@ -123,12 +136,13 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
 
 | Befehl | Ergebnis | Dauer |
 |---|---|---|
-| `uv run src/kickoff_loop.py sheet [review/X.toml]` | Kontaktbogen + Loop-Video → `previz/now/` bzw. `previz/review/X_*` (+ Report). Öffnet nichts (Vadim schaut selbst) | ~10 s |
+| `uv run src/kickoff_loop.py sheet [review/X/X.toml]` | Kontaktbogen + Loop-Video → `previz/now/` bzw. `previz/review/X/` (+ Report). Öffnet nichts (Vadim schaut selbst) | ~10 s |
 | `uv run src/kickoff_loop.py stars [S..]` | Sterne-Bogen an 3 Bahnstellen → `previz/variants/stars.png` | ~25 s |
 | `uv run src/kickoff_loop.py test [N..]` | Selbsttest am fertigen Bild (+ Bahn, Blitz) | ~5 s |
 | `uv run --with numpy --with pillow --with scipy --with qrcode --with scikit-image --with opencv-python-headless python src/lab_spark.py test` | Selbsttest Sterne (Hand-Schraffur) | ~20 s |
 | `uv run src/kickoff_loop_resolve.py schnitt` | Resolve-Projekt `SPARK_Kickoff_Schnitt`: Timeline „Schnitt" = Loop (9:16, Wechsel auf IGORs Raster, F1 auf 22.435 s) + IGOR-Song, verknüpft, 9 Marker; „Referenz" = `resolve/schnitt/ref/*`. Erneut aufrufen = neue Medien, Timeline bleibt (Resolve verlinkt neu) | ~3 min |
-| `uv run src/kickoff_loop.py preview [A\|B]` | neue Version `previz/vNNN/` (Video, Bogen, Report). **Bricht heute** (Schritt 2) | ~1 min |
+| `uv run src/kickoff_loop.py preview [review/X/X.toml]` | ohne Argument neue Version `previz/vNNN/`, mit Variante in ihren Ordner (Video, Bögen, Report, Config-Kopie) | 2–6 min |
+| `uv run src/kickoff_loop_end.py test review/Z4/Z4.toml` | Selbsttest Ausstiege (Auslauf bremst/landet, Kamera stetig, warp), Gegenprobe linear | ~5 s |
 | `uv run src/kickoff_loop.py frames` / `variants` / `boil` / `print` / `resolve` | Frames rendern / QR-Varianten / Boil-Test / Druck-PDFs / Resolve-Bausteine | |
 | `uv run src/kickoff_loop_music.py` | Musik + Raster → `ref/audio/mashup_*.wav/.json` | ~5 s |
 
@@ -139,14 +153,16 @@ Frames sind nach Inhalt gecacht (`_cache/`, Schlüssel inkl. Hash aller `src/*.p
 | Pfad | Inhalt | Git |
 |---|---|---|
 | `loop.toml` | alle Stellschrauben, kommentiert, Einheit im Namen | ja |
-| `previz/review/` | offene Varianten (`<Code>.toml` im Git) + Bögen/Videos; `alt/` = Verworfenes | toml ja |
-| `previz/vNNN/`, `previz/now/`, `previz/variants/`, `previz/music/` | Versionen / Kratzfläche / Bögen / Hörversionen | Reports ja |
+| `previz/review/<Code>/` | offene Varianten: `<Code>.toml` + alles, was daraus gerendert ist | toml, report ja |
+| `previz/vNNN/`, `previz/now/`, `previz/variants/` | Versionen von loop.toml / Kratzfläche / Sterne-Bögen | Reports ja |
+| `previz/archiv/` | `versionen/v001…`, `review/alt|geparkt/<Code>/`, alte Musik-Hörversionen | toml, report ja |
 | `ref/audio/` | `igors_theme.mp3` (nicht im Git), `igor_beats.json` (IGOR-Raster, Drums ab 22.435 s), `mashup_*.json` | teils |
 | `ref/spiderverse/` | Recherche + Notizen zu allen Labor-Sternen | README ja |
 | `resolve/` | `RECIPE.md`, `EDITOR.md` (Stern-Editor, Stand 16 Frames) | md ja |
 
 `src/kickoff_loop.py`: Config, Farbreise (Welten, Split, Regenbogen), Bahn (`orbit`), Satz, QR-Glühen, Rendern, Selbsttest.
 `src/kickoff_loop_video.py`: Timeline, Kamera, Ausbruch/Impact/Endkarte, Blitz-Check (inkl. Rot), sheet/preview.
+`src/kickoff_loop_end.py`: Ausstiege (IGOR-Zeitachse, Auslauf, Begriffe, Endkarte, Selbsttest).
 `src/kickoff_loop_music.py`: Mashup + Raster. Sterne: S2/S7/S33 in `src/styles.py`, Labor in `src/lab_spark.py` (`URTEIL`).
 
 ## Checks (stehen in jedem Report)
@@ -155,6 +171,13 @@ QR je Frame dekodiert · Titel-Lesbarkeit ≥ 0.95 (`kickoff.legible`) · Blitz 
 kein Lila (auch im Korn, `load` bricht ab) · Selbsttests schlagen nachweislich am alten Fehler an.
 
 ## Offen (nach den nächsten Schritten)
+
+- **Wahl Ausstieg** Z4/Z5/W1/W2 (Ausstiege kombinierbar: z. B. Auslauf vor W2 = `runout_bars` setzen) und **Begriffe**.
+- **Wahl Glitch** G1/G2 (ersetzt S48c, Vadim: „wenn gut, löst die alte ab“).
+- **F16 → F17** (dunkel → Papier) ist harsch; Vadim: „vielleicht lassen wir das so“. Lösung, falls doch: Welt 1 um einen
+  Frame verschieben, damit der Wechsel auf den kleinsten Stern fällt, oder 1–2 Mittel-Helligkeits-Stationen als Brücke.
+- Lesbarkeit sinkt durch die Effekte im Titel (min 0.69 → 0.60 inkl. Welt 2, Plakat 33 Tokyo/S33 schlechtestes).
+- Ort fehlt weiter: Endkarte zeigt Platzhalter „ORT FOLGT“ (`card_info`).
 
 - **Campus-Plakate** als eigenes Konzept (z. B. die stärksten Loop-Frames). Plätze: 18 × A4 hoch, 56 × A3 hoch, 10 × A4 quer.
 - Ort (`kickoff.COPY["where"]`) fehlt, für Endkarte und Plakate.
