@@ -129,7 +129,9 @@ def load(path=CONFIG, music=None):
     bad = [s for s in cfg["styles"]["cycle"] if s not in S_CODES]
     assert not bad, f"[styles].cycle: unbekannte Codes {bad}. Erlaubt: {sorted(S_CODES)}"
     sp = cfg["spark"]
-    assert 0 <= sp["ahead"] < 1, "[spark].ahead: 0 (Betrachter in der Mitte) bis < 1 (sonst liegt er ausserhalb der Bahn)"
+    # < 1: Betrachter auf der Bahn (B19, leere Frames hinter dem Kopf); > 1: Bahn ganz vor ihm (B20, Nahpunkt = ahead - 1)
+    assert sp["ahead"] >= 0 and abs(sp["ahead"] - 1) > BEHIND_Z, \
+        "[spark].ahead: 0..1 (Betrachter in der Bahn) oder > 1 (Bahn vor ihm), nicht ~1 (Stern durchfliegt den Kopf)"
     assert 0 <= sp["kepler_frac"] <= 1 and sp["width"] > 0, "[spark]: kepler_frac 0..1, width > 0"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
     q = cfg["qr"]
