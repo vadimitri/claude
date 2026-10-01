@@ -18,6 +18,15 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
       untereinander) fliegen je Beat heran (Sigmoid im log. Maßstab), alte stürzt vorbei, XOR, je Begriff nächste Colorway.
       Begriffe sind **Vorschlag** (`words`), Vadim ersetzt.
     - **W2** = W1 + Endkarte fliegt als letzte Wand heran, QR auf dem Hit.
+    - Vadim zu Z4/Z5: „das Ende muss das Momentum vom Loop matchen“, Text „mit Dither-Effekt mit Difference-Layer, kein
+      langer Fade, auf den Beat war cool“ → **Z6–Z9** (`zoom_dolls_per_beat` = Anfangstempo 3 Puppen/Beat, Drehung übernimmt
+      den Karussell-Spin; `zoom_step_per_bar` 48 = rastet im T16-Raster; `card_reveal` bayer|blocks|noise, `card_diff`):
+      Z6 linear fließend + Bayer, Z7 linear T16 + Blöcke, Z8 bremst fließend + Rauschen, Z9 bremst T16 + Bayer.
+      Befund: QR überall lesbar (letzte 5.5–5.8 s), Karten-Lesbarkeit mit Difference 0.66–0.71 (C) statt 0.98 mit
+      Abdimmen (Z5); Zoom-Check bei schnellem Zoom blind (Gegenprobe < x3), Sprünge keine (max x1.1–1.6 des Medians).
+    - Z4 v1 war kaputt (Landung fiel auf den Zoom-Start, F1 nie als Plakat, Sprung x5.8); v2 hält F1 2 Beats.
+  - **N1**: Welt 2 eigene Sternfolge mit den neuen Spider-Verse-Sternen **S56** Neonblasen, **S57/S57b** Collage, **S58**
+    Tunnel, **S59** Impact-Spritzer, **S60** Graffiti (Bögen + Referenzvergleich `review/S56/`). Welt 1 unverändert.
   - **G1/G2** Poly-Glitch statt S48c (F21, F29): S48e Dreiecks-Scherben (Nachfolger), S48f Glasbruch/Facetten.
     `G1/bahn_S48c_e_f_gross.png` = Vergleich groß.
 - **In `loop.toml` seit 2.10. abends:** S54c auf F12/F16/F25 („Vundzwanzig“ als 25 gelesen), S50 auf F15 (S13, S2 damit
@@ -178,6 +187,9 @@ kein Lila (auch im Korn, `load` bricht ab) · Selbsttests schlagen nachweislich 
   Frame verschieben, damit der Wechsel auf den kleinsten Stern fällt, oder 1–2 Mittel-Helligkeits-Stationen als Brücke.
 - Lesbarkeit sinkt durch die Effekte im Titel (min 0.69 → 0.60 inkl. Welt 2, Plakat 33 Tokyo/S33 schlechtestes).
 - Ort fehlt weiter: Endkarte zeigt Platzhalter „ORT FOLGT“ (`card_info`).
+- Sterne-Agent: das alte Korn mischt mit der Stufe darunter, auf der Split-Naht (Stufe 3) entsteht so Flieder/Oliv
+  (Rot+Blau, Gelb+Blau). S56–S60 halten das Korn in einer Colorway; alte Sterne ungeprüft.
+- Auf F1–4/F29–32 liegt die ganze Seite im Stern: Effekte außerhalb sind dort unsichtbar (nur S58 trägt auf F1).
 
 - **Campus-Plakate** als eigenes Konzept (z. B. die stärksten Loop-Frames). Plätze: 18 × A4 hoch, 56 × A3 hoch, 10 × A4 quer.
 - Ort (`kickoff.COPY["where"]`) fehlt, für Endkarte und Plakate.
