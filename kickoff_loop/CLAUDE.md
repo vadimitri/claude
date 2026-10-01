@@ -34,7 +34,9 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
   - B20g sieht aus wie die Plakate: nah unten groß, Titel frei.
   - Vergleichsvideo `Vergleich_B20c_B20d_B20e_B20f_B20g.mp4`.
   - Befund zum Timing von B20c: Hinter dem Titel kriecht der Stern 0.08/Frame, an den Seiten 0.26, F1–4 sind nur Farbfläche.
-- **Musik**: M1a/M1b (eigene Techno-Drums) verworfen: „zu ernst, zu trocken, nicht menschlich".
+- **Musik schneidet Vadim selbst** (2.10.: „das mit der Musik klappt nicht, gib mir ne DaVinci-Timeline"): `schnitt`, siehe Befehle.
+  Video und Song starten bei Songzeit 0; gemeinsam auf Taktstrichen geschnitten bleibt der Loop synchron. M3a/M3b (16/20 s) liegen als Referenz bei.
+- Musik-Verlauf: M1a/M1b (eigene Techno-Drums) verworfen: „zu ernst, zu trocken, nicht menschlich".
   - M2 läuft beim Musik-Agenten: IGORs eigene Drums, Spaß (Swing, Claps, Hook, Raum).
   - Drop = Sprung auf ~48 s im Song, wo Tyler singt (Vadim 2.10.).
 - **Drop/Digital**: Vadim: „der Beatdrop muss sich lohnen, da muss nochmal was kommen".
@@ -116,6 +118,7 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
 | `uv run src/kickoff_loop.py stars [S..]` | Sterne-Bogen an 3 Bahnstellen → `previz/variants/stars.png` | ~25 s |
 | `uv run src/kickoff_loop.py test [N..]` | Selbsttest am fertigen Bild (+ Bahn, Blitz) | ~5 s |
 | `uv run --with numpy --with pillow --with scipy --with qrcode --with scikit-image --with opencv-python-headless python src/lab_spark.py test` | Selbsttest Sterne (Hand-Schraffur) | ~20 s |
+| `uv run src/kickoff_loop_resolve.py schnitt` | Resolve-Projekt `SPARK_Kickoff_Schnitt`: Timeline „Schnitt" = Loop (9:16, Wechsel auf IGORs Raster, F1 auf 22.435 s) + IGOR-Song, verknüpft, 9 Marker; „Referenz" = `resolve/schnitt/ref/*`. Erneut aufrufen = neue Medien, Timeline bleibt (Resolve verlinkt neu) | ~3 min |
 | `uv run src/kickoff_loop.py preview [A\|B]` | neue Version `previz/vNNN/` (Video, Bogen, Report). **Bricht heute** (Schritt 2) | ~1 min |
 | `uv run src/kickoff_loop.py frames` / `variants` / `boil` / `print` / `resolve` | Frames rendern / QR-Varianten / Boil-Test / Druck-PDFs / Resolve-Bausteine | |
 | `uv run src/kickoff_loop_music.py` | Musik + Raster → `ref/audio/mashup_*.wav/.json` | ~5 s |

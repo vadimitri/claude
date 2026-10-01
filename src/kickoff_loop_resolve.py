@@ -16,6 +16,9 @@ Satz, QR) rendert weiter Python, aus der Bahn, die `pull` aus Resolve holt: je F
   uv run src/kickoff_loop_resolve.py check         Selbsttest: push + pull auf Wegwerf-Timeline, Vergleich mit KL.orbit
   uv run src/kickoff_loop_resolve.py verify [k …]  Timeline-Frames k (ab 0) aus Resolve rendern, Stern-Silhouette gegen
                                                    Python (IoU) → kickoff_loop/resolve/editor/verify/
+  uv run src/kickoff_loop_resolve.py schnitt       Previz zum Selberschneiden: Projekt SPARK_Kickoff_Schnitt, Timeline
+                                                   "Schnitt" = Loop auf IGORs Raster + Song, verknuepft, mit Markern.
+                                                   Erneut aufrufen = Medien neu (Timeline bleibt, Resolve verlinkt neu)
 
 Konventionen (Resolve 21.1; Rundreise mit `check` gemessen, Bild-Pruefung `verify` noch offen, siehe EDITOR.md):
   unsere Bahn   x, y = Bruchteil von Plakatbreite/-hoehe, y nach unten; r = Spitzenradius / Plakatbreite;
@@ -550,6 +553,103 @@ def verify(cfg, frames=None):
     return f"verify ok (IoU >= {rc['iou_min']}), Bilder in {VERIFY}\n{report}"
 
 
+# ---------------------------------------------------------------- Schnitt: Previz zum Selberschneiden
+
+SCHNITT = os.path.join(KL.PROJECT, "resolve", "schnitt")   # Medien (gitignored); ref/ = Referenzen von Hand (M3-Previews)
+SCHNITT_PROJECT = "SPARK_Kickoff_Schnitt"                  # eigenes Projekt: 9:16, das Editor-Projekt hat Plakatformat
+SCHNITT_TIMELINE = "Schnitt"                               # wird nie ueberschrieben (Vadims Schnitt), nur angelegt
+REF_TIMELINE = "Referenz"
+SONG_MARKS = [(45.963, "B-Teil: Drop M2a/M3 (Musik-Agent 2.10.)"),   # zusaetzlich zu igor_beats.json sections
+              (47.0, "Tyler singt (gemessen ca.)")]
+MARK_COLOR = "Yellow"
+
+
+def schnitt_media(cfg):
+    """Medien fuer den eigenen Schnitt (Vadim 2.10.: "gib mir ne DaVinci-Timeline mit Previz, ich schneide das selbst").
+    loop_igor.mp4 = Plakat-Loop flach (9:16, Plakat eingepasst) ueber den ganzen Song, jeder Wechsel auf IGORs Raster
+    ([loop].changes_per_bar je Takt), F1 auf dem Drum-Einsatz. Video und Song beginnen beide bei Songzeit 0: gemeinsam auf
+    Taktstrichen geschnitten bleibt der Loop synchron, egal wie die Musik umgebaut wird. Dateinamen bleiben gleich,
+    Resolve verlinkt nach einem neuen Export von selbst (die Timeline zeigt dann den neuen Stand)."""
+    import subprocess
+    os.makedirs(os.path.join(SCHNITT, "frames"), exist_ok=True)
+    os.makedirs(os.path.join(SCHNITT, "ref"), exist_ok=True)
+    posters = KL.frames(cfg)[0]
+    for k, p in enumerate(posters):
+        Image.fromarray(np.asarray(p)[..., :3]).save(os.path.join(SCHNITT, "frames", f"{k + 1:02d}.png"))
+    m = cfg["music"]
+    song = os.path.join(KL.PROJECT, m["loop_file"])
+    g = m["loop_grid"]                            # KL.load hat das IGOR-Raster schon eingelesen
+    end = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", song],
+                               capture_output=True, text=True, check=True).stdout)
+    step, t0, n = g["bar_s"] / cfg["loop"]["changes_per_bar"], g["in_s"], len(posters)
+    lines = []
+    for k in range(-int(np.ceil(t0 / step)), int(np.ceil((end - t0) / step))):   # von Songzeit 0 bis Songende
+        a, b = max(0.0, t0 + k * step), min(end, t0 + (k + 1) * step)
+        if b > a:
+            lines += [f"file 'frames/{k % n + 1:02d}.png'", f"duration {b - a:.6f}"]
+    lines.append(lines[-2])                       # concat-Demuxer: letzte Datei doppelt, sonst faellt ihre Dauer weg
+    open(os.path.join(SCHNITT, "loop.txt"), "w").write("\n".join(lines) + "\n")
+    W, H = cfg["video"]["size_px"]
+    video = os.path.join(SCHNITT, "loop_igor.mp4")
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", "loop.txt", "-vf",
+                    f"scale={W}:-2:flags=neighbor,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:black,fps={cfg['video']['timeline_fps']}",
+                    "-c:v", "libx264", "-crf", "12", "-pix_fmt", "yuv420p", "-an", video], cwd=SCHNITT, check=True)
+    return video, song, g
+
+
+def schnitt(cfg):
+    """Projekt SPARK_Kickoff_Schnitt: Timeline "Schnitt" = loop_igor.mp4 (V1) + IGOR-Song (A1), verknuepft, ab Frame 0,
+    Marker an den Songstellen; Timeline "Referenz" = alles aus resolve/schnitt/ref/ hintereinander. Bestehende Timelines
+    bleiben unangetastet (nur die Medien werden neu exportiert)."""
+    video, song, g = schnitt_media(cfg)
+    r = connect()
+    pm = r.GetProjectManager()
+    cur = pm.GetCurrentProject()
+    if cur and cur.GetName() != SCHNITT_PROJECT:
+        assert pm.SaveProject(), f"offenes Projekt '{cur.GetName()}' liess sich nicht speichern, Abbruch"
+    proj = pm.LoadProject(SCHNITT_PROJECT) or pm.CreateProject(SCHNITT_PROJECT)
+    assert proj, f"Resolve-Projekt '{SCHNITT_PROJECT}' liess sich nicht anlegen"
+    fps, (W, H) = cfg["video"]["timeline_fps"], cfg["video"]["size_px"]
+    if proj.GetTimelineCount() == 0:                                     # Bildrate ist gesperrt, sobald es eine gibt
+        for k, v in {"timelineFrameRate": str(fps), "timelineResolutionWidth": str(W), "timelineResolutionHeight": str(H),
+                     "timelinePixelAspectRatio": "square", "timelineSampleRate": "48000"}.items():
+            proj.SetSetting(k, v)
+    mp = proj.GetMediaPool()
+    known = {c.GetClipProperty("File Path"): c for c in mp.GetRootFolder().GetClipList() or []}
+
+    def item(path):
+        if path not in known:
+            got = mp.ImportMedia([path])
+            assert got, f"Resolve importiert {path} nicht"
+            known[path] = got[0]
+        return known[path]
+
+    made = []
+    if timeline_by_name(proj, SCHNITT_TIMELINE) is None:
+        v, a = item(video), item(song)
+        tl = mp.CreateEmptyTimeline(SCHNITT_TIMELINE)
+        proj.SetCurrentTimeline(tl)
+        tl.SetStartTimecode("00:00:00:00")
+        got = mp.AppendToTimeline([dict(mediaPoolItem=v, trackIndex=1, recordFrame=0, mediaType=1),
+                                   dict(mediaPoolItem=a, trackIndex=1, recordFrame=0, mediaType=2)])
+        assert got and len(got) == 2, "Loop/Song liessen sich nicht auf die Timeline legen"
+        tl.SetClipsLinked(got, True)
+        marks = [(s["song_s"], s["label"]) for s in g["sections"]] + SONG_MARKS
+        for t, name in sorted(marks):
+            tl.AddMarker(int(round(t * fps)), MARK_COLOR, name[:60], name, 1)
+        made.append(SCHNITT_TIMELINE)
+    refs = sorted(glob.glob(os.path.join(SCHNITT, "ref", "*")))
+    if refs and timeline_by_name(proj, REF_TIMELINE) is None:
+        tl = mp.CreateEmptyTimeline(REF_TIMELINE)
+        tl.SetStartTimecode("00:00:00:00")
+        proj.SetCurrentTimeline(tl)
+        mp.AppendToTimeline([item(p) for p in refs])
+        made.append(REF_TIMELINE)
+    proj.SetCurrentTimeline(timeline_by_name(proj, SCHNITT_TIMELINE))
+    pm.SaveProject()
+    return f"{SCHNITT_PROJECT}: neu {made or 'nichts (Timelines bestehen, Medien neu exportiert)'}; Loop {video}"
+
+
 def main():
     args = sys.argv[1:]
     cmd = args[0] if args else ""
@@ -564,6 +664,8 @@ def main():
         print(check(cfg))
     elif cmd == "verify":
         print(verify(cfg, [int(a) for a in args[1:]] or None))
+    elif cmd == "schnitt":
+        print(schnitt(cfg))
     else:
         sys.exit(__doc__)
 
