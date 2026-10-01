@@ -1,0 +1,55 @@
+# O7 = O5 neu, Wurf auf die Kamera + Infinite Zoom (Vadim 3.10. zu O5: "kommt zu einem, schiesst ein bisschen ueber,
+# korrigiert und zoomt dann rein" und "der Zoom ist kein richtiger Zoom und hat nicht das Momentum"; Befund 1.10.: Wachstum
+# sprang am Wurf x8, die Mitte bremste in 8 Bildern hart). Ein digitaler Umlauf ab dem Bass-Boom; im Anflug (F29, er
+# waechst noch) taucht die Kamera ein: Zoomrate = Wachstum der Bahn, danach nur schneller. Die Mitte faehrt in ihrer
+# Richtung weiter und laeuft mit dem Zoom aus (keine Umkehr). Auf F1 (S33) wird es der Infinite Zoom: das Korn der Luft
+# waechst mit, schnelle Ringe verwischen (Bewegungsunschaerfe statt Tempo-Deckel). Nur geaenderte Abschnitte.
+
+[ending]
+carousel_bars = 4          # Karussell T16 bis zum Bass-Boom (Takt 5)
+runout_bars = 0
+runout_hold_beats = 0.0
+length_bars = 7.875        # QR steht ~6 s (ab Beat 7.5 nach dem Boom)
+card_on = true
+# Bahn-Ende (end_mode = "orbit"). Zeiten in Beats ab dem Karussell-Ende (= Bass-Boom); end_frame folgt daraus
+orbit_path = "dive"        # Wurf auf die Kamera, ohne Bruch in den Infinite Zoom der Matrjoschka
+orbit_frame = 1            # im riesigen frontalen F1 (S33, Naht F32 -> F1)
+orbit_loops = 1.0          # Vadim 3.10.: ab dem Moment, wo es digital ist, EIN Umlauf (1.96 s), dann die neue Bahn
+orbit_dive_lead_beats = 0.3333   # die Kamera taucht so viele Beats vor F1 ein (4 Bahnframes: F29, er waechst noch; 0.25 trieb die Mitte aus dem Bild, 0.42 knickte 24 Grad)
+orbit_dive_core_shrink = 20.0  # Puppen bis zum Punkt: der flache Kern ist ab dem ersten Zoom-Bild unter einem Pixel (1.0 liess ihn nach innen schrumpfen, die Kante lief gegen den Zoom = wirkte rueckwaerts)
+orbit_throw_speedup = 4.0  # Zoomrate x4 pro Beat ab der Wachstumsrate der Bahn (vorher x1.5 gedeckelt; Bewegungsunschaerfe statt Deckel)
+orbit_dive_drift_pow = 0.5     # Mitte laeuft mit dem Zoom aus: Tempo ~ (R0 / R)^0.5 (1 bremste schneller, als der Zoom anzog)
+orbit_dive_shutter_frac = 0.5   # Bewegungsunschaerfe (Dreiecksblende): 0.5 = Ringe verschwinden genau ab 1 Puppe pro Bild
+orbit_spin_speedup = 2.0   # Drehung: Bahntempo, legt pro Beat das 1-fache zu
+orbit_cycle_beats = 2.67   # Farben wechseln im T16-Raster bis zum Wurf, dann zoomt er in EINER Colorway (bildfuellend
+                           # mit Farbwechsel je Bild = die verworfenen Hypno-Ringe, 1.10.)
+orbit_type_out_at_beats = 3.5      # Titelblock des Plakats zerfaellt im Korn ab hier ...
+orbit_type_out_beats = 1.0         # ... in so vielen Beats
+card_reveal = "bayer"
+card_diff = false
+card_moves = [["title", 4.5, 0.0, -0.12, 1.0],     # SPARK faellt von oben (Zoom geht darunter in den Grund)
+              ["what", 5.5, -0.6, 0.0, 1.0],       # KICK-OFF von links
+              ["when", 6.5, 0.6, 0.0, 1.0],       # Datum von rechts
+              ["qr", 7.5, 0.0, 0.0, 0.0],         # QR springt aus der Mitte auf
+              ["cta", 8.0, 0.0, 0.03, 1.0],       # JOIN US
+              ["info", 8.5, 0.0, 0.03, 1.0]]
+card_in_beats = 0.5
+card_overshoot = 1.70158
+card_dim_frac = 1.0        # Zoom geht unter SPARK im Korn ganz in den Grund (dann steht er, Karte frei)
+card_title_w_frac = 0.74
+card_top_frac = 0.14
+card_sub_frac = 0.40
+card_gap_frac = 0.30
+card_qr_module_cells = 4
+card_qr_quiet_cells = 4
+card_qr_y_frac = 0.58
+card_glow_cells = 16
+card_cta_cells = 12
+card_cta_gap_cells = 8
+card_info = ["ORT FOLGT"]
+card_info_frac = 0.30
+
+[endcard]
+end_mode = "orbit"
+burst_on = false
+impact_on = false

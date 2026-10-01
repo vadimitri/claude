@@ -17,7 +17,7 @@ Stile: s33 (Matrjoschka: Schalenband, nach innen in Korn auslaufend), s19 (nur U
   uv run src/kickoff_loop_digital.py video  [toml]   alle Varianten als MP4 mit IGOR darunter
   uv run src/kickoff_loop_digital.py test   [toml]   Nahtlosigkeit am fertigen Bild: Frame 0 == Frame N
 """
-import os, sys, subprocess, tomllib, hashlib
+import hashlib, math, os, subprocess, sys, tomllib
 import numpy as np
 from PIL import Image, ImageDraw
 
@@ -208,6 +208,35 @@ SHELL_VAL = (0.60, 0.38)   # ... Helligkeit der Schale: 0.60 aussen + 0.38 * Tie
 AIR_VAL, AIR_NOISE = 0.16, 0.22   # ... Luft: Grundwert und Rauschanteil
 LOG_FLOOR = 1e-300    # nur gegen log(0). Vorher 1e-9: ab ~45 Puppen (Schwung-Zoom Z6/Z7) lag jedes Pixel darunter → flache Flaeche
 NOISE_SEED_OFFSET = 5  # ... Rauschen mit seed + 5 (gleiches Korn wie das Plakat)
+BLUR_STEP = 0.08      # Bewegungsunschaerfe: ein Unterbild je so viel Puppen im Verschluss (Ring-Abstand / 12)
+BLUR_MAX = 16         # ... hoechstens so viele Unterbilder (Renderzeit; darueber ist der Ring ohnehin ein Verlauf)
+
+
+def _flow_noise(noise, cyx, f):
+    """Rauschen der Luft, das mit dem Zoom waechst (Vadim 3.10. zu O5: "kein richtiger Zoom"; vorher stand das Korn
+    fest im Bild, nur die Ringe wanderten = Palette-Cycling). Zwei Oktaven des Plakat-Rauschens um die Sternmitte
+    cyx (Zellen) vergroessert: 1/DOLL_RATIO^f und das 0.64-fache davon, Gewicht 1 - f bzw. f (f = Bruchteil der
+    getauchten Puppen). Bei f = 0 exakt das Plakat, bei f -> 1 nahtlos wieder (Selbstaehnlichkeit wie die Puppen).
+    Varianz auf die des Plakats normiert."""
+    from scipy.ndimage import map_coordinates
+    yy, xx = np.indices(noise.shape, dtype=np.float64)
+    out = 0.0
+    for w, s in ((1 - f, DOLL_RATIO ** -f), (f, DOLL_RATIO ** (1 - f))):
+        if w > 0:
+            out = out + w * map_coordinates(noise, [cyx[0] + (yy - cyx[0]) / s, cyx[1] + (xx - cyx[1]) / s],
+                                            order=1, mode="grid-wrap")
+    return out / math.hypot(1 - f, f)
+
+
+def _doll_field(c, d, z, n, core_shrink, noise, cyx):
+    """Helligkeit und Schalen-Maske der Matrjoschka bei z getauchten Puppen (d = Abstand bei z, normiert auf R)."""
+    q = np.log(np.maximum(d, LOG_FLOOR)) / np.log(DOLL_RATIO)
+    k, f = np.floor(q), q - np.floor(q)
+    shell = (f < SHELL_FRAC) | (q >= n - 1 + z * (1 + core_shrink))
+    nz = noise if z == 0 else _flow_noise(noise, cyx, z % 1)
+    fade = np.exp(-(f - SHELL_FRAC) / SHELL_FADE)
+    val = SHELL_VAL[0] + SHELL_VAL[1] * np.clip((k - z) / (n - 1), 0, 1)
+    return np.where(shell, val, np.clip(AIR_VAL + (val - AIR_VAL) * fade + AIR_NOISE * nz * (1 - fade), 0, 1)), shell
 
 
 def zoom_spark(c):
@@ -215,20 +244,27 @@ def zoom_spark(c):
     um die die Kamera eingetaucht ist). q = absolute Puppennummer (0 = aeusserste Puppe des Plakats). Helligkeit nach
     Tiefe RELATIV zum Bild (q - z): jede Puppe dimmt, waehrend sie nach aussen waechst, im Bild steht immer dieselbe
     Rampe wie auf dem Plakat. Der flaechige Kern (Plakat: ab Puppe dolls-1) zieht sich um core_shrink Puppen pro
-    getauchter Puppe zurueck, so oeffnen sich innen neue Puppen. Bei z = 0 ist das Feld exakt styles.spark (S33)."""
+    getauchter Puppe zurueck, so oeffnen sich innen neue Puppen. Das Rauschen der Luft waechst mit (_flow_noise).
+    Bewegungsunschaerfe (zoom["blur"] = volle Breite in Puppen): Dreiecksblende um z, ein Unterbild je BLUR_STEP
+    Puppen (hoechstens BLUR_MAX). Dreieck statt Kasten: Uebertragung sinc^2 ist nie negativ, der Kasten kehrte den
+    Ringkontrast zwischen 1 und 1.4 Breiten um (wirkt rueckwaerts). Ersetzt den alten Tempo-Deckel x1.5/Beat (x2 = 2/3
+    Puppe pro Bild flackerte): ab blur = 1 verwischen die Ringe zu radialen Verlaeufen, statt rueckwaerts zu springen. Bei z = 0 und ohne
+    blur ist das Feld exakt styles.spark (S33)."""
     zm = c.st["loop"]["digital"]["zoom"]
     cx, cy, R, rot = c.L["star"]
     d, _ = styles.star_d(c, cx, cy, R, rot)
     n, z = c.st.get("dolls", 4), zm["dolls"]
-    q = np.log(np.maximum(d, LOG_FLOOR)) / np.log(DOLL_RATIO)
-    k, f = np.floor(q), q - np.floor(q)
-    shell = (f < SHELL_FRAC) | (q >= n - 1 + z * (1 + zm["core_shrink"]))
     noise = np.random.default_rng(c.st.get("seed", 0) + NOISE_SEED_OFFSET).random(d.shape) - 0.5
-    fade = np.exp(-(f - SHELL_FRAC) / SHELL_FADE)
-    val = SHELL_VAL[0] + SHELL_VAL[1] * np.clip((k - z) / (n - 1), 0, 1)
-    grad = np.where(shell, val, np.clip(AIR_VAL + (val - AIR_VAL) * fade + AIR_NOISE * noise * (1 - fade), 0, 1))
+    cyx = (cy / c.px - 0.5, cx / c.px - 0.5)
+    blur = zm.get("blur", 0.0)                                            # volle Breite der Dreiecksblende (Puppen)
+    m_sub = min(BLUR_MAX, 1 + 2 * int(blur / (2 * BLUR_STEP))) if blur > 0 else 1   # ungerade: Mitte = z
+    w = 1 - np.abs(np.linspace(-1, 1, m_sub + 2)[1:-1]) if m_sub > 1 else np.ones(1)
+    grad, shell = 0.0, 0.0
+    for wj, dz in zip(w / w.sum(), np.linspace(-blur / 2, blur / 2, m_sub) if m_sub > 1 else (0.0,)):
+        g, sh = _doll_field(c, d * DOLL_RATIO ** -dz, z - dz, n, zm["core_shrink"], noise, cyx)
+        grad, shell = grad + wj * g, shell + wj * sh
     m = d < 1
-    c.star_m = m & shell
+    c.star_m = m & (shell >= 0.5)
     c.add("spark", m, grad)
 
 

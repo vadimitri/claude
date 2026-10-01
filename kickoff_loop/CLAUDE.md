@@ -45,95 +45,41 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
   Fluchtpunkt heller (wie alles in den Negativ-Welten). Lesbarkeit/QR unverändert.
 - **Enden:** Z4/Z5 → `archiv/review/alt/` (bewertet, daher die neuen), W1/W2 → `archiv/review/geparkt/` (Vadim: „Idee
   cool, erstmal parken“).
-- **Agenten (3.10.):** `pipeline` (Render-Tempo: Machbarkeit + Prototyp, eigener Branch, kein Merge) und `enden`
-  (neue digitale Enden laut Übergabe unten: v1 nach hinten + Zoom, Schleuder-Varianten; eigener Branch, kein Merge).
+- **Agenten (3.10.):** `pipeline` und `enden` sind gemergt; die Enden stehen jetzt als O6/O7 unten.
 
-## Bahn-Enden O4, O5 (Agent `enden`, 3.10.; Vadim: nicht clean genug → Übergabe unten)
+## Bahn-Enden O6, O7 (1.10. abends, aus der Übergabe; wartet auf Vadims Urteil)
 
 `[endcard].end_mode = "orbit"` (`kickoff_loop_end.py`, Schlüssel `orbit_*` in `[ending]`): nach dem Karussell (4 Takte T16)
-läuft der Loop auf dem Bass-Boom (11.76 s) **genau einen Umlauf digital** weiter (`orbit_loops` 1, 1.96 s, 24 fps,
-`KL.orbit` mit gebrochener Phase, Farbe/Stern je ganzer Phase im T16-Raster, an ganzen Phasen bitgleich zum Plakat), dann
-wechselt der Stern auf `orbit_frame` die Bahn (13.72 s). `end_frame` und der Zeitpunkt folgen daraus (load setzt/prüft).
-Endkarte auf den Beats danach (SPARK, KICK-OFF, Datum, QR, ~6 s stehen). Vergleich `previz/review/Vergleich_O4_O5.mp4`.
-- Vadim 3.10. zu O1–O4 (je 1.1–2.6 digitale Umläufe): „ab dem Moment, wo es digital ist, nur noch EINEN Loop und dann
-  zack, sonst zu teasing“. Musik-Sync zweitrangig (Padding/Sprünge macht er am Ende). **O1–O3 verworfen** (O1 Bremsen in
-  F17 + Zoom aus dem Stand, O2 Schleuder seitlich, O3 zur Kamera), Code für O1 gelöscht.
-- **O4** Schleuder in die Tiefe (`orbit_path = "throw"`): lässt in F14 los, Tangente rechts in die Tiefe, schrumpft rechts
-  von SPARK zum Punkt (weg 14.81 s), x5/Beat, `orbit_throw_boost` 2, Drehung x5. Befund: rein exponentiell schrumpft er
-  in die Tiefe mit festem Verhältnis pro Bild (wirkt gleichmäßig), daher `boost` (der Tempo-Faktor wächst selbst).
-- **O5** Wurf auf die Kamera + Infinite Zoom (`"dive"`, Vadim 3.10.: „wo der Spark riesig und frontal ist, weiter in die
-  eine Richtung, aber zu einem hin, mit Infinite Zoom, das Momentum da auch“): im riesigen F1 (S33) fährt die Mitte in
-  ihrer Richtung weiter (läuft in `orbit_dive_drift_beats` aus), der Matrjoschka-Zoom (`zoom_spark`) startet mit dem
-  Sehtempo des Loops (`orbit_dive_match` 1.25; 1.0 brach auf x0.88 ein) und wird x1.5/Beat schneller (x2 = 16 Puppen/s,
-  flackert). Farbe rastet beim Wurf ein (mit Farbwechsel bildfüllend = Hypno-Ringe).
-- Selbsttest `uv run src/kickoff_loop_end.py test kickoff_loop/previz/review/O5/O5.toml`: Bahn-Nachbau = `KL.orbit`, Loop
-  bitgleich, Stetigkeit am Bild (Sternfläche S2 mit/ohne Stern, Radius auf ≤ 1/4 Bildbreite skaliert, sonst war der
-  bildfüllende O5-Stern unmessbar), Beschleunigung monoton, kein Tempo-Einbruch beim Wechsel (Sehtempo und Drehung ≥ x0.9;
-  Gegenprobe Zoom aus dem Stand x0.03), ≤ 1 digitaler Umlauf (Gegenprobe 2.5). Report: Zeile „Bahn-Check“.
-- Grund V3 (Tasche um den Stern): ist der Stern weg, bleibt `c.L["star"]` dort, wo er wäre (`ghost`), sonst sprang die
-  Tasche in die Ecke und der ganze Grund wurde hell. `qr_scan`: OpenCV-Abbruch auf Zoom-Bildern gilt als nicht lesbar,
-  gleiche Bilder nur einmal (zwei Threads schrieben dieselbe Merk-Datei).
-- **Endfarbe offen, Vadim mochte Blau.** Sie folgt heute aus der Phase beim Stopp des Farbwechsels
-  (`orbit_cycle_beats`): O5 Navy (Plakat 1, ~P23/P13), O4 Dunkelrot (Plakat 62, P9). Kein eigener Schalter.
+genau **ein** digitaler Umlauf ab dem Bass-Boom (11.76 s, Vadim 3.10.: „sonst zu teasing“), dann die neue Bahn. Beide
+Fortsetzungen starten am Zustand der Bahn **im Bild** (`orbit_kin`: Lage, Tempo, Größenrate) und werden nur schneller.
+Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft.txt`). O4/O5 → `archiv/review/alt/`.
+- **O6** Wurf in die Tiefe (`orbit_path = "throw"`, F14): gerade Linie zum Fluchtpunkt rechts von SPARK. Gesteuert wird 1/Z
+  (für eine Gerade sind Radius und Abstand zum Fluchtpunkt beide ∝ 1/Z): R = R0 + R0'·F, Mitte = c0 + v0·F,
+  F = ∫ k^(t/b), `orbit_throw_speedup` 5. Bildtempo 50 → 86 px/Bild, weg nach 0.34 s (14.06 s). Befund O4: die Gerade
+  mit exponentiellem *Raum*tempo wurde im Bild langsamer (46 → 3 px/Bild) = „stoppt kurz“; `boost`/`orbit_3d` gelöscht.
+- **O7** Wurf auf die Kamera + Infinite Zoom (`"dive"`): S33 liegt nur auf F1–F4 (am/nach dem Nahpunkt, Wachstum 0, Mitte
+  seitlich 110 px/Bild). Deshalb taucht die Kamera **im Anflug** ein (`orbit_dive_lead_beats` 1/3 = ab F29): Zoomrate
+  g = g0·k^(t/b) ab der Rate der Bahn (`orbit_throw_speedup` 4), die Mitte fährt in ihrer Richtung weiter und läuft mit dem
+  Zoom aus (Tempo ∝ (R0/R)^`orbit_dive_drift_pow` 0.5, Ruhe bei ~(520, 1221), keine Umkehr, kein Ziel). Auf F1 der
+  S33-Schnitt wie im Loop, dann `KD.zoom_spark`: **Puppen bis zum Punkt** (`orbit_dive_core_shrink` 20; mit 1 schrumpfte
+  der Kern gegen den Zoom = wirkte rückwärts), Rauschen der Luft wächst mit (`_flow_noise`, 2 Oktaven, selbstähnlich),
+  **Dreiecksblende** (`orbit_dive_shutter_frac` 0.5: Ringe verschwinden genau ab 1 Puppe/Bild; der Kasten kehrte den
+  Kontrast um). Der alte Tempo-Deckel x1.5/Beat ist weg. Raster (Vorlauf × k × Potenz): 0.25 Beat trieb die Mitte aus dem
+  Bild, 0.42 knickte 24°, Potenz 1 bremste die Mitte schneller, als der Zoom anzog.
+- Selbsttest `uv run src/kickoff_loop_end.py test kickoff_loop/previz/review/O7/O7.toml` (bzw. O6): Loop bitgleich,
+  Stetigkeit am Bild (S2), **Bahn clean** (`orbit_measure`/`orbit_clean`: Knick ≤ 10° inkl. Eigenkrümmung der Bahn (O7
+  8.9°), Tempo/Rate am Wechsel x0.67–1.5, danach nie langsamer (O6 |v| und |g|; O7 g und Sehfluss |v| + g·rms-Radius),
+  keine Umkehr, Mitte im Bild oder weg; Gegenproben alter O4 (Tempo x0.5) und alter O5 (ohne Vorlauf aus F1) schlagen an),
+  **Stroboskop am Bild** (O7: Ringkontrast mit/ohne Unschärfe ab 1 Puppe/Bild 0.18 ≤ 0.3, unter ½ Puppe 0.62 ≥ 0.5),
+  ≤ 1 digitaler Umlauf. Report: Zeile „Bahn-Check“.
+- Verworfen: Maßstab am Bild per log-polarer Korrelation (Puppen selbstähnlich: ab ½ Puppe/Bild nur modulo einer Puppe
+  messbar, O7 startet bei 0.37). `cv2.warpPolar` liefert im Log-Modus `nan` → eigene Abtastung per `cv2.remap`.
+- **Endfarbe offen, Vadim mochte Blau.** O7 Navy/Türkis (Plakat 1), O6 Dunkelrot (Plakat 62).
+- **Offen für Vadim:** O6 vs O7 (oder beide neu); bei O7 läuft die Mitte aus, statt voll weiterzufahren (sonst nach ~5
+  Bildern aus dem Bild, kein Zoom in die Puppen). Zoomtempo (k 4) und Unschärfe (0.5) sind TOML-Schrauben. Danach das
+  gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
-## Übergabe → nächste Session: Ende absolut clean und flüssig (Stand 3.10., abends)
-
-**Auftrag (Vadim 3.10. zu O4/O5):** „Beide Versionen ergeben logisch und physisch nicht wirklich Sinn und haben zu wenig
-Schwung. Sie fühlen sich disconnected zum Loop an. **O4** stoppt irgendwie kurz, bewegt sich und dann nach hinten weiter, das
-ist keine flüssige Linie. **O5** kommt zu einem, schießt dann ein bisschen über, korrigiert und zoomt dann rein. Das muss
-**absolut clean und flüssig** sein.“ Neue Session nur dafür. Ausgang: `previz/review/O4/`, `O5/` (+ `Vergleich_O4_O5.mp4`),
-Code `src/kickoff_loop_end.py` (`end_mode = "orbit"`, `orbit_*`, Abschnitt „Bahn-Enden O4, O5“ oben). O1–O3 verworfen.
-
-**Feste Vorgaben** (Vadim 3.10.): ab dem Wechsel ins Digitale **genau ein Umlauf**, dann die neue Bahn und weg („sonst zu
-teasing“). Musik-Sync zweitrangig (Padding/Sprünge macht Vadim am Ende). Richtung O4 (in die Tiefe) bzw. O5 (auf die Kamera
-im riesigen frontalen F1, dann Infinite Zoom mit dem Momentum) ist gewollt, nur die Ausführung nicht. Endfarbe offen, Vadim
-mochte Blau. Vorschauen mit Hardware-Encoder, Tempo vor Qualität.
-
-**Hypothesen zur Ursache** (aus Code/TOML, noch nicht am Bild gemessen):
-- O5: `orbit_dive_drift_beats` 0.1 → die Mitte läuft in ~70 ms aus (bremst nach 2–3 Bildern hart), der Zoom (`zoom_spark`)
-  übernimmt um eine eigene Mitte: liest sich als Überschießen + Korrigieren. Dazu verweilt B20c vorn (`front_dwell_frac`
-  0.6): am Wurfpunkt F1 ist die Bahn fast still, „weiterfliegen“ hat kaum Schwung zum Übernehmen.
-- O4: Loslassen auf F14, wo B20c hinter dem Titel kriecht (Befund 2.10.: 0.08/Frame gegen 0.26 an den Seiten), danach x5/Beat
-  + `boost`: Stopp → Anfahren. Die Tangente ist im Raum gerade, im Bild biegt sie perspektivisch ab (keine gerade Linie).
-- **O5-Zoom (Vadim 3.10., nachgeschoben): „der Zoom bei O5 ist kein richtiger Zoom und hat nicht das Momentum!!!“**
-  Vermutung: `zoom_spark` + `orbit_dive_core_shrink` lässt innen neue Puppen aufgehen (Ringe wandern nach außen, eher
-  Palette-Cycling/Hypno als Kamerafahrt), das Tempo ist auf x1.5/Beat gedeckelt, weil schnellere Ringe flackerten (x2 = 16
-  Puppen/s). Gefordert: **echter Kamera-Zoom** – das Bild selbst (Stern samt Korn/Effekten, Satz fällt weg) skaliert um die
-  weiterfliegende Sternmitte, Maßstab wächst exponentiell und **beschleunigt** (d ln s/dt steigt), Startrate = Größenrate
-  des Sterns im Wurf. Gegen Flackern nicht bremsen, sondern das Detail anpassen (Selbstähnlichkeit der Matrjoschka als
-  Endlos-Zoom: nach einer Puppe Faktor 1/0.64 nahtlos zurücksetzen, so bleibt die Zoomrate frei wählbar) bzw. Bewegungs-
-  unschärfe/Smear im Korn auf den schnellsten Bildern. Messung: Maßstab pro Bild aus dem Bild selbst (z. B. Phasenkorrelation
-  log-polar), muss monoton beschleunigen; Gegenprobe heutiger O5 schlägt an.
-- Der bisherige Selbsttest misst nur Größensprung und Tempo-Verhältnis am Wechsel, **nicht Richtungsumkehr und Bremsen
-  danach** – deshalb grün trotz Überschießen.
-
-**Befund 1.10. abends (gemessen, Wegwerfskript, noch nicht im Code):** Messung je Videobild ab 4 Bildern vor dem Wechsel
-(Mitte, ln R) schlägt am alten Stand an: **O4** Bildtempo der Mitte fällt nach dem Wurf 24 von 25 Schritten (46 → 20 px/Bild,
-dann bis 3) = „stoppt kurz“; die Bahn im Bild ist gerade (Hypothese „biegt ab“ falsch). **O5** Wachstumsrate springt am
-Wechsel x8.1 (0.008 → 0.064/Bild), Mitte bremst 87 → 0 px in ~8 Bildern = „schießt über, korrigiert“; Sehfluss
-(|v| + g·W/2) fällt 7x. Geometrie B20c: S33 liegt nur auf F1–F4, alle am/nach dem Nahpunkt (dort g = 0, Mitte seitlich
-110 px/Bild) → „weiter links und auf mich zu“ geht physisch nur mit Zurückbiegen.
-**Bauplan (beschlossen, nicht gebaut):** O4 → **O6**: 1/Z direkt steuern (R = R0 + R0'·F, Mitte = c0 + v0·F,
-F = ∫ k^(t/b)): exakte Perspektive einer Geraden, Bildtempo und Schrumpfen wachsen bis zum Fluchtpunkt, kein 3D/`_travel`/
-`boost` mehr. O5 → **O7**: Kamera taucht schon im Anflug ein (`orbit_dive_lead_beats`, Start ~F30, g0 > 0), g = g0·k^(t/b)
-nur steigend, Mitte gleitet mit v0·R0/R aus (keine Umkehr, kein Ziel), S33-Schnitt auf F1 wie im Loop; `zoom_spark`:
-Rauschen als 2 Oktaven, die mit dem Zoom skalieren (bei z = 0 = Plakat), Bewegungsunschärfe über Unterbilder
-(`orbit_dive_shutter_frac`) statt Tempo-Deckel x1.5. Offen: k so wählen, dass Sehfluss nie fällt (grob k ≥ 4–15/Beat).
-
-**Maßstab „clean“** (zuerst als Messung bauen, die an O4/O5 heute **anschlägt**, dann erst neu bauen): pro Bild im Bild-
-raum Geschwindigkeitsvektor der Sternmitte, d(ln Radius)/dt und Drehrate, über den ganzen Digitalteil.
-- stetig am Wechsel: Betrag und Richtung (Winkel < ~10°) wie der Schritt davor, kein Knick;
-- danach **nie langsamer** (jede Größe monoton steigend bis zum Verschwinden/Zudecken), **keine Umkehr** der Richtung
-  (Skalarprodukt aufeinanderfolgender Schritte > 0), Krümmung glatt (zweite Ableitung ohne Vorzeichensprung);
-- Zoom-Mitte = weitergerechnete Sternmitte (keine zweite Mitte, auf die zugesteuert wird).
-
-**Wie bauen** (Vorschlag): Release-Zustand aus `KL.orbit` per Differenzen nehmen (Lage, Geschwindigkeit, ln-Radius-Rate,
-Drehrate im Bildraum) und **eine** analytische Fortsetzung rechnen, die nur beschleunigt (konstanter bzw. wachsender Ruck
-entlang der bestehenden Richtung, kein Ausklingen, kein Blend auf ein Ziel). Wurfpunkt dort wählen, wo die Bahn **schnell**
-ist (Bahngeschwindigkeit je Frame aus `orbit` tabellieren), oder die Bahn im letzten Umlauf in den Wurf hinein beschleunigen
-lassen statt danach. O5: Zoom-Rate stetig aus der Größenrate des Sterns übernehmen, Mitte driftet mit dem Tempo weiter und
-wird nicht zurückgeholt. Erst Kurven plotten (Bahn + Tempo-Graph je Bild, wie `orbit.png`), selbst prüfen, dann `--draft`,
-dann Bildstreifen ansehen, dann Vadim.
+## Stand vor O6/O7 (Übergabe O4/O5 erledigt 1.10. abends, Details oben)
 
 **Sonst Stand:** Hauptversion `previz/v022/` (Zyklus 3.10., S59b, Grund V3, altes Ende). Render-Pipeline: Agent `pipeline`
 (Hardware-Encoder für alle Vorschauen, Foto-Phase als Video-Segment im Cache, Digitalteil streamen, QR-Prüfung früh

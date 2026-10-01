@@ -1,0 +1,50 @@
+# O6 = O4 neu, Wurf in die Tiefe (Vadim 3.10. zu O4: "stoppt kurz, bewegt sich und dann nach hinten weiter, keine
+# fluessige Linie"; Befund 1.10.: das Bildtempo fiel nach dem Wurf 46 -> 3 px/Bild). Ein digitaler Umlauf ab dem
+# Bass-Boom, auf F14 laesst er los und fliegt auf gerader Linie zum Fluchtpunkt seiner Richtung (rechts von SPARK),
+# perspektivisch exakt: Bildtempo und Schrumpfen werden nur schneller, bis er dort verschwindet ("zack").
+# Musik-Sync zweitrangig (Vadim schneidet am Ende). Nur geaenderte Abschnitte, Rest aus loop.toml.
+
+[ending]
+carousel_bars = 4          # Karussell T16 bis zum Bass-Boom (Takt 5)
+runout_bars = 0
+runout_hold_beats = 0.0
+length_bars = 7.75         # QR steht ~6 s (ab Beat 7 nach dem Boom)
+card_on = true
+# Bahn-Ende (end_mode = "orbit"). Zeiten in Beats ab dem Karussell-Ende (= Bass-Boom); end_frame folgt daraus
+orbit_path = "throw"       # gerade Linie in die Tiefe, gesteuert ueber 1/Z (Radius und Abstand zum Fluchtpunkt)
+orbit_frame = 14           # loslassen auf F14 (noch auf dem Weg nach hinten): Tangente rechts in die Tiefe
+orbit_loops = 1.0          # Vadim 3.10.: ab dem Moment, wo es digital ist, EIN Umlauf (1.96 s), dann die neue Bahn
+                           # (v1 hatte 1.1-2.6 Umlaeufe: "zu teasing"). Karussell-Endframe und Zeitpunkt folgen daraus
+orbit_throw_speedup = 5.0  # Bildtempo (und Schrumpfen in px) x5 pro Beat ab dem Tempo der Bahn: nie langsamer
+orbit_spin_speedup = 5.0   # Drehung: Bahntempo, legt pro Beat das 4-fache zu
+orbit_cycle_beats = 4.0    # Farben/Sterne wechseln im T16-Raster bis SPARK der Karte, dann steht die Farbe
+orbit_type_out_at_beats = 3.0      # Titelblock des Plakats zerfaellt im Korn ab hier (Stern fliegt gerade raus) ...
+orbit_type_out_beats = 1.0         # ... in so vielen Beats (weg, wenn SPARK der Karte faellt)
+card_reveal = "bayer"
+card_diff = false
+card_moves = [["title", 4.0, 0.0, -0.12, 1.0],     # SPARK faellt von oben
+              ["what", 5.0, -0.6, 0.0, 1.0],       # KICK-OFF von links
+              ["when", 6.0, 0.6, 0.0, 1.0],       # Datum von rechts
+              ["qr", 7.0, 0.0, 0.0, 0.0],         # QR springt aus der Mitte auf
+              ["cta", 7.5, 0.0, 0.03, 1.0],       # JOIN US
+              ["info", 8.0, 0.0, 0.03, 1.0]]
+card_in_beats = 0.5
+card_overshoot = 1.70158
+card_dim_frac = 0.0        # nichts abzudimmen: der Stern ist weg, die Karte steht auf dem Grund der Colorway
+card_title_w_frac = 0.74
+card_top_frac = 0.14
+card_sub_frac = 0.40
+card_gap_frac = 0.30
+card_qr_module_cells = 4
+card_qr_quiet_cells = 4
+card_qr_y_frac = 0.58
+card_glow_cells = 16
+card_cta_cells = 12
+card_cta_gap_cells = 8
+card_info = ["ORT FOLGT"]
+card_info_frac = 0.30
+
+[endcard]
+end_mode = "orbit"
+burst_on = false
+impact_on = false
