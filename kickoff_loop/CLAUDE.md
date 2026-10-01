@@ -67,6 +67,7 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
 **So arbeiten** (2.10. nachgeschärft, für schnelles Iterieren):
 - **Gewähltes steht nur in `loop.toml`.** `previz/review/` enthält nur, was gerade offen ist. Nach jeder Wahl sofort
   aufräumen: Entschiedenes nach `review/alt/`, Alternativen nach `review/geparkt/`.
+- **Nichts Freigegebenes rauswerfen.** Ein schlechter Messwert kommt in den Report, die Entscheidung trifft Vadim.
 - **Varianten klein halten:** In eine Review-TOML nur den geänderten Abschnitt schreiben, `load` ergänzt den Rest aus
   `loop.toml`. So wirkt jede spätere Entscheidung automatisch auf alle offenen Varianten, und niemand muss Varianten
   neu abmischen. Name `<Code>.toml`, oben 1 Zeile, was die Variante macht und warum.

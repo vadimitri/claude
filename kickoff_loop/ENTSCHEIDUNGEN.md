@@ -7,6 +7,8 @@ schon verworfen ist. Aktueller Stand und nächste Schritte: `CLAUDE.md`.
 
 | Datum | Entscheidung | Warum |
 |---|---|---|
+| 2.10. | **Alle freigegebenen Sterne im Loop** (18), jeder Frame ein anderer Stern, nur S33 F1–4 doppelt (`repeat_ok`) | Vadim: „nimm alle Sterne rein, die ich approved habe", „immer Wechsel zwischen Frames", „nichts muss raus". S13 S14 S24 S26 S31 S31e S50 hatten Agenten am 1.10. wegen Messwerten ohne Rückfrage ausgeschlossen |
+| 2.10. | Regel: Agenten werfen nichts Freigegebenes raus. Ein schlechter Messwert kommt in den Report, die Entscheidung trifft Vadim | s. o. |
 | 2.10. | **Farbe C5b** (Split-Tone, Hell-Dunkel in 2 Blöcken) | Vadim: „c5b finde ich am besten, das ist Basis ab jetzt" |
 | 2.10. | ~~Drop-Konzepte E1a–c~~ (Pixel-Explosion, Dimensionssprung, Wand) | Vadim: „alle E-Versionen sind scheiße". Stattdessen: Loop endet auf großem Stern in der Mitte → Infinite Zoom (beschleunigt/abbremsend) → Schwarz, ggf. Platzhalter-Info |
 | 2.10. | Musik: Basis M2a, Video 16–20 s, Brumm-Fade-in, kurze Pause mit Hall vor dem Drop | Vadim: „springt zu sehr", „gesamtes Video nicht 30 s", „Loop zu langsam" |

@@ -46,15 +46,18 @@ steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P
 # Vadim 2.10.: "der vorderste Spark soll ein extravaganter Spark sein, nicht so ein langweiliger, das sieht sonst aus
 # wie der Hintergrund. Der Matroschka-Spark waere am besten." Auf B20c ist der Stern F29-F4 riesig in der Mitte: dort S33
 # (vorher S2/S31g = Verlauf, wurden zur Farbflaeche). S2 raus (Ausbruch kommt neu als Infinite Zoom), S31g auf F9-12.
-cycle = ["S33",   # Matrjoschka: Schalen, die ins Korn laufen (vorn, riesig)                  F1-4
-         "S23",   # Anschnitt: tiefes XOR-Nest                                               F5-8
-         "S31g",  # Lampe: der Stern als Lichtquelle, Bahnen aus den Spitzen (Gegenlicht)     F9-12
-         "S18d",  # Moire im Stern: zwei Hoehenlinien-Sterne per XOR, harter Rand            F13-16
-         "S19d",  # Nest-Rosette                                                             F17-20
-         "S45",   # Facette: Kristall im Cel-Shading, Schatten als Ben-Day-Punktraster       F21-24
-         "S47",   # Praegung: das Nest als Hochdruck, Lichtkante + Schatten an jeder Platte  F25-28
-         "S33"]   # Matrjoschka wieder vorn (riesig in der Mitte, Einstieg in den Zoom)      F29-32
-hold_frames = 4
+# Vadim 2.10.: "ich will generell keinen Stern gleich fuer mehrere Frames haben, immer Wechsel zwischen Frames",
+# Ausnahme: "die Matroschka am Anfang". Und "nimm alle Sterne rein, die ich approved habe" (nichts raus):
+#   1.10. Sterne-Bogen: S31g S23 S33 S18d S19d S45 S47 S2 · 1.10. neu: S48c S48d S54c S50 ·
+#   frueher freigegeben, von Agenten wegen Messwerten ohne Rueckfrage ausgeschlossen: S13 S14 S24 S26 S31 S31e.
+# 18 Sterne auf 32 Frames: S33 F1-4, die uebrigen 17 je einmal, 11 davon ein zweites Mal (Reihenfolge frei aenderbar).
+# Licht-/Verlaufssterne (S2 S31 S31e S31g) stehen hinten, wo der Stern klein ist; riesig werden sie zur Farbflaeche.
+cycle = ["S33", "S33", "S33", "S33", "S48d", "S23", "S54c", "S47",       # F1-8   (F1-4 Matrjoschka vorn)
+         "S50", "S14", "S24", "S26", "S31", "S19d", "S2", "S13",         # F9-16
+         "S31e", "S18d", "S31g", "S45", "S48c", "S26", "S50", "S45",     # F17-24
+         "S18d", "S14", "S24", "S19d", "S48c", "S54c", "S47", "S23"]     # F25-32
+repeat_ok = ["S33"]  # darf mehrere Frames hintereinander stehen (Vadim 2.10.: Matrjoschka am Anfang)
+hold_frames = 1     # jeder Frame ein eigener Stern
 seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
 
 [spark]
