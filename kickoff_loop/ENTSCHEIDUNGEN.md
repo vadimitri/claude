@@ -7,6 +7,8 @@ schon verworfen ist. Aktueller Stand und nächste Schritte: `CLAUDE.md`.
 
 | Datum | Entscheidung | Warum |
 |---|---|---|
+| 3.10. | **Grund bleibt linearer Verlauf** (kein `[ground]` in `loop.toml`). ~~Inseln I2–I4~~, ~~Fluss I5–I8~~, I1 geparkt („okay“) | Vadim: „die Hintergründe haben ihren 8-Bit-Dither-Flair verloren, da find ich den Linear-Gradient noch am besten, subtil reicht“. Befund: der Flair ist der **stetige** Lauf über die Bayer-Schwellen (jede Zeile eine andere Dichte); harte Stufen/Quadrate machen flache Flächen gleicher Dichte, hohe `gain` macht ganze Stufen. Code (`styles.ground_shape`, `grounds`) bleibt, ohne `[ground]` bitgleich |
+| 3.10. | **S45 raus**, **S48c → S48e** (Poly-Glitch), **S58 → S58b** (ohne 1-px-Kante), **S60 → S60d** (ohne Pfütze, Halo ohne Lücke), **S59 → S59b** (ohne Pinselschlaufe), N1 in `loop.toml` | Vadim: S45 „öde“, S60b/c „beschissener“ als S60, „bei S59 den Halo/Kreis entfernen, danach approved“ |
 | 2.10. | **Alle freigegebenen Sterne im Loop** (18), jeder Frame ein anderer Stern, nur S33 F1–4 doppelt (`repeat_ok`) | Vadim: „nimm alle Sterne rein, die ich approved habe", „immer Wechsel zwischen Frames", „nichts muss raus". S13 S14 S24 S26 S31 S31e S50 hatten Agenten am 1.10. wegen Messwerten ohne Rückfrage ausgeschlossen |
 | 2.10. | Regel: Agenten werfen nichts Freigegebenes raus. Ein schlechter Messwert kommt in den Report, die Entscheidung trifft Vadim | s. o. |
 | 2.10. | **Farbe C5b** (Split-Tone, Hell-Dunkel in 2 Blöcken) | Vadim: „c5b finde ich am besten, das ist Basis ab jetzt" |
