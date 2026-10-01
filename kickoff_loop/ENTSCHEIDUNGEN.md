@@ -7,6 +7,13 @@ schon verworfen ist. Aktueller Stand und nächste Schritte: `CLAUDE.md`.
 
 | Datum | Entscheidung | Warum |
 |---|---|---|
+| 2.10. | **Bahn B20c** (Ellipse ganz vor dem Betrachter, `ahead` 1.3, `front_dwell_frac` 0.6, `size` 0.85) | Vadim: zentral bildfüllend → links → hinter SPARK → rechts → zentral; „mehr große Sparks vorne". B20/B20b raus, B19 + B20d–g geparkt |
+| 2.10. | `screen_frac` / `ends_dwell_frac` gebaut, nicht gewählt (B20d–g geparkt) | Befund B20c: sichtbarer Weg 0.08–0.26/Frame (×3.3). Gleichmäßig im Bild = ×1.0. Vadim blieb bei B20c |
+| 2.10. | **T16 = 48 Wechsel pro Takt** (nicht 24) | 16.32/s × 2.94 s Takt. 24 wären 16tel-Triolen (8.16/s); CLAUDE.md hatte sich verrechnet (Musik-Agent fand es) |
+| 2.10. | ~~Kamera-Stoß auf den Hits~~ (`punch_frac` 0) | Vadim: „diese kleinen Beat-Crop-ins weg" |
+| 2.10. | ~~Blitz-Check als Gate~~ (`flash_gate` false) | Vadim: „Blitzcheck soll weg, Farben dürfen crazy gehen" |
+| 2.10. | Farbe: Hell-Dunkel nicht in jedem Frame wechseln (C4/C5 → C4b/c, C5b/c) | Vadim: „zu hoher Kontrast zwischen zwei Frames". Befund: Grund ΔE ~0.8 in jedem Frame |
+| 2.10. | ~~Musik M1a/M1b~~ (eigene Techno-Drums) | Vadim: „zu ernst, sehr trocken, nicht menschlich". Stattdessen IGORs Drums, Spaß, Sprung auf ~48 s (Tyler singt) |
 | 1.10. | **Plakate und Video getrennt** | Vadim: „wir trennen echte Plakate vom Video komplett, also lösen sich da einige constraints". Leere Frames ok („drucke ja sowieso einige Plakate nur für das Video") |
 | 1.10. | **Bahn B19: Ellipse** (`width` 0.5, `ahead` 0.85, `kepler_frac` 0, `height` 0.12), Stern größer als sein Vorbeiflug-Abstand | Befund (Skript, 32 Frames): perspektivisch korrekt (Kepler, B4–B10) ist der Stern nur 1 Frame pro Seite groß, eine gleichmäßige Kreisbahn läuft 6–8 von 16 Frames leer. Vadim: „an den Seiten riesig … elliptisch" und „man fühlt, wenn der Spark nicht genug Zeit hatte". Also Comic-Größe und echte Zeit. B19 gewählt aus B15–B20. `height` 0.12, weil die Riesen bei 0.33 unten aus dem Bild fallen |
 | 1.10. | ~~B9/B10~~ (größer über Brennweite) | Vadim: „sieht praktisch flach aus". Tiefe = Größenverhältnis nah/fern, dort nur ×2.5 |

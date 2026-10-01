@@ -3,34 +3,43 @@
 Session-Start: diese Datei, dann `uv run src/kickoff_loop.py sheet` (zeigt den Stand in ~10 s). Stellschrauben: `loop.toml`.
 Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Befunde, Verworfenes, Archiv) und Skill `spark-motion`.
 
-## Stand 1.10. abends
+## Stand 2.10.
 
-Der **Video-Loop ist von den Campus-Plakaten getrennt**. Für den Loop gelten keine Druck-Regeln mehr: leere Frames sind ok,
-kein Frame muss allein tragen. Die Plakate kommen eigens (offen).
+Der **Video-Loop ist von den Campus-Plakaten getrennt**, soll aber so aussehen, dass man die Frames als Plakate nutzen
+könnte (Vadim 2.10.).
 
 In `loop.toml` steht, was Vadim gewählt hat:
-- **Farbe C1**: 32 Frames pro Loop, eine gemischte Reise über die dunklen Colorways.
-- **Bahn B19**: Ellipse um den Betrachter. Der Stern ist links riesig, fliegt in die Tiefe, kommt rechts riesig zurück
-  und ist hinter dem Kopf 5 Frames weg (F1–2, F30–32).
-- **Tempo T16**: 16.32 Plakate/s = 32tel-Triolen auf IGOR (81.6 BPM). Das steht noch **nicht** im Code, siehe unten.
+- **Bahn B20c**: Die Ellipse liegt ganz vor dem Betrachter (`ahead` 1.3 > 1), es gibt keine leeren Frames.
+  - F1 zentral und riesig, dann links, kleiner und hoch hinter SPARK, rechts zurück.
+  - `front_dwell_frac` 0.6: Der Stern verweilt vorn. `size` 0.85.
+  - Vadim: „ehrlich echt nicht schlecht", weiter damit.
+- **Tempo T16**: 16.32 Plakate/s = 32tel-Triolen auf IGOR (81.6 BPM) = **48** Wechsel pro Takt (`[loop].changes_per_bar`).
+  Steht im Code. Jedes Vorschau-Video hat Ton.
+- Die **Kamera-Stöße auf den Beats sind aus** (`[video].punch_frac` 0, Vadim: „diese kleinen Beat-Crop-ins weg").
+- Der **Blitz-Check ist aus** (`[checks].flash_gate` false, Vadim: „Farben dürfen crazy gehen").
+- **Farbe**: noch C1 als Platzhalter. Vadim mag die extrem bunten C4/C5, siehe unten.
 
-In `previz/review/` liegt, was offen ist (alles andere in `review/alt/`):
-- `C1b/C1c/C1d_B19`: „verrückter" auf B19.
-  - C1b: harte Sprünge, Mini-Welten, Papier-Blöcke.
-  - C1c: Split-Tone, Grund und Licht aus verschiedenen Colorways.
-  - C1d: Regenbogen-Mischung, bunter.
-  - Urteil offen.
-- `B20` / `B20b` (2.10.): neue Bahn. Die Ellipse liegt ganz vor dem Betrachter (`ahead` > 1). F1 zentral bildfüllend,
-  dann links, kleiner, hoch hinter SPARK (Fernpunkt = Fluchtpunkt auf Titelhöhe), rechts zurück, F32 wieder zentral.
-  Keine leeren Frames. B20b holt weiter aus, F1–2 sind dort nur noch Lichtfläche.
-  Befund: Lesbarkeit min 0.83 / 0.82, weil der kleine Stern ~16 Frames hinter dem Titel steht.
-  Vadim 2.10.: B20 gut. **B20c** = B20 + `front_dwell_frac` 0.6 (verweilt vorn, huscht hinten) + size 0.85: F1–8 und
-  F25–32 gross wie auf den Plakaten. Lesbarkeit min 0.75.
-- Agenten-Branches 2.10. (noch nicht gemergt): Farbe C4/C5/C6 `worktree-agent-a2a262b81035cc693`, Song M1a/M1b
-  `worktree-agent-a557c00d9ff7e721f` (ersetzt `[mashup]`-Format, loop.toml zieht noch nicht mit), Digital D1a–d
-  `worktree-agent-a044f64378a4c82d2` (`src/kickoff_loop_digital.py`), Tempo/Ton/Blitz-raus laeuft noch.
-- `tempo_T16.mp4`: Tempo mit IGOR darunter.
-- `S_rework_3.png`: die gewählten neuen Sterne.
+In `previz/review/` liegt, was offen ist (`geparkt/` = Alternativen, `alt/` = verworfen):
+- **Farbe auf B20c**, jeweils `<Code>_B20c.toml` + `_preview.mp4` (volles Video, vNNN):
+  - C1, C1b–d (Vadim: „keinen Unterschied"), C4, C5, C6.
+  - **C4b/C4c, C5b/C5c** (2.10.): dieselben Stationen wie C4/C5, umsortiert in Hell-Dunkel-Blöcke (b à 16, c à 8),
+    innerhalb nach Farbton.
+    - Vadim zu C4/C5: „zu viele Invertierungen, zu hoher Kontrast zwischen zwei Frames, bunter Grund neben schwarzem".
+    - Befund: Der Grund ist zweigeteilt (L 0.10–0.31 oder 0.92–1.00). C4/C5 sprangen in **jedem** Frame um ΔE ~0.8,
+      b/c springen nur noch 2- bzw. 4-mal pro Loop.
+    - Weicher ginge es nur mit Grund-Stufen in der Mitte (dunkle Gründe anheben bzw. helle absenken), noch nicht gebaut.
+- `geparkt/`: B19 (Ellipse um den Kopf) und B20d–g mit `screen_frac` (gleicher sichtbarer Weg pro Frame) bzw.
+  `ends_dwell_frac` (Posen halten).
+  - B20g sieht aus wie die Plakate: nah unten groß, Titel frei.
+  - Vergleichsvideo `Vergleich_B20c_B20d_B20e_B20f_B20g.mp4`.
+  - Befund zum Timing von B20c: Hinter dem Titel kriecht der Stern 0.08/Frame, an den Seiten 0.26, F1–4 sind nur Farbfläche.
+- **Musik**: M1a/M1b (eigene Techno-Drums) verworfen: „zu ernst, zu trocken, nicht menschlich".
+  - M2 läuft beim Musik-Agenten: IGORs eigene Drums, Spaß (Swing, Claps, Hook, Raum).
+  - Drop = Sprung auf ~48 s im Song, wo Tyler singt (Vadim 2.10.).
+- **Drop/Digital**: Vadim: „der Beatdrop muss sich lohnen, da muss nochmal was kommen".
+  - Drop-Agent baut E1-Konzepte: Wand, Umstülpen, Pixel-Explosion, Dimensionssprung.
+  - D1a–d (Umstülpen, `src/kickoff_loop_digital.py`) sind gemergt.
+- `S_rework_3.png`: die gewählten neuen Sterne. `tempo_T16.mp4`: Tempo-Referenz.
 
 ## Nächste Schritte, in dieser Reihenfolge
 
@@ -44,9 +53,10 @@ In `previz/review/` liegt, was offen ist (alles andere in `review/alt/`):
    - Leere Frames rendern einen winzigen S2 außerhalb (`OFF_STAR`), weil Labor-Stile am Stern messen.
    - `test` ohne Argumente bricht bei 32 Frames ab (QR-Glühen: Standardframes 3/7/9 haben den Stern am QR). `SELFTEST_FRAMES` auf freie Frames der neuen Bahn setzen.
 3. **Lesbarkeit** der Riesenframes: min 0.91 (Gate 0.95), der Riesenstern liegt über SPARK/KICK-OFF. Über Bahn oder Satz lösen.
-4. **Zeitachse T16**: Das Raster kennt nur 16tel-Teiler (`load`: `16 % per`). 32tel-Triolen = **48** Wechsel pro Takt (16.32/s × 2.94 s; 24 waeren 16tel-Triolen). Dann
-   `preview` und der Blitz-Check bei 16/s (C1 wechselt jeden Frame die Farbe).
-5. Farbe: Urteil C1b–d. Bei C1c dithert Rot auf Blau kariert (~335°, Magenta, nicht Lila). Vadim ansehen lassen.
+4. ~~Zeitachse T16~~ erledigt 2.10. (48 Wechsel pro Takt, Ton unter jedem Video, Blitz-Check aus).
+   Offen: `test` ohne Argumente ist rot. Auf B20 liegt der Stern in F1 über SPARK, und `selftest` stürzt ab,
+   wenn der Stern eine Titelzeile ganz deckt.
+5. Farbe: Urteil C4b/c, C5b/c, dann nach `loop.toml`.
 6. **Musik** nur IGOR, Custom-Mashup: Wo IGORs Drums kommen, etwas Eigenes. Maker Night fliegt raus
    (`kickoff_loop_music.py`, `[mashup]`). Das Raster-Format bleibt (`GRID_KEYS`).
 7. **Endkarte neu**, keine Hypno. Heute Platzhalter (Nest-Tunnel). Boil (`boil`) nur mit Vadims Ja.
