@@ -30,8 +30,19 @@ worlds = [["~P23/P13", "~P23/P13", "P17/P10", "~P22/~P24",
           "~P14/P23", "~P10/~P17", "P24/P22", "P24/P22",
           "P16/~P26", "~P25/~P26", "~P25/~P26", "~P25/~P26",
           "~P9/~P15", "~P9/~P11", "~P18/P16", "~P14/P16",
-          "~P19/~P13", "~P19/~P11", "~P19/P21", "~P10/P23"]]
-world_frames = 32    # eine Welt = der ganze Loop, jede Station 1 Frame
+          "~P19/~P13", "~P19/~P11", "~P19/P21", "~P10/P23"],
+          # Welt 2 (Vadim 2.10.: "wir hatten noch mehr coole Colorways, hier so wenige: Tokyo, Molten, Red Laser,
+          # Afterhours, Absolute Zero, Mode 04H hinzufuegen, nichts entfernen"). Die Plakat-Colorways REIN (in Welt 1 kommen
+          # sie nur als Split-Haelfte vor): P25 Tokyo = AFTERHOURS (dieselbe Palette), P18 MOLTEN, P9 RED LASER, P23/~P23
+          # ABSOLUTE ZERO, P6 MODE 04H rein, mit Magenta (lilac_ok).
+          # Hell-Dunkel-Bloecke wie C5b (F1-16 dunkel, F17-28 Papier, F29-32 dunkel), jeder Frame eine andere Colorway.
+          ["P25", "P18", "P9", "P6", "~P23", "P25", "P18", "P9",
+           "P6", "~P23", "P25", "P18", "P9", "P6", "~P23", "P25",
+           "P23", "~P25", "~P18", "~P9", "P23", "~P25", "~P18", "~P9",
+           "P23", "~P25", "~P18", "~P9", "P18", "P9", "P6", "~P23"]]
+world_frames = 32    # eine Welt = ein Umlauf, jede Station 1 Frame. 2 Welten = 64 Plakate, Bahn/Sterne wiederholen nach 32
+lilac_ok = ["P6"]    # Ausnahme von der Lila-Pruefung in load. Vadim 2.10.: "Mode 04H faellt nicht unter die Lila-Regel, ich sage
+                     # dir doch gerade selbst, was ich moechte" (sein #FF55FF liegt bei 300 Grad, sonst als Lila abgelehnt)
 mix = "cut"          # harte Spruenge: jeder Frame eine eigene Colorway, kein Mischen (Vadim 2.10.)
 split_level = 3      # Stufen 0-2 (Grund, Schatten) aus der ersten Colorway, 3-5 (Licht, Titel) aus der zweiten
 steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P6 P9 P26) werden gedoppelt
@@ -52,10 +63,13 @@ steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P
 #   frueher freigegeben, von Agenten wegen Messwerten ohne Rueckfrage ausgeschlossen: S13 S14 S24 S26 S31 S31e.
 # 18 Sterne auf 32 Frames: S33 F1-4, die uebrigen 17 je einmal, 11 davon ein zweites Mal (Reihenfolge frei aenderbar).
 # Licht-/Verlaufssterne (S2 S31 S31e S31g) stehen hinten, wo der Stern klein ist; riesig werden sie zur Farbflaeche.
+# Vadim 2.10. (zu v020, "viele Plakate printable"): S54c (gezeichneter Spark) auf F12, F16, F25 ("Vundzwanzig" im Diktat,
+# gelesen als 25), S50 auf F15. Damit sind S13 (war F16) und S2 (war F15) nicht mehr im Loop; S26 und S18d stehen nur
+# noch einmal (F22, F18).
 cycle = ["S33", "S33", "S33", "S33", "S48d", "S23", "S54c", "S47",       # F1-8   (F1-4 Matrjoschka vorn)
-         "S50", "S14", "S24", "S26", "S31", "S19d", "S2", "S13",         # F9-16
+         "S50", "S14", "S24", "S54c", "S31", "S19d", "S50", "S54c",      # F9-16
          "S31e", "S18d", "S31g", "S45", "S48c", "S26", "S50", "S45",     # F17-24
-         "S18d", "S14", "S24", "S19d", "S48c", "S54c", "S47", "S23"]     # F25-32
+         "S54c", "S14", "S24", "S19d", "S48c", "S54c", "S47", "S23"]     # F25-32
 repeat_ok = ["S33"]  # darf mehrere Frames hintereinander stehen (Vadim 2.10.: Matrjoschka am Anfang)
 hold_frames = 1     # jeder Frame ein eigener Stern
 seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakaten.
@@ -87,6 +101,9 @@ spin_deg = 240             # Eigendrehung pro Umlauf. Vielfache von 60° schlies
 [type]
 # Verlauf in den Buchstaben, pro Zeile von der Grundlinie (dunkler) bis zur Versalhoehe (hellste Stufe), in Palettenstufen.
 text_gradient_steps = 1.0
+# SPARK als Differenz-Ebene (Vadim 2.10.: "hinter dem Spark-Schriftzug sind die Effekte nicht zu sehen"): ueber Stern und
+# Effekten zeigt der Titel |Tinte - Effekt|, die Effekte laufen invertiert durch die Buchstaben (kickoff_loop.title_value).
+title_plain_frames = [13]  # Ausnahme, Titel hier reine Tinte ohne Differenz (Vadim 2.10.: "bei Frame 13 nicht invertiert/dunkel")
 # Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert. Titelblock steht in jedem
 # Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
 

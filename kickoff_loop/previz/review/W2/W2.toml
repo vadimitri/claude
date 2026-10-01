@@ -1,0 +1,48 @@
+# W2 Begriffe + Endkarte (Vadim 2.10.: "eine andere Version mit Spark Kick-off und weiteren Informationen und dem
+# QR-Code"): wie W1, aber 7 Begriffe, dann fliegt die Karte (SPARK / KICK-OFF / Datum) als letzte Wand heran und landet
+# auf Takt 7. IGORs Stopp = Stille, die Karte steht; auf dem Hit danach (20.59 s) springt der QR aus der Mitte auf,
+# JOIN US + Info folgen. Schluss Takt 10 (26.47 s).
+
+[ending]
+carousel_bars = 4
+runout_bars = 0
+length_bars = 9.0
+card_on = true
+words = ["HARDWARE", "ROBOTER", "LÖTEN", "3D-DRUCK", "CODE", "WORKSHOPS", "PROJEKTE"]   # VORSCHLAG, frei
+words_term_beats = 1.0
+words_far_scale = 0.03
+words_vanish_beats = 1.0
+words_width_frac = 0.86
+words_lead_frac = 1.18
+words_lines = 17
+card_moves = [["title", 6.0, 0.0, 0.0, 1.0],       # SPARK, KICK-OFF, Datum fliegen als Ganzes heran (Beat 7-8)
+              ["what", 6.0, 0.0, 0.0, 1.0],
+              ["when", 6.0, 0.0, 0.0, 1.0],
+              ["qr", 12.0, 0.0, 0.0, 0.0],         # Hit nach IGORs Stopp: QR springt aus der Mitte auf
+              ["cta", 12.5, 0.0, 0.03, 1.0],
+              ["info", 13.0, 0.0, 0.03, 1.0]]
+card_in_beats = 0.5
+card_overshoot = 1.70158
+card_dim_frac = 0.0        # Grund der Colorway, nichts abzudimmen
+card_title_w_frac = 0.74
+card_top_frac = 0.14
+card_sub_frac = 0.40
+card_gap_frac = 0.30
+card_qr_module_cells = 4
+card_qr_quiet_cells = 4
+card_qr_y_frac = 0.58
+card_glow_cells = 16
+card_cta_cells = 12
+card_cta_gap_cells = 8
+card_info = ["ORT FOLGT"]
+card_info_frac = 0.30
+
+[endcard]
+end_mode = "words"
+end_frame = 17
+type_out_beats = 1.0
+fade_beats = 0.0
+info_cap_cells = 20
+info_lead_frac = 1.3
+info_y_frac = 0.50
+info_in_beats = 0.5

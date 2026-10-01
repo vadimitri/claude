@@ -68,6 +68,7 @@ GLOW_SIDE_TOL = 0.6  # Selbsttest: gleicher Abstand, andere Seite der Platte, ho
 ELLIPSE_SAMPLES = 4001  # Stuetzstellen der Bahn fuer Zeit → Ort (Fehler < 0.1 % eines Frames bei 32 Frames)
 OFF_STAR = (-3.0, -3.0, 0.002)  # leerer Frame: Stern (x, y, Radius) so weit draussen, dass auch kein Schein hereinreicht
 BEHIND_Z = 0.02    # Bahn: Abstand (Bahnradius = 1), ab dem der Stern hinter/neben dem Kopf ist (Projektion 1/z explodiert)
+FX_BIAS = 0.25      # Titel-Differenz: Untergrund bis 3/4 Palettenstufe ist Grund (Hintergrundverlauf ~0.6 Stufen), kein Effekt
 GLOW_MIN = 0.02     # QR-Gluehen: darunter unsichtbar im 6-stufigen Bayer-Korn (1/5 Stufe Abstand, 16 Schwellen: ~0.01)
 
 P_CODES = {code: val for code, val, _ in K.PAL}         # "P17" → "signal" (nur Kick-off-Colorways, kein Lila)
@@ -93,6 +94,7 @@ def load(path=CONFIG, music=None):
                     cfg.setdefault(sec, {}).setdefault(k, v)
     if music:
         cfg["music"].update(file=f"ref/audio/mashup_{music}.wav", grid=f"ref/audio/mashup_{music}.json")
+    cfg["_src"] = os.path.abspath(path)                    # preview kopiert genau diese Datei in den Ausgabeordner
     n, col = cfg["loop"]["frames"], cfg["color"]
     assert ("stations" in col) != ("worlds" in col), "[color]: entweder stations (eine Welt) oder worlds, nicht beides"
     if "stations" in col:                                  # eine Welt ueber den ganzen Loop (Stand bis 1.10.)
@@ -128,8 +130,10 @@ def load(path=CONFIG, music=None):
     assert posters(cfg) % n == 0, (f"[color]: {len(col['worlds'])} Welten x {wf} Frames = {posters(cfg)} Plakate, kein "
                                    f"Vielfaches von [loop].frames {n}: Bahn und Stile sprangen am Neustart")
     seam = slice(col["split_level"] - 1, col["split_level"]) if split else slice(0, 0)   # Naht Grund | Licht
+    ok = set(col.get("lilac_ok", []))                      # von Vadim ausdruecklich freigegeben (P6 Mode 04H, 2.10.)
+    free = lambda i: {q.removeprefix("~") for q in color_pos(cfg, i)[1][color_pos(cfg, i)[2]].split("/")} <= ok  # noqa: E731
     lilac = [f"{i + 1} ({station_label(cfg, i)})" for i in range(posters(cfg))
-             if is_lilac(palette_hex(cfg, i)) or is_lilac(dither_mids(palette_hex(cfg, i))[seam])]
+             if not free(i) and (is_lilac(palette_hex(cfg, i)) or is_lilac(dither_mids(palette_hex(cfg, i))[seam]))]
     assert not lilac, (f"[color]: lila auf Plakat {', '.join(lilac)} (Palette oder Korn zwischen zwei Stufen). Mischung: "
                        "Rot direkt neben Blau? Reihenfolge aendern. Split: blauer Grund unter rotem Licht wird im Korn "
                        "lila. Reine Station P6: Grund dithert Schwarz + #FF55FF zu Lila, nicht verwendbar")
@@ -160,7 +164,11 @@ def load(path=CONFIG, music=None):
     grid = os.path.join(PROJECT, m["grid"])
     assert os.path.exists(os.path.join(PROJECT, m["file"])) and os.path.exists(grid), \
         f"[music]: {m['file']} oder {m['grid']} fehlt: uv run src/kickoff_loop_music.py"
-    g = m["grid"] = json.load(open(grid))
+    if "ending" in cfg:                                  # Ausstieg: IGOR ungeschnitten statt Mashup (kickoff_loop_end)
+        import kickoff_loop_end as KE
+        g = m["grid"] = KE.grid(cfg)
+    else:
+        g = m["grid"] = json.load(open(grid))
     miss = [k for k in GRID_KEYS if k not in g]
     assert not miss, f"[music].grid: {m['grid']} ohne {miss} (altes Songraster? Mashup-Raster aus kickoff_loop_music.py)"
     cad = g["carousel_bars"]
@@ -184,6 +192,18 @@ def load(path=CONFIG, music=None):
     assert len(cfg["styles"]["cycle"]) * cfg["styles"]["hold_frames"] == n, \
         f"[styles]: {len(cfg['styles']['cycle'])} Stile x hold {cfg['styles']['hold_frames']} != {n} Frames (Stile fielen weg)"
     return cfg
+
+
+def out_dir(cfg):
+    """Ausgabeordner einer Variante: der Ordner ihrer TOML (previz/review/<Code>/<Code>.toml), eine alte flache
+    review/<Code>.toml bekommt review/<Code>/. loop.toml: None (sheet → previz/now, preview → neue Version vNNN)."""
+    src = cfg["_src"]
+    if src == os.path.abspath(CONFIG):
+        return None
+    code, d = os.path.splitext(os.path.basename(src))[0], os.path.dirname(src)
+    out = d if os.path.basename(d) == code else os.path.join(d, code)
+    os.makedirs(out, exist_ok=True)
+    return out
 
 
 def count(cfg):
@@ -484,6 +504,17 @@ def under(c):
     return base
 
 
+def title_value(c, v):
+    """SPARK als Differenz-Ebene (Vadim 2.10.: "hinter dem Spark-Schriftzug sind die ganzen Effekte nicht zu sehen"):
+    auf Grund die Tinte v (Verlauf), ueber Stern, Strahlen, Schraffur |v - Effekt|, so laufen alle Effekte invertiert
+    durch die Buchstaben. Vorher kippte der Titel nur auf dem Sternkoerper flaechig in den Grund (lvl 0) und deckte
+    alles andere zu. Alle Stern-Stile malen bildfuellend (auch ihren Grund), deshalb zaehlt als Effekt nur, was auf
+    Palettenstufen gerundet ueber dem Grund liegt (FX_BIAS). Merkt sich die Effekt-Pixel in c.title_fx (Selbsttest)."""
+    e = np.floor(under(c) * c.N + FX_BIAS) / c.N
+    c.title_fx, c.title_e = e > 0, e
+    return np.where(c.title_fx, np.abs(v - e), v)
+
+
 def flip_glyphs(c, mk, v):
     """Kleine Schrift kippt pro Buchstabe in die Grundfarbe (Mehrheit seiner Pixel liegt auf Hellem), nicht pro Pixel.
     So bleibt sie auch in Strahlen und Sternkanten lesbar. Gleiche Regel wie in kickoff.py."""
@@ -586,7 +617,8 @@ def type_layers(c):
             v = np.where(m, line_gradient(c, b, cap, steps), v)
             mk |= m
         # Titel kippt pro Pixel (XOR mit dem Stern), die kleineren Zeilen pro Buchstabe
-        c.add(name, mk, np.where(c.star_m, c.lvl(0), v) if name == "title" else flip_glyphs(c, mk, v))
+        plain = lp["i"] % lp["n"] + 1 in lp["type"].get("title_plain_frames", [])     # dort ohne Differenz
+        c.add(name, mk, (v if plain else title_value(c, v)) if name == "title" else flip_glyphs(c, mk, v))
         K._EXTRA[name] = mk
 
     K._EXTRA["type"] = (np.maximum.reduce([a for _, a, *_ in c.layers[n0:]]) > 0 if len(c.layers) > n0
@@ -785,6 +817,8 @@ def selftest(cfg, i=8):
     st = poster_style(cfg, i)
     img = frame(cfg, i, style=st)
     c = S.Ctx(st, PREVIEW)
+    fx = {}
+    S.render({**st, "type_fn": lambda cc: (type_layers(cc), fx.update(m=cc.title_fx, e=cc.title_e))}, PREVIEW)   # Effekte im Titel
     cells = img[PREVIEW_CELL_PX // 2::PREVIEW_CELL_PX, PREVIEW_CELL_PX // 2::PREVIEW_CELL_PX].astype(int)
     level = np.argmin(((cells[..., None, :] - c.pal.astype(int)[None, None]) ** 2).sum(-1), -1)
     top_level = c.N
@@ -795,7 +829,8 @@ def selftest(cfg, i=8):
     xs = np.nonzero(title.any(0))[0]
     assert abs((xs[0] + xs[-1] + 1) / 2 - c.gw / 2) <= 0.5, "SPARK nicht waagerecht zentriert"
     for (s, _, _), full in zip(lines, masks):
-        m = full & (level != 0)                         # ohne gekippte Pixel. Kopie: masks wird unten mit F32 verglichen
+        m = full & (level != 0) & ~binary_dilation(fx["m"])   # ohne gekippte Pixel und ohne Effekte im Titel (Differenz).
+                                                         # Kopie: masks wird unten mit F32 verglichen
         if m.sum() < full.sum() / 2:                    # Zeile gekippt (dunkle Schrift auf Papier, C5b): kein Licht-Verlauf
             continue
         rows = np.array([np.mean(level[y][m[y]]) for y in np.nonzero(m.any(1))[0]])
@@ -803,6 +838,10 @@ def selftest(cfg, i=8):
         period = len(S.bayer(4))                        # Bayer 4x4 fuellt Nachbarreihen verschieden: ueber 4 Reihen mitteln
         smooth = np.convolve(rows, np.ones(period) / period, "valid")
         assert np.all(np.diff(smooth) <= 0.05), f"{s}: Verlauf wird nach unten wieder heller {np.round(smooth, 2)}"
+    see = title & fx["m"]                               # Effekte im Titel: Stufe folgt |Tinte - Effekt| (+-1 Stufe Korn)
+    if see.sum() > 50:                                  # (alter Fehler: Titel flaechig, Effekte zugedeckt → weicht ab)
+        hit = np.abs(level[see] - np.round(c.N * np.abs(1 - fx["e"][see]))) <= 1
+        assert hit.mean() > 0.8, f"Effekte hinter SPARK nicht sichtbar: nur {hit.mean():.0%} der Pixel folgen der Differenz"
     assert K.check_qr(img, PREVIEW_CELL_PX), "QR nicht lesbar"
     q = st["loop"]["qr"]
     (_, glow, _), (_, plate, _), (_, mods, _), _ = qr_glow(c, q)
@@ -936,9 +975,8 @@ def main():
     elif cmd == "sheet":                                # schnelle Runde: Kontaktbogen + Plakat-Loop, kein Video
         import kickoff_loop_video as V
         posters, ok, leg = frames(cfg)
-        tag = os.path.splitext(os.path.basename(var))[0] + "_" if var else ""   # B1.toml → review/B1_contact.png
-        out = V.sheet(cfg, posters, ok, leg, os.path.join(PROJECT, "previz", "review" if var else "now"), tag)
-        print(f"{out}/{tag}contact.png  QR {sum(ok)}/{len(ok)}, Lesbarkeit min {min(leg):.2f}")
+        out = V.sheet(cfg, posters, ok, leg, out_dir(cfg) or os.path.join(PROJECT, "previz", "now"))   # Variante: ihr Ordner
+        print(f"{out}/contact.png  QR {sum(ok)}/{len(ok)}, Lesbarkeit min {min(leg):.2f}")
     elif cmd == "boil":                                 # Test: Digitalteil ohne | mit Boil nebeneinander
         import kickoff_loop_video as V
         out = V.boil_test(cfg)

@@ -52,7 +52,7 @@ class Timeline:
     total     Ende (end_s, Taktstrich)"""
 
     def __init__(self, cfg):
-        v, g, n = cfg["video"], cfg["music"]["grid"], KL.count(cfg)
+        v, g, n = cfg["video"], cfg["music"]["grid"], KL.posters(cfg)   # alle Welten, nicht nur ein Umlauf
         fps = v["timeline_fps"]
         bar = 16 * g["sixteenth_s"]
         times, t = [], 0.0
@@ -61,6 +61,9 @@ class Timeline:
                 times.append(t)
                 t += bar / per
         times = [x for x in times if x < g["burst_s"] - 1e-6]
+        if cfg.get("ending", {}).get("runout_bars"):           # Auslauf: ein Umlauf bremst bis zum Landetakt ab
+            import kickoff_loop_end as KE
+            times = [x for x in times if x < KE.runout_times(cfg)[0] - 1e-6] + KE.runout_times(cfg)
         first = (end_index(cfg) + 1 - len(times)) % n         # letzter Wechsel = [endcard].end_frame
         self.changes = [(round(x * fps), (first + j) % n) for j, x in enumerate(times)]
         self.hit = round(g["impact_s"] * fps)
@@ -97,6 +100,9 @@ def camera(cfg, tl, t, poster_h):
     s0, s1 = scales(cfg, poster_h)
     tz = tl.change_before(t) if v["zoom_stepped"] else t      # Kamera springt nur, wenn das Plakat wechselt
     u = np.clip(tz / max(tl.zoom_end - 1, 1), 0, 1)
+    if cfg.get("ending", {}).get("runout_bars"):              # Auslauf: Kamera bremst mit dem Rad (kickoff_loop_end)
+        import kickoff_loop_end as KE
+        u = KE.camera_u(cfg, tl, tz)
     fps, b = v["timeline_fps"], beat_s(cfg)
     kick = sum(np.exp(-(t - p) / fps / (v["punch_decay_beats"] * b)) for p in tl.punches if p <= t < tl.zoom_end - 1)
     return s0 * (s1 / s0) ** u * (1 + v["punch_frac"] * kick), v["roll_deg"] * (1 - u)
@@ -218,6 +224,8 @@ def digital_phase(cfg, dt):
     fly = e["burst_beats"] * b                                   # die Luft vor dem Drop, auch ohne Ausbruch: Impact = Drop
     hit = e["impact_frames"] / cfg["video"]["timeline_fps"]
     mode, burst, impact = e.get("end_mode", "card"), e.get("burst_on", True), e.get("impact_on", True)
+    if mode == "words":                                          # Begriffe (kickoff_loop_end), ab dem Karussell-Ende
+        return "words", dt
     if burst and dt < fly:
         return "burst", dt
     if impact and fly <= dt < fly + hit:
@@ -287,6 +295,9 @@ def digital_style(cfg, dt):
             stetig neue Sterne nach aussen (card_zoom_stars_per_s), alles frontal, 24 fps. Titel, Datum und QR setzen
             nacheinander auf 16teln ein (card_reveal_16ths), nichts steht still."""
     e, n = cfg["endcard"], KL.count(cfg)
+    if e.get("end_mode") == "words":
+        import kickoff_loop_end as KE
+        return KE.words_state(cfg, dt)
     W, H = cfg["video"]["size_px"]
     pw, ph = S.SIZES[KL.PREVIEW][:2]
     ox, oy = digital_offset(cfg)
@@ -326,9 +337,13 @@ def digital_style(cfg, dt):
                     type_out=clip(t / (e["type_out_beats"] * b)) if e["type_out_beats"] else 1.0,
                     info=list(e["info"]), info_in=clip((t - e["info_at_beats"] * b) / (e["info_in_beats"] * b)),
                     info_cap_cells=e["info_cap_cells"], info_lead_frac=e["info_lead_frac"], info_y_frac=e["info_y_frac"])
-        st.update(spark_fn=KD.zoom_spark, type_fn=KD.zoom_type)
-        st["loop"] = {**st["loop"], "digital": dict(u=0.0, offset=(ox, oy), star=star, show=None, zoom=zoom,
-                                                    black=clip((t - fade_at) / max(last - fade_at, 1e-6)))}
+        card = None
+        if cfg.get("ending", {}).get("card_on"):                                  # Endkarte im Zoom (Z5)
+            import kickoff_loop_end as KE
+            card = KE.card_state(cfg, dt)
+        st.update(spark_fn=KD.zoom_spark, type_fn=zoom_card_type)
+        st["loop"] = {**st["loop"], "digital": dict(u=0.0, offset=(ox, oy), star=star, show=None, zoom=zoom, card=card,
+                                                    black=0.0 if card else clip((t - fade_at) / max(last - fade_at, 1e-6)))}
     else:
         tq = np.floor(t * e["card_fps"]) / e["card_fps"]                           # auf Zweiern
         cx, cy, cr = e["card_star"]
@@ -340,6 +355,15 @@ def digital_style(cfg, dt):
         st["loop"] = {**st["loop"], "digital": dict(u=1.0, offset=(ox, oy), star=star, show=show)}
     st["star"] = (star[0] / W, star[1] / H, star[2] / W)
     return boil(cfg, st, dt)
+
+
+def zoom_card_type(c):
+    """Satz im Zoom (kickoff_loop_digital.zoom_type), darueber die Endkarte, falls [ending].card_on."""
+    import kickoff_loop_digital as KD
+    KD.zoom_type(c)
+    if c.st["loop"]["digital"].get("card"):
+        import kickoff_loop_end as KE
+        KE.card_layers(c, c.st["loop"]["digital"]["card"])
 
 
 ZOOM_JUMP_FACTOR = 3.0   # Zoom-Check: ein Bildwechsel gilt als Sprung, wenn er mehr als 3x so viel aendert wie der Median
@@ -369,11 +393,12 @@ def zoom_check(cfg, tl, digital, last_poster):
     good = KL.render_cached({**st, "loop": {**st["loop"], "digital": {**st["loop"]["digital"], "black": 0.0}}}, "9x16", "end")
     jump = float(np.abs(luminance(Image.fromarray(KL.render_cached(bad, "9x16", "end"))) - luminance(Image.fromarray(good))).mean())
     bites = jump > ZOOM_JUMP_FACTOR * med
-    ok = steps.max() <= ZOOM_JUMP_FACTOR * med and black == 0 and bites
+    card = bool(cfg.get("ending", {}).get("card_on"))                  # mit Endkarte endet es nicht schwarz
+    ok = steps.max() <= ZOOM_JUMP_FACTOR * med and (black == 0 or card) and bites
     return (f"Zoom-Check {'ok' if ok else 'FEHLER'}: Bildwechsel im Zoom median {med:.4f}, max {steps.max():.4f} "
             f"(x{steps.max() / max(med, 1e-9):.1f}, Grenze x{ZOOM_JUMP_FACTOR:.0f}) bei Zoombild {ok_idx[worst]}"
             f"{' = Plakat → Zoom' if ok_idx[worst] == 0 else ''}, Plakat → erstes Zoombild {steps[0]:.4f}; "
-            f"letztes Bild max. Wert {black} ({'schwarz' if black == 0 else 'NICHT schwarz'}); "
+            f"letztes Bild {'Endkarte' if card else f'max. Wert {black} (' + ('schwarz' if black == 0 else 'NICHT schwarz') + ')'}; "
             f"Gegenprobe halbe Puppe Versatz {jump:.4f} = x{jump / max(med, 1e-9):.1f} ({'schlaegt an' if bites else 'TEST BLIND'})")
 
 
@@ -445,7 +470,7 @@ def digital_frames(cfg, tl):
     if cfg["endcard"].get("end_mode", "card") == "zoom":
         check_zoom(cfg)
     dts = [k / fps for k in range(tl.total - tl.zoom_end)]
-    key = lambda d: repr([digital_style(cfg, d).get(k) for k in ("nest_phase", "dither_shift")]) \
+    key = lambda d: repr([digital_style(cfg, d).get(k) for k in ("nest_phase", "dither_shift", "P")]) \
         + repr(digital_style(cfg, d)["loop"]["digital"]) + digital_phase(cfg, d)[0]                 # noqa: E731
     uniq = {}
     for d in dts:
@@ -661,7 +686,8 @@ def song(cfg, tl, path):
     import kickoff_loop_music as KM
     m = cfg["music"]
     dur = tl.total / cfg["video"]["timeline_fps"]
-    x = KM.decode(os.path.join(KL.PROJECT, m["file"]))[:round(dur * KM.SR)]
+    off = m["grid"].get("file_offset_s", 0.0)                   # [ending]: IGOR ungeschnitten ab dem Einstieg
+    x = KM.decode(os.path.join(KL.PROJECT, m["file"]))[round(off * KM.SR):round((off + dur) * KM.SR)]
     x = x * 10 ** ((m["loudness_lufs"] - KM.lufs(x)) / 20)
     k = round(m["fade_out_s"] * KM.SR)
     x[-k:] *= np.linspace(1, 0, k)[:, None]
@@ -776,8 +802,9 @@ def boil_test(cfg):
 def preview(cfg, posters, qr_ok, legib):
     """Ganze Vorschau in eine neue Version: Video mit Musik, Plakat-Loop allein, Kontaktbogen, Report, Config-Kopie."""
     t0 = time.time()
-    out = next_version()
-    shutil.copy(KL.CONFIG, os.path.join(out, "loop.toml"))
+    out = KL.out_dir(cfg) or next_version()                   # Variante: ihr eigener Ordner, sonst neue Version vNNN
+    if os.path.abspath(cfg["_src"]) != os.path.abspath(os.path.join(out, os.path.basename(cfg["_src"]))):
+        shutil.copy(cfg["_src"], out)                         # die Config, aus der dieses Video gerechnet ist
     n = len(posters)
     tl = Timeline(cfg)
     size = tuple(cfg["video"]["size_px"])
@@ -815,13 +842,15 @@ def preview(cfg, posters, qr_ok, legib):
             stills.append((f"{marks[t]} {t / tfps:.2f}s", img))
     ff.stdin.close()
     ff.wait()
+    os.remove(wav)                                             # steckt im Video
 
     # 3. Pruefungen, Kontaktbogen, Report
     flash = flash_check(np.array(lum), cfg, np.array(chroma)) if cfg["checks"]["flash_gate"] else None
     end_leg = KL.legibility(digital_style(cfg, (tl.total - tl.zoom_end - 1) / tfps), np.asarray(digital[-1]), "9x16")
     contact_sheet(cfg, posters, qr_ok, legib, stills, os.path.join(out, "contact.png"))
-    if cfg["endcard"].get("end_mode") == "zoom":
-        zoom_sheet(cfg, tl, digital, last_img, os.path.join(out, "zoom.png"))
+    mode = cfg["endcard"].get("end_mode")
+    if mode in ("zoom", "words"):
+        zoom_sheet(cfg, tl, digital, last_img, os.path.join(out, f"{mode}.png"))
     ground = [float(KL.LUMA @ (np.array([int(c[j:j + 2], 16) for j in (1, 3, 5)]) / 255))
               for c in (KL.palette_hex(cfg, i)[0] for i in range(n))]
     real = sum(os.path.exists(aligned_photo(k)) for k in range(n))
@@ -829,6 +858,23 @@ def preview(cfg, posters, qr_ok, legib):
 
     def tier(x):                                  # Lesbarkeitsstufe wie bei den Einzelplakaten
         return "A" if x >= K.TIER[0] else "B" if x >= K.TIER[1] else "C"
+
+    ending = [f"Endkarte: Lesbarkeit Titel+Datum {end_leg:.2f} {tier(end_leg)}"]
+    if "ending" in cfg:                                       # Ausstiege (kickoff_loop_end): Zeitachse, Auslauf, Endkarte
+        import kickoff_loop_end as KE
+        e = cfg["ending"]
+        ending = KE.report(cfg, tl)
+        if mode == "words":
+            ending.append(f"Ende: Begriffe {' / '.join(e['words'])}, je {e['words_term_beats']} Beat, Bogen words.png")
+        if e["card_on"]:
+            qr, leg = KE.card_check(digital_style(cfg, (len(digital) - 1) / tfps), np.asarray(digital[-1]))
+            run = 0.0                                          # wie lange vor Schluss der QR schon lesbar ist (1/4 s)
+            for k in range(len(digital) - 1, -1, -(tfps // 4)):
+                if not KE.card_check(digital_style(cfg, k / tfps), np.asarray(digital[k]))[0]:
+                    break
+                run = (len(digital) - k) / tfps
+            ending.append(f"Endkarte: QR {'lesbar' if qr else 'NICHT lesbar'}, scanbar die letzten {run:.2f} s, "
+                          f"Lesbarkeit SPARK + KICK-OFF/Datum {leg:.2f} {tier(leg)}")
 
     cad = " → ".join(f"{bars}x{per}tel" for per, bars in cfg["video"]["cadence"])
     lines = [f"Version {os.path.basename(out)} · {time.strftime('%Y-%m-%d %H:%M')} · {time.time() - t0:.0f} s Renderzeit",
@@ -847,7 +893,7 @@ def preview(cfg, posters, qr_ok, legib):
              f"Lesbarkeit Titel+Datum: {sum(x >= K.TIER[0] for x in legib)}/{n} in Stufe A (>= {K.TIER[0]})"
              + ("" if min(legib) >= K.TIER[0] else "  ! unter A: " + " ".join(
                  f"{i + 1:02d}" for i, x in enumerate(legib) if x < K.TIER[0])),
-             f"Endkarte: Lesbarkeit Titel+Datum {end_leg:.2f} {tier(end_leg)}",
+             *ending,
              f"Blitz-Check (WCAG 2.3.1, vereinfacht): {flash_text(flash, cfg)}",
              *([f"Ende: Infinite Zoom ({cfg['endcard']['zoom_ease']}, {cfg['endcard']['zoom_dolls']} Puppen, Ausbruch "
                 f"{'an' if cfg['endcard']['burst_on'] else 'aus'}, Impact {'an' if cfg['endcard']['impact_on'] else 'aus'}), "

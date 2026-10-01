@@ -1,0 +1,28 @@
+# W1 Begriffe (Vadim 2.10.: "der Loop geht weiter, ganz weit nach hinten, und kommt dann wieder frontal mit Sigmoids auf
+# einen zu, aber nicht als Spark, sondern Begriffe wie Hardware, Hardware, Hardware, ganz oft untereinander"):
+# 4 Takte T16, Karussell endet auf F17 (Stern ganz hinten, kleinster Radius) auf dem Bass-Boom. Der Stern faehrt in den
+# Fluchtpunkt, aus ihm fliegt die erste Begriffswand heran. Je Beat ein Begriff, der alte stuerzt an der Kamera vorbei,
+# jeder landet in der naechsten Colorway (F18, F19 ...). Der letzte bleibt stehen, Schwarz auf IGORs Stopp.
+
+[ending]
+carousel_bars = 4
+runout_bars = 0
+length_bars = 6.75         # bis IGORs Stopp (19.85 s)
+card_on = false
+words = ["HARDWARE", "ROBOTER", "LÖTEN", "3D-DRUCK", "CODE", "WORKSHOPS", "PROJEKTE", "SPARK"]   # VORSCHLAG, frei
+words_term_beats = 1.0     # je Begriff so viele Beats (landet auf dem Beat)
+words_far_scale = 0.03     # Startgroesse im Fluchtpunkt (Bruchteil der Landegroesse)
+words_vanish_beats = 1.0   # Stern faehrt in so vielen Beats in den Fluchtpunkt (beschleunigt)
+words_width_frac = 0.86    # Zeilenbreite gelandet (Bruchteil der Bildbreite)
+words_lead_frac = 1.18     # Zeilenabstand (Vielfaches der Versalhoehe)
+words_lines = 17           # Zeilen untereinander (ungerade): gelandet fuellt die Wand das Bild
+
+[endcard]
+end_mode = "words"
+end_frame = 17             # B20c: F17 = fernster Punkt der Bahn (Radius 0.23)
+type_out_beats = 1.0       # Titelblock + QR zerfallen im Korn, waehrend der erste Begriff kommt
+fade_beats = 2.0           # Fade to Black im Korn vor dem Ende
+info_cap_cells = 20
+info_lead_frac = 1.3
+info_y_frac = 0.50
+info_in_beats = 0.5
