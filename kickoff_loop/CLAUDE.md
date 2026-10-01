@@ -24,6 +24,11 @@ In `previz/review/` liegt, was offen ist (alles andere in `review/alt/`):
   dann links, kleiner, hoch hinter SPARK (Fernpunkt = Fluchtpunkt auf Titelhöhe), rechts zurück, F32 wieder zentral.
   Keine leeren Frames. B20b holt weiter aus, F1–2 sind dort nur noch Lichtfläche.
   Befund: Lesbarkeit min 0.83 / 0.82, weil der kleine Stern ~16 Frames hinter dem Titel steht.
+  Vadim 2.10.: B20 gut. **B20c** = B20 + `front_dwell_frac` 0.6 (verweilt vorn, huscht hinten) + size 0.85: F1–8 und
+  F25–32 gross wie auf den Plakaten. Lesbarkeit min 0.75.
+- Agenten-Branches 2.10. (noch nicht gemergt): Farbe C4/C5/C6 `worktree-agent-a2a262b81035cc693`, Song M1a/M1b
+  `worktree-agent-a557c00d9ff7e721f` (ersetzt `[mashup]`-Format, loop.toml zieht noch nicht mit), Digital D1a–d
+  `worktree-agent-a044f64378a4c82d2` (`src/kickoff_loop_digital.py`), Tempo/Ton/Blitz-raus laeuft noch.
 - `tempo_T16.mp4`: Tempo mit IGOR darunter.
 - `S_rework_3.png`: die gewählten neuen Sterne.
 
@@ -39,7 +44,7 @@ In `previz/review/` liegt, was offen ist (alles andere in `review/alt/`):
    - Leere Frames rendern einen winzigen S2 außerhalb (`OFF_STAR`), weil Labor-Stile am Stern messen.
    - `test` ohne Argumente bricht bei 32 Frames ab (QR-Glühen: Standardframes 3/7/9 haben den Stern am QR). `SELFTEST_FRAMES` auf freie Frames der neuen Bahn setzen.
 3. **Lesbarkeit** der Riesenframes: min 0.91 (Gate 0.95), der Riesenstern liegt über SPARK/KICK-OFF. Über Bahn oder Satz lösen.
-4. **Zeitachse T16**: Das Raster kennt nur 16tel-Teiler (`load`: `16 % per`). 32tel-Triolen = 24 Wechsel pro Takt. Dann
+4. **Zeitachse T16**: Das Raster kennt nur 16tel-Teiler (`load`: `16 % per`). 32tel-Triolen = **48** Wechsel pro Takt (16.32/s × 2.94 s; 24 waeren 16tel-Triolen). Dann
    `preview` und der Blitz-Check bei 16/s (C1 wechselt jeden Frame die Farbe).
 5. Farbe: Urteil C1b–d. Bei C1c dithert Rot auf Blau kariert (~335°, Magenta, nicht Lila). Vadim ansehen lassen.
 6. **Musik** nur IGOR, Custom-Mashup: Wo IGORs Drums kommen, etwas Eigenes. Maker Night fliegt raus
