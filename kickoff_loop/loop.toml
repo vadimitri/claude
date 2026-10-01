@@ -103,6 +103,9 @@ spin_deg = 240             # Eigendrehung pro Umlauf. Vielfache von 60° schlies
 text_gradient_steps = 1.0
 # SPARK als Differenz-Ebene (Vadim 2.10.: "hinter dem Spark-Schriftzug sind die Effekte nicht zu sehen"): ueber Stern und
 # Effekten zeigt der Titel |Tinte - Effekt|, die Effekte laufen invertiert durch die Buchstaben (kickoff_loop.title_value).
+effects_behind_title = ["S50", "S54c"]   # diese Sterne sparen den Titelblock nicht mehr aus (Fokuslinien, Hand-Schraffur
+                           # liefen bisher nur bis zum Titel). Vadim 2.10.: "bei 15, 16, 07, 09, 25, 23 Effekte verborgen".
+                           # Glitch (S48c/e/f) bleibt draussen (Vadim 1.10.: Glitch nie im Titelblock)
 title_plain_frames = [13]  # Ausnahme, Titel hier reine Tinte ohne Differenz (Vadim 2.10.: "bei Frame 13 nicht invertiert/dunkel")
 # Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert. Titelblock steht in jedem
 # Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.

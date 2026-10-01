@@ -1413,8 +1413,12 @@ def _qr_zone(g, pad_cells=6):
 
 def _type_zone(g):
     """Titelblock (SPARK bis Datum, ganze Breite) in m: dort keine Deko ausserhalb der Grundform, sonst sinkt die
-    Lesbarkeit und der Satz wird unruhig (Konstruktionslinien, Halbton-Schein, Schraffur)."""
+    Lesbarkeit und der Satz wird unruhig (Konstruktionslinien, Halbton-Schein, Schraffur).
+    st["fx_behind_title"] (Kick-off Loop, [type].effects_behind_title): leer, die Deko laeuft hinter dem Titel weiter und
+    der Titel zeigt sie invertiert (Vadim 2.10.: "bei 15, 16, 07, 09, 25, 23 sind hinter dem Titel die Effekte verborgen")."""
     L = g.c.L
+    if g.c.st.get("fx_behind_title"):
+        return np.zeros(np.shape(g.Y), bool)
     return g.Y < (L["db"] + 0.6 * L["capd"]) / g.m
 
 

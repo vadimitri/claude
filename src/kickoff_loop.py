@@ -447,7 +447,7 @@ def poster_style(cfg, i):
         (x, y, radius), code = OFF_STAR, "S2"                 # bleibt jede Stern-/Satzebene definiert (Maske leer). S2,
                                                               # weil Labor-Stile (S31g) am Stern messen und leer abbrechen
     st = K.style(palette(cfg, i), S_CODES[code], "riese", star=(x, y, radius), rot=rot,
-                 seed=cfg["styles"]["seed"])
+                 seed=cfg["styles"]["seed"], fx_behind_title=code in cfg["type"].get("effects_behind_title", []))
     st.update(layout=layout, type_fn=type_layers,
               loop=dict(i=i, n=count(cfg), type=cfg["type"], qr=cfg["qr"], digital=None))
     return st
@@ -647,7 +647,7 @@ def _source_hash():
 def render_cached(st, fmt, tag):
     """Bild zu einem Stil-Dict, gecacht nach allem, was es bestimmt (Stil, Lage, Satzwerte, Palette, Quelltext)."""
     key = json.dumps([fmt, st["P"], S.PALS[st["P"]], st["S"], st["star"], st["rot"], st.get("nest_phase"), st["seed"],
-                      st.get("dither_shift"),
+                      st.get("dither_shift"), st.get("fx_behind_title"),
                       st["loop"], _source_hash()], sort_keys=True, default=str)
     path = os.path.join(CACHE, f"{tag}_{hashlib.sha1(key.encode()).hexdigest()[:12]}.png")
     if os.path.exists(path):
