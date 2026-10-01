@@ -1,0 +1,5 @@
+D1a: Frame 0 vs N Pixelabweichung 0.00000 OK
+D1b: Frame 0 vs N Pixelabweichung 0.00000 OK
+D1c: Frame 0 vs N Pixelabweichung 0.00000 OK
+D1d: Frame 0 vs N Pixelabweichung 0.00000 OK
+Gegenprobe halbe Schale: 0.271 schlaegt an
