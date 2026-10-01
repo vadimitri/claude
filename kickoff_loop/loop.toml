@@ -49,9 +49,9 @@ steps = 6            # Palettenstufen nach dem Angleichen; 4-stufige Paletten (P
 cycle = ["S33",   # Matrjoschka: Schalen, die ins Korn laufen (vorn, riesig)                  F1-4
          "S23",   # Anschnitt: tiefes XOR-Nest                                               F5-8
          "S31g",  # Lampe: der Stern als Lichtquelle, Bahnen aus den Spitzen (Gegenlicht)     F9-12
-         "S18d",  # Moire im Stern: zwei Hoehenlinien-Sterne per XOR, harter Rand            F13-16
-         "S19d",  # Nest-Rosette                                                             F17-20
-         "S45",   # Facette: Kristall im Cel-Shading, Schatten als Ben-Day-Punktraster       F21-24
+         "S54c",  # Skizze Studie: Hand-Schraffur (Vadim 1.10. gewaehlt, 2.10. eingesetzt)   F13-16
+         "S48d",  # Linsenfehler: chromatische Aberration (gewaehlt 1.10.)                   F17-20
+         "S48c",  # Linsenfehler, Variante c (gewaehlt 1.10.)                                F21-24
          "S47",   # Praegung: das Nest als Hochdruck, Lichtkante + Schatten an jeder Platte  F25-28
          "S33"]   # Matrjoschka wieder vorn (riesig in der Mitte, Einstieg in den Zoom)      F29-32
 hold_frames = 4
