@@ -17,6 +17,7 @@ import colorsys
 import os
 import shutil
 import subprocess
+import sys
 import time
 
 import numpy as np
@@ -475,9 +476,10 @@ def invert(img, P):
 
 
 def _digital_job(args):
-    """Ein Bild des Digitalteils dt Sekunden nach dem Wechsel. only_cached: nur aus dem Cache, sonst None."""
-    cfg, dt, only_cached = (*args, False)[:3]
-    st = digital_style(cfg, dt)
+    """Ein Bild des Digitalteils dt Sekunden nach dem Wechsel. only_cached: nur aus dem Cache, sonst None. st: der
+    Stil, falls schon gerechnet (digital_style kostet ~3 ms, im Hauptprozess unter der GIL)."""
+    cfg, dt, only_cached, st = (*args, False, None)[:4]
+    st = st or digital_style(cfg, dt)
     img = KL.render_cached(st, "9x16", "end", only_cached)
     if img is None:
         return None
@@ -488,31 +490,63 @@ def _digital_job(args):
 
 
 def digital_frames(cfg, tl):
-    """Alle Bilder des Digitalteils (24 fps). Gleiche Stile (Zweier der Endkarte) nur einmal rendern. Was schon im
-    Cache liegt, laedt der Hauptprozess (Threads, PNG-Dekodieren gibt die GIL frei), nur der Rest geht in den Pool:
-    warm startet kein Pool und es wandern keine 350 x 6 MB Bilder durch die Pipes."""
-    from concurrent.futures import ThreadPoolExecutor
+    """Alle Bilder des Digitalteils (24 fps) als DigitalFrames: kehrt sofort zurueck, die Bilder kommen beim Zugriff.
+    Gleiche Stile (Zweier der Endkarte) nur einmal rendern. Was schon im Cache liegt, laden Threads im Hintergrund
+    (PNG-Dekodieren gibt die GIL frei), der Rest rendert im Pool (hinter der Foto-Phase in der Warteschlange) und
+    kommt in Zeitfolge zurueck (imap). So schreibt preview die Foto-Phase schon in den Encoder, waehrend der
+    Digitalteil noch rendert; vorher wartete der Encoder, bis der ganze Digitalteil fertig war."""
     fps = cfg["video"]["timeline_fps"]
     if cfg["endcard"].get("end_mode", "card") == "zoom":
         check_zoom(cfg)
     step = DRAFT_STEP if cfg.get("_draft") else 1           # Entwurf: Zweier (dieselben Bilder wie die Endversion,
     dts = [(k - k % step) / fps for k in range(tl.total - tl.zoom_end)]   # nur jedes 2.: der Cache gilt fuer beide)
+    styles = {d: digital_style(cfg, d) for d in dict.fromkeys(dts)}       # einmal je Zeit, nicht je Schritt zweimal
 
     def key(d):
-        st = digital_style(cfg, d)
+        st = styles[d]
         return repr([st.get(k) for k in ("nest_phase", "dither_shift", "P")]) + repr(st["loop"]["digital"]) \
             + digital_phase(cfg, d)[0]
     keys = [key(d) for d in dts]
     uniq = {}
     for k, d in zip(keys, dts):
         uniq.setdefault(k, d)
-    with ThreadPoolExecutor() as ex:
-        imgs = dict(zip(uniq, ex.map(lambda d: _digital_job((cfg, d, True)), uniq.values())))
-        todo = [k for k, v in imgs.items() if v is None]
-        if todo:                                     # Worker rendern in den Cache, Bilder kommen per PNG zurueck
-            KL.pool().map(_digital_fill, [(cfg, uniq[k]) for k in todo], chunksize=4)
-            imgs.update(zip(todo, ex.map(lambda k: _digital_job((cfg, uniq[k], True)), todo)))
-    return [Image.fromarray(imgs[k]) for k in keys]
+    return DigitalFrames(cfg, keys, {k: (d, styles[d]) for k, d in uniq.items()})
+
+
+class DigitalFrames:
+    """Bilder des Digitalteils in Zeitfolge, frames[j] = PIL-Bild (wartet, bis es da ist). Bilder aus dem Cache laedt
+    ein Thread-Pool im Voraus, fehlende rendert der Prozess-Pool in den Cache (Worker geben nichts durch die Pipe
+    zurueck, wie bisher), imap liefert sie geordnet: die erste Luecke ist das erste Bild, das der Encoder braucht."""
+
+    def __init__(self, cfg, keys, uniq):
+        from concurrent.futures import ThreadPoolExecutor
+        self.cfg, self.keys, self.uniq, self.pil = cfg, keys, uniq, {}
+        todo = [k for k, (d, st) in uniq.items() if not os.path.exists(KL.cache_path(st, "9x16", "end"))]
+        self.pos, self.done = {k: i for i, k in enumerate(todo)}, 0     # Platz in der Pool-Reihenfolge, abgeholt bis
+        self.it = KL.pool().imap(_digital_fill, [(cfg, uniq[k][0]) for k in todo], chunksize=4) if todo else None
+        ex = ThreadPoolExecutor()
+        self.load = {k: ex.submit(_digital_job, (cfg, d, True, st)) for k, (d, st) in uniq.items() if k not in self.pos}
+        ex.shutdown(wait=False)
+
+    def __len__(self):
+        return len(self.keys)
+
+    def __getitem__(self, j):
+        k = self.keys[j]
+        if k not in self.pil:
+            if k in self.load:
+                img = self.load.pop(k).result()
+            else:
+                while self.done <= self.pos[k]:        # Pool liefert in Zeitfolge: bis zu diesem Bild abholen
+                    next(self.it)
+                    self.done += 1
+                d, st = self.uniq[k]
+                img = _digital_job((self.cfg, d, True, st))
+            self.pil[k] = Image.fromarray(img)
+        return self.pil[k]
+
+    def __iter__(self):
+        return (self[j] for j in range(len(self)))
 
 
 def _digital_fill(args):
@@ -575,6 +609,126 @@ class PhotoFrames:
         del self.frames
         self.shm.close()
         self.shm.unlink()
+
+
+PHOTO_SOURCES = ("kickoff_loop_video.py",)   # Code der Foto-Phase (Platte, grade, shoot), samt Importen im Schluessel
+SEGMENT_KEEP = 4     # Foto-Segmente im Cache (je ~150-250 MB, das Korn): die 4 zuletzt benutzten bleiben, prune loescht
+
+
+def photo_key(cfg, tl):
+    """Schluessel der Foto-Phase = alles, was ihre Bilder bestimmt: je Timeline-Frame Plakat-Index und Kamera als
+    Zahlen (Massstab, Rollen; so zaehlt auch Kamera-Code in kickoff_loop_end mit, ohne dessen Quelltext), je gezeigtem
+    Plakat sein Bild-Schluessel (KL.cache_key) und ggf. der Inhalt des echten Fotos, [simulation], [video], Encoder
+    und Quelltext der Platten (PHOTO_SOURCES samt Importen; segment_selftest prueft per Trace, dass das reicht)."""
+    import hashlib
+    import json
+    h = S.SIZES[KL.PREVIEW][1]                                     # Plakathoehe in Plattenpixeln (= poster.shape[0])
+    cam = [(tl.poster_at(t), *camera(cfg, tl, t, h)) for t in range(tl.zoom_end)]
+
+    def real(k):
+        p = aligned_photo(k)
+        return hashlib.sha1(open(p, "rb").read()).hexdigest() if os.path.exists(p) else None
+    shown = [(k, KL.cache_key(KL.poster_style(cfg, k), KL.PREVIEW), real(k)) for k in sorted({c[0] for c in cam})]
+    key = json.dumps([cam, shown, cfg["simulation"], cfg["video"], PREVIEW_ENCODER, KL._source_hash(PHOTO_SOURCES)],
+                     sort_keys=True, default=str)
+    return hashlib.sha1(key.encode()).hexdigest()[:16]
+
+
+class PhotoSegment:
+    """Die Foto-Phase als fertig kodiertes Videostueck (MPEG-TS, PREVIEW_ENCODER) im Cache (_cache/video/), Schluessel
+    photo_key; preview haengt den Digitalteil ohne Neukodieren an (concat_video). Treffer: keine Platten, keine
+    Kamera, kein Encoder, kein Pool fuer die Foto-Phase (Befund 1.10.: ~60 der ~120 CPU-Sekunden einer warmen
+    Vorschau; Ausstiegs-Varianten und --draft aendern nur den Digitalteil). Sonst rechnet PhotoFrames wie bisher und
+    ein Thread kodiert, waehrend der Pool den Digitalteil rendert. Die Bilder `keep` (Marken fuer Kontaktbogen und
+    Zoom-Check) liegen verlustfrei als PNG daneben. Mit Blitz-Check nie Treffer (der braucht jedes Bild)."""
+
+    def __init__(self, cfg, tl, keep):
+        import threading
+        self.dir = os.path.join(KL.CACHE, "video")
+        os.makedirs(self.dir, exist_ok=True)
+        stem = os.path.join(self.dir, "photo_" + photo_key(cfg, tl))
+        self.path, self.png, self.imgs = stem + ".ts", {t: f"{stem}_{t}.png" for t in keep}, {}
+        self.gate, self.lum, self.chroma, self.err, self.thread = cfg["checks"]["flash_gate"], [], [], None, None
+        self.hit = not self.gate and os.path.exists(self.path) and all(map(os.path.exists, self.png.values()))
+        if self.hit:
+            os.utime(self.path)                                     # zuletzt benutzt (prune)
+        else:
+            self.photo = PhotoFrames(cfg, tl)                       # Pool zuerst: Foto-Phase vor dem Digitalteil
+            self.thread = threading.Thread(target=self._encode, args=(cfg, tl))
+            self.thread.start()
+
+    def _encode(self, cfg, tl):
+        try:
+            tmp = f"{self.path}.{os.getpid()}.ts"
+            ff = ffmpeg_writer(tmp, tuple(cfg["video"]["size_px"]), cfg["video"]["timeline_fps"])
+            for t in range(tl.zoom_end):
+                img = self.photo[t]
+                ff.stdin.write(img.tobytes())
+                if t in self.png:
+                    self.imgs[t] = Image.fromarray(img.copy())
+                    self.imgs[t].save(self.png[t] + ".tmp.png", compress_level=1)
+                    os.replace(self.png[t] + ".tmp.png", self.png[t])
+                if self.gate:
+                    self.lum.append(luminance(Image.fromarray(img)))
+                    self.chroma.append(chroma_state(Image.fromarray(img)))
+            ff.stdin.close()
+            if ff.wait():
+                raise RuntimeError(f"ffmpeg Foto-Segment: Fehler {ff.returncode}")
+            os.replace(tmp, self.path)
+            prune_segments(self.dir)
+        except BaseException as e:                                  # im Hauptprozess wieder werfen (join)
+            self.err = e
+
+    def join(self):
+        """Warten, bis das Segment liegt (bei einem Treffer sofort)."""
+        if self.thread:
+            self.thread.join()
+            self.photo.__exit__(None, None, None)
+            self.thread = None
+        if self.err:
+            raise self.err
+
+    def image(self, t):
+        """Bild t der Foto-Phase (nur t in keep), nach join."""
+        if t not in self.imgs:
+            self.imgs[t] = Image.open(self.png[t]).convert("RGB")
+        return self.imgs[t]
+
+
+def prune_segments(folder, keep=SEGMENT_KEEP):
+    """Nur die `keep` zuletzt benutzten Foto-Segmente behalten (samt PNGs), die Platte ist knapp."""
+    import glob
+    segs = sorted(glob.glob(os.path.join(folder, "photo_*.ts")), key=os.path.getmtime, reverse=True)
+    for p in segs[keep:]:
+        for f in [p] + glob.glob(p[:-3] + "_*.png"):
+            os.remove(f)
+
+
+def segment_selftest(cfg):
+    """Foto-Segment-Cache: (1) jede src-Datei, die beim Bauen einer Platte und eines Kameraausschnitts laeuft, steckt
+    im Schluessel (PHOTO_SOURCES samt Importen, Trace wie KL.cache_selftest). Gegenprobe: ohne kickoff_loop_video.py
+    in den Wurzeln faellt es auf. (2) Der Schluessel reagiert auf Plakat, Kamera und Simulation (je eine Aenderung,
+    anderer Schluessel), und die Plakathoehe in photo_key ist die des Bilds."""
+    import copy
+    tl = Timeline(cfg)
+    k = tl.poster_at(0)
+    poster = KL.frame(cfg, k)
+    assert poster.shape[0] == S.SIZES[KL.PREVIEW][1], "photo_key rechnet die Kamera mit falscher Plakathoehe"
+    sc, roll = camera(cfg, tl, 0, poster.shape[0])
+    ran = KL._traced_sources(lambda: shoot(photo_plate(cfg, poster, k), sc, tuple(cfg["video"]["size_px"]), roll))
+    miss = ran - set(KL._import_closure(PHOTO_SOURCES))
+    assert not miss, f"Foto-Segment-Schluessel: {sorted(miss)} laufen beim Bauen, fehlen in PHOTO_SOURCES"
+    assert "kickoff_loop_video.py" in ran, "Segment-Selbsttest blind: Platten-Code nicht getract"
+    base = photo_key(cfg, tl)
+    changed = []
+    for name, edit in (("Plakat", lambda c: c["spark"].update(size=c["spark"]["size"] * 1.01)),
+                       ("Kamera", lambda c: c["video"].update(roll_deg=c["video"]["roll_deg"] + 1)),
+                       ("Simulation", lambda c: c["simulation"].update(jitter_px=c["simulation"]["jitter_px"] + 1))):
+        c = copy.deepcopy(cfg)
+        edit(c)
+        assert photo_key(c, Timeline(c)) != base, f"Foto-Segment-Schluessel blind fuer {name}"
+        changed.append(name)
+    return f"Selbsttest ok (Foto-Segment: Platte + Kamera getract, alle Quellen im Schluessel, reagiert auf {', '.join(changed)})"
 
 
 # ---------------------------------------------------------------- Pruefungen
@@ -799,10 +953,14 @@ def song(cfg, tl, path):
 # x264-Preset der Vorschauen. Befund 2.10. (Z5, 635 Bilder 1080x1920, crf 16): medium ~14 s Encode, fast ~3 s, bei
 # PSNR gegen die Quellbilder 36.97 dB (medium) / 36.87 dB (fast), Datei gleich gross. veryfast verliert 2 dB, deshalb fast.
 X264_PRESET = "fast"
-# preview --draft: Hardware-Encoder (Apple VideoToolbox) statt x264. Befund 2.10. (Z5, 635 Bilder, PSNR RGB gegen die
-# Quellbilder): x264 fast 30.14 dB / 18 s, VideoToolbox q 65 29.22 dB / 7.8 s, halbe Datei, fast keine CPU (die braucht
-# der Pool). Sichtbar weicher im Korn, deshalb nur im Entwurf.
-DRAFT_ENCODER = ["-c:v", "h264_videotoolbox", "-q:v", "65"]
+# Vorschauen (preview.mp4, loop.mp4): Hardware-Encoder (Apple VideoToolbox) bei q 85 statt x264. Befund 1.10. (Z5, je
+# 140 Foto- und 160 Digitalbilder 1080x1920, gegen die Quellbilder): Digitalteil PSNR 39.9 dB / SSIM 0.954 (x264 fast
+# crf 16: 37.6 / 0.937), Foto-Phase 27.0 / 0.898 (x264: 26.7 / 0.889), also nirgends schlechter. CPU 6-11 ms statt
+# 70-240 ms pro Bild: x264 frass ~95 der ~230 CPU-Sekunden einer warmen Vorschau und bremste den Pool. Datei groesser
+# (Foto-Phase x1.5, das Korn). Gilt auch fuer --draft (vorher VT q 65: gleich schnell, nur weicher), damit Entwurf und
+# Endversion dasselbe Foto-Segment teilen (PhotoSegment). Ohne VideoToolbox (Linux, CT dev): x264 wie bisher.
+PREVIEW_ENCODER = ["-c:v", "h264_videotoolbox", "-q:v", "85"] if sys.platform == "darwin" else \
+    ["-c:v", "libx264", "-preset", X264_PRESET, "-crf", "16"]
 DRAFT_STEP = 2       # preview --draft: Digitalteil nur jedes 2. Bild rendern und halten (Zweier, 12 fps): halbe Renderzeit
 
 
@@ -814,15 +972,28 @@ def draft_name(cfg, name):
     return f"{stem}_draft{ext}"
 
 
-def ffmpeg_writer(path, size, fps, audio=None, draft=False):
-    """Roh-RGB auf stdin → H.264. Mit Ton: AAC (Pegel stellt song() ein). draft: DRAFT_ENCODER."""
+def ffmpeg_writer(path, size, fps, audio=None):
+    """Roh-RGB auf stdin → H.264 (PREVIEW_ENCODER). Mit Ton: AAC (Pegel stellt song() ein). *.ts: MPEG-TS ohne Ton,
+    ein Segment fuer concat_video."""
     W, H = size
-    enc = DRAFT_ENCODER if draft else ["-c:v", "libx264", "-preset", X264_PRESET, "-crf", "16"]
+    ts = path.endswith(".ts")
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(fps),
-           "-i", "-"] + (["-i", audio] if audio else []) + \
-          enc + ["-pix_fmt", "yuv420p", "-movflags", "+faststart"] + \
+           "-i", "-"] + (["-i", audio] if audio else []) + PREVIEW_ENCODER + ["-pix_fmt", "yuv420p"] + \
+          (["-f", "mpegts"] if ts else ["-movflags", "+faststart"]) + \
           (["-c:a", "aac", "-b:a", "256k", "-shortest"] if audio else []) + [path]
     return subprocess.Popen(cmd, stdin=subprocess.PIPE)
+
+
+def concat_video(parts, audio, path):
+    """Segmente (MPEG-TS, gleicher Encoder) ohne Neukodieren aneinander, Ton dazu → mp4. Befund 1.10.: die dekodierten
+    Bilder des Ganzen sind bitgleich die der Teile (framemd5), 24 fps durchgehend."""
+    lst = path + ".txt"
+    with open(lst, "w") as f:
+        f.writelines("file '" + os.path.abspath(p).replace("'", "'\\''") + "'\n" for p in parts)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst, "-i", audio,
+                    "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-shortest",
+                    "-movflags", "+faststart", path], check=True)
+    os.remove(lst)
 
 
 def qr_scan(images):
@@ -910,7 +1081,7 @@ def loop_video(cfg, posters, path):
     wav = os.path.splitext(path)[0] + ".wav"
     KM.write_wav(wav, x)
     h, w = posters[0].shape[:2]
-    ff = ffmpeg_writer(path, (w // 2, h // 2), fps, wav, draft=bool(cfg.get("_draft")))
+    ff = ffmpeg_writer(path, (w // 2, h // 2), fps, wav)
     small = [np.asarray(Image.fromarray(img).resize((w // 2, h // 2), Image.BOX)).tobytes() for img in posters]
     for b in small * m["loop_passes"]:                 # jedes Plakat einmal verkleinern, nicht je Durchgang
         ff.stdin.write(b)
@@ -975,23 +1146,37 @@ def preview(cfg, posters, qr_ok, legib):
              tl.zoom_end + fly: "Impact", tl.zoom_end + card + 2: "Endkarte", tl.total - 1: "Ende"}
     gate = cfg["checks"]["flash_gate"]                         # Helligkeit/Rot je Bild braucht nur der Blitz-Check
     stills, lum, chroma = [], [], []
-    with PhotoFrames(cfg, tl) as photo:                        # Foto-Phase rechnet im Pool, parallel dazu der Digitalteil
-        digital = digital_frames(cfg, tl)
-        wav = os.path.join(out, "music.wav")
-        song(cfg, tl, wav)
-        ff = ffmpeg_writer(os.path.join(out, draft_name(cfg, "preview.mp4")), size, tfps, wav, draft=bool(cfg.get("_draft")))
-        for t in range(tl.total):
-            img = Image.fromarray(photo[t].copy()) if t < tl.zoom_end else digital[t - tl.zoom_end]
+    # Foto-Phase als Segment aus dem Cache bzw. im Pool + eigenem Encoder-Thread; der Digitalteil rendert im selben Pool
+    # dahinter und geht in Zeitfolge in ein zweites Segment, sobald seine Bilder da sind. Am Ende beide ohne
+    # Neukodieren aneinander (concat_video). Vorher: ein Encoder, der erst anfing, wenn der ganze Digitalteil fertig war.
+    photo = PhotoSegment(cfg, tl, {t for t in marks if t < tl.zoom_end} | {tl.zoom_end - 1})
+    digital = digital_frames(cfg, tl)
+    wav = os.path.join(out, "music.wav")
+    song(cfg, tl, wav)
+    part = os.path.join(out, draft_name(cfg, "digital.ts"))
+    try:
+        ff = ffmpeg_writer(part, size, tfps)
+        for j in range(len(digital)):
+            img, t = digital[j], tl.zoom_end + j
             ff.stdin.write(np.asarray(img).tobytes())
-            if t == tl.zoom_end - 1:
-                last_img = img                                 # letztes Karussellbild (Zoom-Check: nahtlos?)
             if gate:
                 lum.append(luminance(img))
                 chroma.append(chroma_state(img))
             if t in marks:
                 stills.append((f"{marks[t]} {t / tfps:.2f}s", img))
         ff.stdin.close()
-    ff.wait()
+        ff.wait()
+        from concurrent.futures import ThreadPoolExecutor   # QR der Endkarte (OpenCV, ~5 s kalt) schon pruefen, waehrend
+        qr_steps = list(range(len(digital) - 1, -1, -(tfps // 4)))      # Foto-Segment, concat und loop.mp4 fertig werden
+        qr_job = ThreadPoolExecutor(1).submit(qr_scan, [digital[k] for k in qr_steps]) \
+            if cfg.get("ending", {}).get("card_on") else None
+    finally:
+        photo.join()                                           # Segment liegt, gemeinsamer Speicher freigegeben
+    last_img = photo.image(tl.zoom_end - 1)                    # letztes Karussellbild (Zoom-Check: nahtlos?)
+    stills = [(f"{marks[t]} {t / tfps:.2f}s", photo.image(t)) for t in sorted(marks) if t < tl.zoom_end] + stills
+    lum, chroma = photo.lum + lum, photo.chroma + chroma
+    concat_video([photo.path, part], wav, os.path.join(out, draft_name(cfg, "preview.mp4")))
+    os.remove(part)
     os.remove(wav)                                             # steckt im Video
     loop_job.join()
 
@@ -1020,9 +1205,7 @@ def preview(cfg, posters, qr_ok, legib):
         if e["card_on"]:
             qr, leg = KE.card_check(digital_style(cfg, (len(digital) - 1) / tfps), np.asarray(digital[-1]))
             run = 0.0                                          # wie lange vor Schluss der QR schon lesbar ist (1/4 s)
-            steps = list(range(len(digital) - 1, -1, -(tfps // 4)))
-            readable = qr_scan([digital[k] for k in steps])
-            for k, ok in zip(steps, readable):                 # = KE.card_check(...)[0], nur parallel und gemerkt
+            for k, ok in zip(qr_steps, qr_job.result()):       # = KE.card_check(...)[0], nur parallel und gemerkt
                 if not ok:
                     break
                 run = (len(digital) - k) / tfps

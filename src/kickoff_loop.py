@@ -1199,8 +1199,9 @@ def main():
         for i in [int(a) - 1 for a in args[1:]] or selftest_frames(cfg):
             print(selftest(cfg, i))
         print(cache_selftest(cfg))
+        import kickoff_loop_video as V
+        print(V.segment_selftest(cfg))                  # Foto-Segment-Cache der Vorschau
         if cfg["checks"]["flash_gate"]:
-            import kickoff_loop_video as V
             print(V.flash_selftest(cfg))
     elif cmd == "print":
         print(print_files(cfg))
