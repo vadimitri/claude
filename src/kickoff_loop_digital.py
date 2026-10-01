@@ -195,6 +195,96 @@ def test(d):
     return ok and diff > 0.01
 
 
+# ---------------------------------------------------------------- Infinite Zoom in die Matrjoschka (Ende des Videos, Z1-Z3)
+# Vadim 2.10. (nach E1 verworfen): "Loop beenden bei einem Spark, der frontal gross in der Mitte ist, dann Infinite Zoom
+# da rein, beschleunigt oder decelerated, dann zu Black", optional mit Platzhalter-Info. Aufgerufen aus
+# kickoff_loop_video.digital_style ([endcard].end_mode = "zoom"), gerendert ueber styles.render (spark_fn/type_fn-Hooks),
+# also dasselbe Zellraster, Bayer-Korn und dieselbe Split-Palette wie das letzte Plakat.
+
+DOLL_RATIO = 0.64     # styles.spark "matrjoschka": jede Puppe ist 0.64 so gross wie die naechstaeussere
+SHELL_FRAC = 0.42     # ... Anteil einer Puppe, der flaechige Schale ist (Rest = Luft, die in Korn auslaeuft)
+SHELL_FADE = 0.16     # ... Abklinglaenge der Luft nach innen (in Puppen)
+SHELL_VAL = (0.60, 0.38)   # ... Helligkeit der Schale: 0.60 aussen + 0.38 * Tiefe (0..1 ueber die Puppen)
+AIR_VAL, AIR_NOISE = 0.16, 0.22   # ... Luft: Grundwert und Rauschanteil
+NOISE_SEED_OFFSET = 5  # ... Rauschen mit seed + 5 (gleiches Korn wie das Plakat)
+
+
+def zoom_spark(c):
+    """S33 Matrjoschka, aber unendlich: der Stern in c.L["star"] ist schon um 1/DOLL_RATIO^z vergroessert (z = Puppen,
+    um die die Kamera eingetaucht ist). q = absolute Puppennummer (0 = aeusserste Puppe des Plakats). Helligkeit nach
+    Tiefe RELATIV zum Bild (q - z): jede Puppe dimmt, waehrend sie nach aussen waechst, im Bild steht immer dieselbe
+    Rampe wie auf dem Plakat. Der flaechige Kern (Plakat: ab Puppe dolls-1) zieht sich um core_shrink Puppen pro
+    getauchter Puppe zurueck, so oeffnen sich innen neue Puppen. Bei z = 0 ist das Feld exakt styles.spark (S33)."""
+    zm = c.st["loop"]["digital"]["zoom"]
+    cx, cy, R, rot = c.L["star"]
+    d, _ = styles.star_d(c, cx, cy, R, rot)
+    n, z = c.st.get("dolls", 4), zm["dolls"]
+    q = np.log(np.maximum(d, 1e-9)) / np.log(DOLL_RATIO)
+    k, f = np.floor(q), q - np.floor(q)
+    shell = (f < SHELL_FRAC) | (q >= n - 1 + z * (1 + zm["core_shrink"]))
+    noise = np.random.default_rng(c.st.get("seed", 0) + NOISE_SEED_OFFSET).random(d.shape) - 0.5
+    fade = np.exp(-(f - SHELL_FRAC) / SHELL_FADE)
+    val = SHELL_VAL[0] + SHELL_VAL[1] * np.clip((k - z) / (n - 1), 0, 1)
+    grad = np.where(shell, val, np.clip(AIR_VAL + (val - AIR_VAL) * fade + AIR_NOISE * noise * (1 - fade), 0, 1))
+    m = d < 1
+    c.star_m = m & shell
+    c.add("spark", m, grad)
+
+
+def bayer_cells(c):
+    """Bayer-4x4-Schwelle je Zelle (0..1): Reihenfolge, in der Zellen bei Ein-/Ausblendungen kippen (Korn statt Blende)."""
+    return styles.tile(styles.bayer(4), (c.gh, c.gw))
+
+
+def zoom_type(c):
+    """Satz im Zoom: Titelblock + QR des letzten Plakats (kickoff_loop.type_layers) zerfallen im Bayer-Korn
+    (type_out 0..1 = Anteil gekippter Zellen), danach optional die Platzhalter-Info (Z3), Clash wie der Titel, mittig,
+    kippt pro Pixel auf hellen Schalen in die Grundfarbe (XOR wie SPARK) und setzt im Korn ein (info_in 0..1)."""
+    import kickoff_loop as KL
+    zm = c.st["loop"]["digital"]["zoom"]
+    thr = bayer_cells(c)
+    n0 = len(c.layers)
+    if zm["type_out"] < 1:
+        KL.type_layers(c)
+        keep = thr >= zm["type_out"]
+        for j in range(n0, len(c.layers)):
+            name, a, v, flat, D = c.layers[j]
+            c.layers[j] = (name, a * styles.up(keep.astype(np.float32), c.px), np.where(keep, v, np.nan), flat, D)
+    if zm["info"] and zm["info_in"] > 0:
+        cap = zm["info_cap_cells"] * c.px
+        lead = round(zm["info_lead_frac"] * zm["info_cap_cells"]) * c.px
+        lines = zm["info"]
+        y0 = round((zm["info_y_frac"] * c.H - (cap + (len(lines) - 1) * lead) / 2) / c.px) * c.px
+        mk = np.zeros((c.gh, c.gw), bool)
+        for j, s in enumerate(lines):
+            m = styles.line_mask(s, "clash", cap, y0 + cap + j * lead, 0, c.px, (c.gh, c.gw))
+            if m.any():
+                xs = np.nonzero(m.any(0))[0]
+                m = np.roll(m, round(c.gw / 2 - (xs[0] + xs[-1] + 1) / 2), 1)
+            mk |= m
+        mk &= thr < zm["info_in"]
+        c.add("info", mk, np.where(c.star_m, c.lvl(0), c.lvl(c.N)))
+
+
+def blackout(img, frac, px):
+    """Fade to Black im Korn: Zellen kippen in Bayer-Reihenfolge auf Schwarz (#000), frac 0..1. Bei frac >= 1 ist jedes
+    Pixel schwarz (groesste Bayer-Schwelle 15.5/16 < 1), das letzte Bild also wirklich #000."""
+    if frac <= 0:
+        return img
+    if frac >= 1:
+        return np.zeros_like(img)
+    gh, gw = img.shape[0] // px, img.shape[1] // px
+    out = img.copy()
+    out[:gh * px, :gw * px][styles.up(styles.tile(styles.bayer(4), (gh, gw)) < frac, px)] = 0
+    return out
+
+
+def ease(name, power, u):
+    """Zoom-Verlauf 0..1: ease_in = beschleunigt (u^p), ease_out = bremst ab (1 - (1-u)^p), linear."""
+    u = min(max(u, 0.0), 1.0)
+    return {"ease_in": u ** power, "ease_out": 1 - (1 - u) ** power, "linear": u}[name]
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "sheet"
     path = sys.argv[2] if len(sys.argv) > 2 else DEF_TOML
