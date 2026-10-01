@@ -275,8 +275,8 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
 | `uv run src/kickoff_loop.py test [N..]` | Selbsttest am fertigen Bild (+ Bahn, Blitz) | ~5 s |
 | `uv run --with numpy --with pillow --with scipy --with qrcode --with scikit-image --with opencv-python-headless python src/lab_spark.py test` | Selbsttest Sterne (Hand-Schraffur) | ~20 s |
 | `uv run src/kickoff_loop_resolve.py schnitt` | Resolve-Projekt `SPARK_Kickoff_Schnitt`: Timeline „Schnitt" = Loop (9:16, Wechsel auf IGORs Raster, F1 auf 22.435 s) + IGOR-Song, verknüpft, 9 Marker; „Referenz" = `resolve/schnitt/ref/*`. Erneut aufrufen = neue Medien, Timeline bleibt (Resolve verlinkt neu) | ~3 min |
-| `uv run src/kickoff_loop.py preview [review/X/X.toml]` | ohne Argument neue Version `previz/vNNN/`, mit Variante in ihren Ordner (Video, Bögen, Report, Config-Kopie) | warm ~30 s, kalt ~1 min |
-| `uv run src/kickoff_loop.py preview review/X/X.toml --draft` | Entwurf: Digitalteil auf Zweiern, VideoToolbox-Encoder, kein Zoom-Check → `*_draft.mp4/.png`, `report_draft.txt` (Kopfzeile DRAFT) | ~20 s |
+| `uv run src/kickoff_loop.py preview [review/X/X.toml]` | ohne Argument neue Version `previz/vNNN/`, mit Variante in ihren Ordner (Video, Bögen, Report, Config-Kopie). `--master`: x264 statt Hardware-Encoder (Endabnahme) | nichts/nur Ende geändert ~9 / ~11 s, Stern geändert ~21 s, kalt ~30 s |
+| `uv run src/kickoff_loop.py preview review/X/X.toml --draft` | Entwurf: Digitalteil auf Zweiern, kein Zoom-Check → `*_draft.mp4/.png`, `report_draft.txt` (Kopfzeile DRAFT); teilt das Foto-Segment mit der Endversion | Ende geändert ~9 s |
 | `uv run src/kickoff_loop_end.py test review/Z4/Z4.toml` | Selbsttest Ausstiege (Auslauf bremst/landet, Kamera stetig, warp), Gegenprobe linear | ~5 s |
 | `uv run src/kickoff_loop.py frames` / `variants` / `boil` / `print` / `resolve` | Frames rendern / QR-Varianten / Boil-Test / Druck-PDFs / Resolve-Bausteine | |
 | `uv run src/kickoff_loop_music.py` | Musik + Raster → `ref/audio/mashup_*.wav/.json` | ~5 s |
@@ -284,7 +284,14 @@ Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist l
 Frames sind nach Inhalt gecacht (`_cache/`): Schlüssel = ganzes Stil-Dict + Hash nur der Quelltexte, die das Bild
 bestimmen (`kickoff_loop.POSTER_SOURCES`/`DIGITAL_SOURCES` samt Importen; `test` prüft per Trace, dass nichts fehlt).
 Änderungen an `kickoff_loop_video.py`, Musik, Resolve lassen den Cache stehen. QR/Lesbarkeit stehen gemerkt in
-`_cache/checks/`. Ein Pool pro Lauf (`kickoff_loop.pool()`), Foto-Phase parallel je Plakat, x264 `fast` (`X264_PRESET`).
+`_cache/checks/`. Ein Pool pro Lauf (`kickoff_loop.pool()`), Foto-Phase parallel je Plakat.
+**Foto-Segment** (`_cache/video/photo_<key>.ts`, `kickoff_loop_video.PhotoSegment`): die Foto-Phase liegt fertig kodiert im
+Cache, der Digitalteil wird als zweites Segment ohne Neukodieren angehängt (dekodiert bitgleich). Schlüssel `photo_key` =
+Kamera-Werte je Frame + Plakat-Schlüssel + `[simulation]`/`[video]` + Encoder + Quelltext; `test` prüft per Trace. Ändert
+sich nur das Ende (oder `--draft`), fallen Platten, Kamera und Encoder der Foto-Phase weg. Die 4 zuletzt benutzten Segmente
+bleiben (~70 MB je Stück). **Encoder**: alle Vorschauen VideoToolbox q65 (`PREVIEW_ENCODER`, Vadim 3.10.: Tempo vor
+Qualität), `--master` = x264 `fast` crf 16 (`MASTER_ENCODER`). Digitalteil kommt in Zeitfolge aus dem Pool
+(`DigitalFrames`), der Encoder wartet nicht mehr auf den ganzen Teil. QR-Prüfung bricht ab, sobald das Ergebnis steht.
 
 ## Ordner und Code
 
