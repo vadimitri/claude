@@ -58,16 +58,17 @@ seed = 3             # Korn der rauschbasierten Sterne. Gleich auf allen Plakate
 # Immer frontal, keine Kippung (Vadim 30.9.).
 source = "orbit"           # orbit = Bahn wird hier gerechnet (Werte unten) | resolve = Vadims Keyframes aus Resolve
                            # (Projekt SPARK_Kickoff_Loop, Timeline Stern-Bahn; uv run src/kickoff_loop_resolve.py pull)
-vanish = [0.50, 0.50]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
-width = 0.5                # halbe Breite der Ellipse (Tiefe = 1). Schmaler = er fliegt enger an dir vorbei
-ahead = 0.85               # Mitte der Ellipse so weit vor dir (0 = du in der Mitte, hinter dem Kopf so lang wie vorn;
+vanish = [0.50, 0.20]      # Fluchtpunkt (x, y) auf dem Plakat: dort verschwaende der Stern im Unendlichen
+width = 0.7                # halbe Breite der Ellipse (Tiefe = 1). Schmaler = er fliegt enger an dir vorbei
+ahead = 1.3                # Mitte der Ellipse so weit vor dir (0 = du in der Mitte, hinter dem Kopf so lang wie vorn;
                            # 0.85 = du sitzt am hinteren Ende, der Weg hinter dem Kopf ist kurz)
 kepler_frac = 0.0          # Tempo: 0 = gleichmaessig auf der Bahn, 1 = Flaechensatz (hinten schnell, fern langsam)
-height = 0.12              # Bahn liegt so weit unter Augenhoehe (Einheit: Tiefe): nah = tiefer im Bild
+front_dwell_frac = 0.6     # B20c (Vadim 2.10. gewaehlt): verweilt am Nahpunkt (gross), huscht durch die Ferne. 0 = gleichmaessig
+height = 0.205             # Bahn liegt so weit unter Augenhoehe (Einheit: Tiefe): nah = tiefer im Bild
 lens = 0.62                # Brennweite (kurze Plakatseite pro Einheit Abstand)
-size = 0.66                # Sterngroesse (Einheit: Tiefe). Fern Radius = lens*size/(1+ahead) = 0.22
+size = 0.85                # Sterngroesse (Einheit: Tiefe). Fern Radius = lens*size/(1+ahead) = 0.22
 plane_roll_deg = 0         # Bahnebene um die Blickachse gedreht: 0 = waagerecht (links rein, rechts raus), 90 = senkrecht
-phase_shift_frames = 0.5   # Bahn um so viele Frames verschieben (gebrochen erlaubt): legt fest, welche Frames leer sind
+phase_shift_frames = -0.5  # Bahn um so viele Frames verschieben (gebrochen erlaubt): legt fest, welche Frames leer sind
 rot_start_deg = 0          # Drehung im ersten Frame
 spin_deg = 240             # Eigendrehung pro Umlauf. Vielfache von 60° schliessen nahtlos (6-zackiger Stern)
 
