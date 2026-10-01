@@ -7,6 +7,9 @@ schon verworfen ist. Aktueller Stand und nächste Schritte: `CLAUDE.md`.
 
 | Datum | Entscheidung | Warum |
 |---|---|---|
+| 2.10. | **Farbe C5b** (Split-Tone, Hell-Dunkel in 2 Blöcken) | Vadim: „c5b finde ich am besten, das ist Basis ab jetzt" |
+| 2.10. | ~~Drop-Konzepte E1a–c~~ (Pixel-Explosion, Dimensionssprung, Wand) | Vadim: „alle E-Versionen sind scheiße". Stattdessen: Loop endet auf großem Stern in der Mitte → Infinite Zoom (beschleunigt/abbremsend) → Schwarz, ggf. Platzhalter-Info |
+| 2.10. | Musik: Basis M2a, Video 16–20 s, Brumm-Fade-in, kurze Pause mit Hall vor dem Drop | Vadim: „springt zu sehr", „gesamtes Video nicht 30 s", „Loop zu langsam" |
 | 2.10. | **Bahn B20c** (Ellipse ganz vor dem Betrachter, `ahead` 1.3, `front_dwell_frac` 0.6, `size` 0.85) | Vadim: zentral bildfüllend → links → hinter SPARK → rechts → zentral; „mehr große Sparks vorne". B20/B20b raus, B19 + B20d–g geparkt |
 | 2.10. | `screen_frac` / `ends_dwell_frac` gebaut, nicht gewählt (B20d–g geparkt) | Befund B20c: sichtbarer Weg 0.08–0.26/Frame (×3.3). Gleichmäßig im Bild = ×1.0. Vadim blieb bei B20c |
 | 2.10. | **T16 = 48 Wechsel pro Takt** (nicht 24) | 16.32/s × 2.94 s Takt. 24 wären 16tel-Triolen (8.16/s); CLAUDE.md hatte sich verrechnet (Musik-Agent fand es) |
