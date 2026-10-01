@@ -19,7 +19,7 @@ In `loop.toml` steht, was Vadim gewählt hat:
 - Der **Blitz-Check ist aus** (`[checks].flash_gate` false, Vadim: „Farben dürfen crazy gehen").
 - **Farbe**: noch C1 als Platzhalter. Vadim mag die extrem bunten C4/C5, siehe unten.
 
-In `previz/review/` liegt, was offen ist (`geparkt/` = Alternativen, `alt/` = verworfen):
+Offen (Varianten liegen in `review/alt/` bzw. `geparkt/`, `review/` selbst ist leer bis auf `S_rework_3.png`):
 - **Farbe auf B20c**, jeweils `<Code>_B20c.toml` + `_preview.mp4` (volles Video, vNNN):
   - C1, C1b–d (Vadim: „keinen Unterschied"), C4, C5, C6.
   - **C4b/C4c, C5b/C5c** (2.10.): dieselben Stationen wie C4/C5, umsortiert in Hell-Dunkel-Blöcke (b à 16, c à 8),
@@ -64,11 +64,26 @@ In `previz/review/` liegt, was offen ist (`geparkt/` = Alternativen, `alt/` = ve
    (`kickoff_loop_music.py`, `[mashup]`). Das Raster-Format bleibt (`GRID_KEYS`).
 7. **Endkarte neu**, keine Hypno. Heute Platzhalter (Nest-Tunnel). Boil (`boil`) nur mit Vadims Ja.
 
-**So arbeiten** (hat getragen):
-- Varianten als volle TOML-Kopie in `previz/review/<Code>.toml`, rendern mit `sheet <datei>`. Vadim schaut im Finder und
-  antwortet mit Codes. Veraltetes nach `review/alt/`.
+**So arbeiten** (2.10. nachgeschärft, für schnelles Iterieren):
+- **Gewähltes steht nur in `loop.toml`.** `previz/review/` enthält nur, was gerade offen ist. Nach jeder Wahl sofort
+  aufräumen: Entschiedenes nach `review/alt/`, Alternativen nach `review/geparkt/`.
+- **Varianten klein halten:** In eine Review-TOML nur den geänderten Abschnitt schreiben, `load` ergänzt den Rest aus
+  `loop.toml`. So wirkt jede spätere Entscheidung automatisch auf alle offenen Varianten, und niemand muss Varianten
+  neu abmischen. Name `<Code>.toml`, oben 1 Zeile, was die Variante macht und warum.
+- **Vadim entscheidet an Bewegung mit Ton:**
+  - `sheet <toml>` (~25 s, Bogen + Loop mit Ton) für Bahn, Farbe und Stile.
+  - `preview <toml>` (~1 min, ganzes Video) nur, wenn Musik oder Ende betroffen sind.
+  - Mehrere Varianten gleichzeitig: ein `hstack`-Video. ffmpeg hat hier kein `drawtext`, deshalb steht die
+    Reihenfolge im Dateinamen.
+- **Befund am fertigen Bild, nicht an der Palette:** Bei B20c deckt der Riesenstern F1–4 ab, der Grund lügt dort.
+  - Messen: Helligkeitssprung pro Frame (Bild-L, OKLab) und sichtbarer Weg der Sternspitzen pro Frame.
+  - Die Skripte dafür liefen 2.10. noch als Wegwerfcode. Offen: als Befehl `measure` in den Report.
+- **Agenten** in eigenen Worktrees mit klaren Dateigrenzen (Farbe, Bahn, Musik, Ende).
+  - Auftrag beginnt mit `git reset --hard claude/kickoff-loop`, denn neue Worktrees können auf altem Stand liegen.
+  - Audio ist gitignored: aus `kickoff-loop/kickoff_loop/ref/audio/` verlinken.
+  - Nach dem Merge den Worktree entfernen (`git worktree remove`).
+  - Vadims Zwischenrufe sofort an den zuständigen Agenten (SendMessage), nicht sammeln.
 - Befund zuerst rechnen, dann rendern. Die Bahn-Suche lief als Skript über die Parameter, schneller als Bögen raten.
-- Agenten in eigenen Worktrees, klare Dateigrenzen: Farbe → Farbteil von `kickoff_loop.py`, Sterne → `lab_spark.py`.
 
 ## Vision
 
