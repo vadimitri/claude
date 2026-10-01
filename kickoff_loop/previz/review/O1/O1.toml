@@ -1,0 +1,57 @@
+# O1 Fern + Zoom (Vadim 2.10.: "digitaler Loop, der anders loopt", v1: "nach hinten, bis er klein ist wie bei F17, von
+# dort Zoom hinein mit Ease-in und Beschleunigung"): 4 Takte T16, auf dem Bass-Boom (Takt 5, 11.76 s) laeuft der Loop
+# digital weiter (24 fps, gleiche Bahn/Sterne/Farben), bremst in einem Beat in den fernsten Punkt F17 (Halt auf
+# Takt 6, 14.70 s), die Kamera taucht schon ab Bremsbeginn in die Matrjoschka, beschleunigt (Ease-in); die Farbe
+# rastet mit dem Halt ein. Takt 7: Endkarte wie Z5 (SPARK faellt, KICK-OFF/Datum auf den Beats, QR auf dem Hit 20.59 s).
+# Nur geaenderte Abschnitte, Rest aus loop.toml. Musik: IGOR ungeschnitten (Vadim schneidet spaeter selbst).
+
+[ending]
+carousel_bars = 4          # Karussell T16 bis zum Bass-Boom (Takt 5)
+runout_bars = 0
+runout_hold_beats = 0.0
+length_bars = 9.0          # bis Takt 10 (26.47 s): der QR steht ~6 s
+card_on = true
+# Bahn-Ende (end_mode = "orbit"). Zeiten in Beats ab dem Karussell-Ende (= Bass-Boom); end_frame folgt daraus
+orbit_path = "zoom"        # zoom = in den fernsten Punkt bremsen, dann in die Matrjoschka tauchen | throw = Schleuder
+orbit_frame = 17           # Halt auf F17: fernster Punkt der Bahn B20c (Radius 0.23, hinter SPARK)
+orbit_at_beats = 4.0       # ... auf Takt 6 (14.70 s)
+orbit_brake_beats = 1.0    # bremst so lange (gleichmaessig verzoegert ab F11, Anfangstempo = T16, kein Ruck)
+orbit_zoom_beats = 5.0     # Kamera taucht ab Bremsbeginn ein; nach so vielen Beats (= Takt 7, Karte) ...
+orbit_zoom_dolls = 12.0    # ... ist sie so viele Puppen tief (1 Puppe = x1.56), danach beschleunigt sie weiter
+orbit_zoom_pow = 2.0       # Ease-in: Puppen ~ Zeit^2 (aus dem Stand, dann der Sog). 2.5 hing 0.7 s fast still im Punkt
+orbit_zoom_center = [0.50, 0.50]   # Mitte gleitet beim Eintauchen hierhin (Bruchteil des 9:16-Bilds)
+orbit_zoom_core_shrink = 1.0       # Kern zieht sich pro Puppe zurueck: innen oeffnen sich neue Puppen (wie Z4)
+orbit_spin_speedup = 1.5   # Drehung: Bahntempo (122 Grad/s), legt pro Beat das 0.5-fache zu
+orbit_cycle_beats = 4.0    # Farben wechseln im T16-Raster bis zum Halt in F17 (Takt 6), dann taucht die Kamera in EINER
+                           # Colorway ein. v1 bis Takt 7: Matrjoschka bildfuellend mit Farbwechsel je Bild = die verworfenen
+                           # Hypno-Ringe ("palette-cycling rings", 1.10.)
+orbit_type_out_at_beats = 7.0      # Titelblock des Plakats zerfaellt im Korn ab hier ...
+orbit_type_out_beats = 1.0         # ... in so vielen Beats (weg, wenn SPARK der Karte faellt)
+card_reveal = "bayer"
+card_diff = false
+card_moves = [["title", 8.0, 0.0, -0.12, 1.0],     # Takt 7: SPARK faellt von oben
+              ["what", 9.0, -0.6, 0.0, 1.0],       # KICK-OFF von links
+              ["when", 10.0, 0.6, 0.0, 1.0],       # Datum von rechts; Beat 11 = IGORs Stopp, Stille, alles steht
+              ["qr", 12.0, 0.0, 0.0, 0.0],         # Hit nach dem Stopp: QR springt aus der Mitte auf
+              ["cta", 12.5, 0.0, 0.03, 1.0],       # JOIN US
+              ["info", 13.0, 0.0, 0.03, 1.0]]
+card_in_beats = 0.5
+card_overshoot = 1.70158
+card_dim_frac = 1.0        # Zoom geht unter SPARK im Korn ganz in den Grund (dann steht der Stern, Karte frei)
+card_title_w_frac = 0.74
+card_top_frac = 0.14
+card_sub_frac = 0.40
+card_gap_frac = 0.30
+card_qr_module_cells = 4
+card_qr_quiet_cells = 4
+card_qr_y_frac = 0.58
+card_glow_cells = 16
+card_cta_cells = 12
+card_cta_gap_cells = 8
+card_info = ["ORT FOLGT"]
+card_info_frac = 0.30
+
+[endcard]
+end_mode = "orbit"
+burst_on = false
+impact_on = false

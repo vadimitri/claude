@@ -233,8 +233,8 @@ def digital_phase(cfg, dt):
     fly = e["burst_beats"] * b                                   # die Luft vor dem Drop, auch ohne Ausbruch: Impact = Drop
     hit = e["impact_frames"] / cfg["video"]["timeline_fps"]
     mode, burst, impact = e.get("end_mode", "card"), e.get("burst_on", True), e.get("impact_on", True)
-    if mode == "words":                                          # Begriffe (kickoff_loop_end), ab dem Karussell-Ende
-        return "words", dt
+    if mode in ("words", "orbit"):                               # Begriffe / Bahn (kickoff_loop_end), ab dem Karussell-Ende
+        return mode, dt
     if burst and dt < fly:
         return "burst", dt
     if impact and fly <= dt < fly + hit:
@@ -316,9 +316,9 @@ def digital_style(cfg, dt):
             stetig neue Sterne nach aussen (card_zoom_stars_per_s), alles frontal, 24 fps. Titel, Datum und QR setzen
             nacheinander auf 16teln ein (card_reveal_16ths), nichts steht still."""
     e, n = cfg["endcard"], KL.count(cfg)
-    if e.get("end_mode") == "words":
+    if e.get("end_mode") in ("words", "orbit"):
         import kickoff_loop_end as KE
-        return KE.words_state(cfg, dt)
+        return (KE.words_state if e["end_mode"] == "words" else KE.orbit_state)(cfg, dt)
     W, H = cfg["video"]["size_px"]
     pw, ph = S.SIZES[KL.PREVIEW][:2]
     ox, oy = digital_offset(cfg)
@@ -834,7 +834,14 @@ def qr_scan(images):
 
     def one(im):
         a = np.asarray(im)
-        return KL.memo("qr9x16", hashlib.sha1(a.tobytes()).hexdigest(), lambda: bool(K.check_qr(a, px)))
+
+        def read():
+            import cv2
+            try:
+                return bool(K.check_qr(a, px))
+            except cv2.error:              # OpenCV 5 bricht bei manchen Bildern ohne QR intern ab (resize: leere Groesse,
+                return False               # O1 1.10.: Matrjoschka-Ringe im Zoom) → gilt als nicht lesbar
+        return KL.memo("qr9x16", hashlib.sha1(a.tobytes()).hexdigest(), read)
     with ThreadPoolExecutor() as ex:
         return list(ex.map(one, images))
 
@@ -989,7 +996,7 @@ def preview(cfg, posters, qr_ok, legib):
     end_leg = KL.legibility(digital_style(cfg, (tl.total - tl.zoom_end - 1) / tfps), np.asarray(digital[-1]), "9x16")
     contact_sheet(cfg, posters, qr_ok, legib, stills, os.path.join(out, draft_name(cfg, "contact.png")))
     mode = cfg["endcard"].get("end_mode")
-    if mode in ("zoom", "words"):
+    if mode in ("zoom", "words", "orbit"):
         zoom_sheet(cfg, tl, digital, last_img, os.path.join(out, draft_name(cfg, f"{mode}.png")))
     ground = [float(KL.LUMA @ (np.array([int(c[j:j + 2], 16) for j in (1, 3, 5)]) / 255))
               for c in (KL.palette_hex(cfg, i)[0] for i in range(n))]
