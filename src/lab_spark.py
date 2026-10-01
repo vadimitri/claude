@@ -9,7 +9,7 @@ Zusatzebenen in einer zweiten Palette (Fenster). Nur Importe aus styles.py, kein
   uv run ... python src/lab_spark.py S31 --kick --pal cherenkov                                          # Test mit Kick-off-Titel
   uv run ... python src/lab_spark.py posters [S31b S26]                                                  # A3 im echten Satz
   uv run ... python src/lab_spark.py html                                                                # nur Galerie
-  uv run ... python src/lab_spark.py test                                                                # Selbsttest Handschraffur S54b/c
+  uv run ... python src/lab_spark.py test                                                                # Selbsttests: Handschraffur S54b/c, Poly, QR frei (S56-S60), Laeufer S60
 -> styles/lab/spark/<code>_<pal>_<fmt>.png, poster_<code>_<pal>.png, sheet_*.png, index.html
 """
 import html
@@ -20,7 +20,7 @@ from multiprocessing import Pool
 import numpy as np
 from PIL import Image, ImageDraw
 from scipy.ndimage import (gaussian_filter, gaussian_filter1d, map_coordinates, binary_dilation, binary_erosion,
-                           distance_transform_edt)
+                           distance_transform_edt, maximum_filter)
 
 import styles
 from styles import BASE, Ctx, dither, font, hexpal, line_mask, up
@@ -2210,6 +2210,581 @@ def _skizze(g, study):
     return np.clip(v, 0, 1)
 
 
+# ---------------------------------------------------------------- Spider-Verse-Serie 2 (2.10., S56 ff.)
+# Vadim 2.10.: neue Sterne nach den Stills in kickoff_loop/ref/spiderverse/img/ (06 Neonblasen, 01 Collage, 02 Speedlines im
+# Stern, 03 Spritzer + versetzte Skizzenlinien) und ein Graffiti-Spark. Regeln wie die Serie oben: frontal, folgt der Bahn
+# (_local), nur Palettenstufen auf dem Zellraster, jede Flaeche im Korn (_dithered), kein eigenes Lila (die Farben kommen aus
+# der Split-Tone-Palette des Plakats: Stufe 0-2 erste Colorway, 3-5 zweite, deshalb liegen z. B. Stufe 3 und 4 oft in zwei
+# Farbtoenen), JOIN US + QR frei (Effekte, die die Zone beruehren wuerden, entfallen ganz statt gerade abgeschnitten zu
+# werden), hinter dem Titel laufen die Effekte weiter (kickoff_loop.title_value zeigt sie invertiert).
+SV2_KEEP_QR = True           # Selbsttest schaltet das kurz ab und zeigt, dass er Effekte in der QR-Zone sieht
+SV2_QR_GAP_CELLS = 1.0       # Effekte bleiben so viele Zellen vor der QR-Zone (_qr_zone hat schon 6 Zellen Rand)
+SV2_SPLIT = 3                # Naht der Split-Tone-Paletten (loop.toml [color].split_level): Stufen 0-2 eine Colorway, 3-5 die
+                             # zweite. Aendert sich split_level, hier nachziehen
+SV2_GRAIN_SPAN = 0.25        # grosse Flaechen (Papier, Spruehwolke): nur so viel Korn (Stufen) statt DITHER_SPAN. Befund 2.10.:
+                             # mit vollem Korn mischen zwei Farbtoene einer Split-Palette zu Grau (Gelb + Blau, S57 F5) oder
+                             # Flieder (Pink + Cyan in P25, S60 F24)
+
+# S56 Neonblasen (Still 06, ITSV #64: Miles im Bett, Wolken aus Blasen am Bildrand). Drei Tiefen wie im Still: hinten
+# dunkle Kreise mit hellerem Ring, Mitte Blasen mit Ben-Day-Schatten, vorn leuchtende Neonblasen mit Lichthof.
+BUB_SEED = 560
+BUB_CLUSTERS = 7             # Wolken um den Stern: im Still ballen sich die Blasen, sie stehen nie gleichmaessig verteilt
+BUB_CLUSTER_SPREAD_DEG = 17  # Streuung einer Blase um ihre Wolke (Grad, auf dem Stern: die Wolken drehen mit)
+BUB_RING = (0.8, 2.3)        # Blasenmitten zwischen diesen Vielfachen des Sternprofils: sie quellen hinter dem Rand hervor
+BUB_LAYERS = (               # (Anzahl, Radius min/max in Sternradien, Stufe der Fuellung), von hinten nach vorn
+    (72, (0.12, 0.36), 1.7),  # hinten: dunkle Kreise (erste Colorway)
+    (60, (0.08, 0.28), 3.0),  # Mitte: Blasen mit Ben-Day-Schatten (zweite Colorway, unterste Lichtstufe)
+    (40, (0.05, 0.16), 4.0))  # vorn: Neon, Kern in der hellsten Stufe
+BUB_FAR_SHRINK = 0.45        # weiter weg vom Stern werden die Blasen so viel kleiner (Anteil): die Wolke loest sich auf
+BUB_MIN_CELLS = 2.5          # kleinste Blase (Radius, Zellen): darunter zerfaellt der Kreis im Raster
+BUB_MAX_M = 0.16             # groesste Blase (Radius, Seitenbreiten): beim Riesenstern waeren Blasen sonst seitengross
+BUB_RING_CELLS = 1.0         # hintere Blasen: Ringkontur (im Still dunkle Kreise mit hellem Ring)
+BUB_RING_STEP = 1.3          # ... so viele Stufen ueber der Fuellung
+BUB_DOT_CELLS = 4.0          # Ben-Day-Raster der mittleren Blasen und des Sterns (Rasterweite, fest auf der Seite)
+BUB_DOT_MAX = 0.55           # groesste Flaechendeckung der Punkte im Schatten (zur Lichtgegenseite und zum Rand)
+BUB_DOT_STEP = 0.9           # Punkte liegen so viele Stufen unter ihrer Blase: knapp eine, sonst mischt das Raster ueber zwei
+                             # Stufen und quer ueber die Naht der Split-Palette (Rot + Dunkelblau liest sich als Flieder)
+BUB_GLOW_CELLS = 4.0         # Neon: Licht faellt um die vorderen Blasen exponentiell ab (steil an der Quelle, langer Schwanz)
+BUB_GLOW_LEVEL = 3.6         # ... ausgehend von dieser Stufe am Blasenrand
+
+# S57 Collage (Still 01, ATSV #35: Hobie, Spider-Punk). Der Stern als Scherenschnitt auf Papierlagen: eine grosse Lage mit
+# wenigen geraden Schnitten (orange Silhouette hinter Hobie), eine gerissene Lage mit fransigem Rand und heller Faser (gelb
+# hinter der Gitarre), versetzt und verdreht, jede mit Schlagschatten. Jedes Plakat ist neu geschnitten (Seed aus der
+# Sternlage): im Loop springen die Lagen wie Stop-Motion auf Zweiern (Mischraten, Technik 01).
+COL_SEED = 570
+COL_PAPERS = (               # Lagen hinter dem Stern, hinten zuerst: (Art, Groesse in Sternprofilen, Versatz (x, y) in
+    ("cut", 1.30, (-9, 7), -7, 3.0),    # Zellen, Drehung in Grad, Stufe)
+    ("torn", 1.13, (9, -6), 9, 4.0))
+COL_JUMP_CELLS = 4           # jede Lage springt je Plakat um bis zu so viele Zellen ...
+COL_JUMP_DEG = 5             # ... und so viele Grad (die Hand legt das Papier jedes Mal etwas anders hin)
+COL_CUT_VERTS = (14, 20)     # Ecken des Scherenschnitts rundum (wenige: lange gerade Schnitte wie im Still)
+COL_CUT_JITTER = 0.09        # Ecken liegen radial so weit daneben (Sternprofile)
+COL_CUT_SPIKE = (0.06, 0.22) # an den Spitzen steht die Ecke so weit ueber (Schere zu weit gefuehrt), Sternprofile
+COL_TORN_OCTAVES = ((5, 0.045), (13, 0.03), (37, 0.014), (97, 0.007))   # Reissrand: (Wellen pro Umlauf, Amplitude in
+                                                                         # Sternprofilen), grob bis faserig
+COL_FIBRE_CELLS = (0.6, 2.6) # helle Papierfaser am Reissrand, Breite schwankt entlang des Rands (Zellen)
+COL_SHADOW_CELLS = (3, 3)    # Schlagschatten jeder Lage nach unten rechts (x, y): das Papier liegt auf
+COL_SHADOW_LEVEL = 0.15      # Schatten: fast Grundstufe, mit seltenem Korn
+COL_STAR_CUTS = (3, 6)       # der Stern selbst: gerade Schnitte pro halbe Flanke, je Flanke anders
+COL_STAR_JITTER = 0.025      # Schnittecken liegen so weit innen/aussen (Sternprofile)
+COL_DOT_CELLS = 3.0          # Fotokopie: Ben-Day-Raster auf der Schnittlage, eine Stufe heller (gleiche Colorway: dunklere
+COL_DOT_FILL = 0.3           # Punkte mischten Rot mit Dunkelblau zu Flieder, Befund 2.10. F9)
+COL_SCRIBBLE = (             # S57b: Kritzelkonturen ueber der Collage (orange Linien ueber Hobie): (Stufe, Durchgaenge,
+    (2, 3, 1.10, 5.0),       # Groesse in Sternprofilen, Zittern in Zellen); eine weite Kontur in Stufe 2 (oberste der ersten
+                             # Colorway: hebt sich vom Stern in der zweiten ab, Stufe 3 verschwand auf Rot in Rot, F9) ...
+    (1, 2, 0.94, 2.0))       # ... und eine dunkle knapp innen (Tusche)
+COL_SCRIBBLE_OVER_CELLS = (6, 22)   # die Kritzel schiessen an den Spitzen weit ueber
+
+# S58 Tunnel (Still 02, ITSV #22: Peter B. vor Fluchtlinien). IM Stern ein Fluchtbild: Speedlines laufen aus einem hellen
+# Fluchtpunkt, Keile (hinten haarfein, vorn breit) in vier Helligkeiten, manche gestrichelt, Grund mit Ben-Day-Punkten,
+# die zum Rand dichter werden. Ausserhalb des Sterns nichts (Vadim: "IM Spark").
+TUN_SEED = 580
+TUN_VP = (0.24, -0.16)       # Fluchtpunkt in Sternradien (vor der Drehung): neben der Mitte wie im Still (Licht rechts)
+TUN_LINES = 150
+TUN_START = (0.05, 0.6)      # Linie beginnt so weit vom Fluchtpunkt (Sternradien): um das Licht bleibt es frei
+TUN_HALF_W_CELLS = (0.4, 3.2)  # halbe Linienbreite eine Sternradius vom Fluchtpunkt (Zellen); waechst linear (Keil)
+TUN_LEVELS = (0.9, 2.2, 4.0, 5.0)    # Stufen der Linien: dunkel, mittel, hell, Licht ...
+TUN_LEVEL_P = (0.3, 0.25, 0.25, 0.2) # ... und wie oft (im Still mischen sich dunkle und weisse Streifen)
+TUN_DASH_P = 0.3             # Anteil gestrichelter Linien
+TUN_DASH_CELLS = (5, 16)     # Strichlaenge (Zellen), Luecke halb so lang
+TUN_CORE = 0.28              # Licht im Fluchtpunkt: faellt ueber so viele Sternradien exponentiell ab
+TUN_BASE = (3.3, 1.5)        # Grund des Tunnels: Stufe am Fluchtpunkt .. am Sternrand (aussen dunkler = Tiefe)
+TUN_BASE_REACH = 1.3         # ... erreicht am Rand nach so vielen Sternradien vom Fluchtpunkt
+TUN_DOT_CELLS = 4.0          # Ben-Day-Raster im Grund (fest auf der Seite), Punkte eine Stufe tiefer
+TUN_DOT_MAX = 0.5            # Flaechendeckung am Sternrand (am Fluchtpunkt 0)
+TUN_RIM_CELLS = 1.5          # helle Kante: der Stern ist ein Fenster in den Tunnel
+TUN_RIM_LEVEL = 4.6
+
+# S59 Impact (Still 03, ITSV "KRACK", marilajane): Farbspritzer und eine gemalte Schlaufe um den Stern, die Kontur mehrmals
+# versetzt in verschiedenen Stufen nachgezogen (blaue + schwarze Skizzenlinien neben der roten Fuellung im Still).
+IMP_SEED = 590
+IMP_SKETCH = (               # versetzte Skizzenkonturen: (Versatz (x, y) in Zellen, Stufe, Durchgaenge)
+    ((-6, -4), 2.2, 2),
+    ((6, 5), 3.6, 2),
+    ((1, -1), 0.4, 1))
+IMP_SKETCH_SCALE = (0.96, 1.06)  # jede Kontur etwas anders gross: die Hand trifft die Form nie genau
+IMP_OVER_CELLS = (4, 16)     # Ueberschwinger an den Spitzen (Zellen)
+IMP_SPLATS = 12              # Hauptkleckse
+IMP_THROW_SPREAD_DEG = 100   # (Mitte des Faechers: vom Stern zur Plakatmitte, damit die Farbe im Bild landet, nicht daneben)   # Kleckse liegen in einem Faecher um die Wurfrichtung: einseitig = Farbe, kein Burst
+IMP_SPLAT_RING = (0.9, 1.6)    # Abstand der Kleckse (Sternprofile)
+IMP_SPLAT_R = (0.07, 0.20)   # Radius des Hauptkleckses (Sternradien)
+IMP_SPLAT_LOBES = (5, 10)    # Ausbuchtungen eines Kleckses
+IMP_DROPS = (6, 16)          # Tropfen je Klecks
+IMP_DROP_REACH = 3.2         # Tropfen fliegen bis so viele Klecksradien weit, kleiner je weiter
+IMP_TAILS = 2                # lange Tropfen (Schweif) je Klecks, laufen vom Stern weg
+IMP_SPECKS = 90              # feine Spritzer (1-2 Zellen) im ganzen Faecher, wie die Punktwolken im Still
+IMP_SPECK_REACH = (1.05, 2.4)  # ... so weit (Sternprofile)
+IMP_SPLAT_LEVELS = (3, 4, 1)         # Klecksfarben reihum: zwei Lichtstufen und eine dunkle (Tusche)
+IMP_LOOP_R = (1.3, 1.62)     # gemalte Schlaufe (Pinsel): Ellipse um den Stern, Halbachsen (Sternradien)
+IMP_LOOP_TURNS = 1.2
+IMP_LOOP_W_CELLS = (0.8, 3.2)  # Pinselbreite (Radius, Zellen): duenn ansetzen, dick in der Kurve, duenn auslaufen
+IMP_LOOP_LEVEL = 3
+IMP_SKETCH_W_CELLS = 2       # Strichbreite der Skizzenkonturen (1 Zelle verschwindet im Korn der Vorschau)
+
+# S60 Graffiti (eigene Interpretation): wie mit der Dose gesprueht. Spruehwolke hinter dem Piece, helle zweite Outline,
+# Fuellung mit Fade (unten Stufe 3, oben 5), dunkle Outline etwas neben der Fuellung (zweiter Arbeitsgang), alles mit
+# Spruehnebel (Dichte faellt exponentiell, Punkte zufaellig); Laeufer laufen nach unten (Schwerkraft auf der Seite, nicht
+# auf dem Stern), Glanzstriche und zwei Glanzsterne oben links (Licht wie LIGHT).
+GRF_SEED = 600
+GRF_GRAVITY = "page"         # Laeufer fallen auf der Seite nach unten; "star" = alter Fehler (nur fuer den Selbsttest)
+GRF_FILL = (3.0, 5.0)        # Fuellung: Fade von unten (Stufe 3) nach oben (Stufe 5) ueber den Stern, im Korn
+GRF_FILL_NOISE = 0.35        # der Fade ist von Hand gesprueht: Wolkigkeit (Stufen)
+GRF_OVERSPRAY_CELLS = 2.2    # Spruehnebel: Dichte faellt ueber so viele Zellen auf 1/e ab
+GRF_OVERSPRAY_MAX = 0.7      # Dichte direkt an der Kante
+GRF_OUTLINE_CELLS = 3.0      # dunkle Outline (Breite)
+GRF_OUTLINE_LEVEL = 0.6
+GRF_OUTLINE_SHIFT_CELLS = (1.0, 1.0)   # Outline sitzt so weit daneben (x, y): nachgezogen, nie genau auf der Fuellung
+GRF_BACK_CELLS = 3.0         # helle zweite Outline aussen (Hintergrundlinie der Writer)
+GRF_BACK_LEVEL = 5
+GRF_CLOUD = 1.5              # Spruehwolke hinter dem Piece: Groesse (Sternprofile, mit Wellenrand)
+GRF_CLOUD_LEVEL = 2.0        # ganze Stufe (mit wenig Korn): 1.8 mischte in P25 Pink + Cyan zu Flieder (Befund 2.10. F24)
+GRF_DRIPS = 9                # Laeufer
+GRF_DRIP_LEN = (0.08, 0.5)   # Laenge (Sternradien), dazu mindestens GRF_DRIP_MIN_CELLS
+GRF_DRIP_MIN_CELLS = 5
+GRF_DRIP_MAX_M = 0.09        # hoechstens so lang (Seitenbreiten): am Riesenstern sonst Laeufer ueber die halbe Seite
+GRF_DRIP_W_CELLS = (1.0, 2.2)  # halbe Breite (Zellen), am Ende ein Tropfen 1.4x so breit
+GRF_SHINE_CELLS = 2.5        # Glanzstrich so weit innen an den Flanken zum Licht
+GRF_SHINE_SPAN = (0.15, 0.55)  # ... ueber diesen Anteil der Flanke
+GRF_GLINT_CELLS = (5, 10)    # Glanzstern: Armlaenge (Zellen)
+
+
+def _grain(level, L, N):
+    """Flaeche auf Stufe level im Korn, aber das Korn bleibt in derselben Colorway: ab der Naht der Split-Palette
+    (SV2_SPLIT) mischt es mit der Stufe darueber, darunter mit der Stufe darunter, und nur SV2_GRAIN_SPAN Stufen weit.
+    _dithered mischt immer nach unten: Stufe 3 + 2 liegt quer ueber der Naht (Rot + Blau = Flieder, Gelb + Blau = Oliv,
+    Befund 2.10. S57 F5/F9). Nie genau auf der Stufe (Vadim: alles unter dem Dither)."""
+    k = DITHER_MIN + SV2_GRAIN_SPAN * (1 - np.asarray(L))
+    up = (np.floor(level) >= SV2_SPLIT) & (np.floor(level) < N)
+    return np.where(up, np.floor(level) + k, level - k) / N
+
+
+def _benday_dist(g, pitch_cells):
+    """Abstand jeder Zelle zum naechsten Ben-Day-Punktmittelpunkt in Rasterweiten (45 Grad, fest auf der Seite wie S55):
+    Punkt = Abstand < sqrt(Deckung / pi)."""
+    uu = (g.c.xx - g.c.yy) / np.sqrt(2) / pitch_cells
+    ww = (g.c.xx + g.c.yy) / np.sqrt(2) / pitch_cells
+    return np.hypot(uu - np.round(uu), ww - np.round(ww))
+
+
+def _qr_free(g):
+    """Abstand zur QR-Zone (m). Ohne SV2_KEEP_QR (Selbsttest) unendlich: dann laufen die Effekte hinein."""
+    if not SV2_KEEP_QR:
+        return np.full((g.gh, g.gw), np.inf)
+    return distance_transform_edt(~_qr_zone(g)) * _cell(g) - SV2_QR_GAP_CELLS * _cell(g)
+
+
+def _win(g, cx, cy, ext):
+    """Fenster (Zeilen-, Spalten-Slice) um einen Punkt (m), Radius ext (m); None, wenn es die Seite nicht trifft."""
+    c = _cell(g)
+    j0, j1 = max(0, int((cx - ext) / c) - 1), min(g.gw, int((cx + ext) / c) + 2)
+    i0, i1 = max(0, int((cy - ext) / c) - 1), min(g.gh, int((cy + ext) / c) + 2)
+    return None if j0 >= j1 or i0 >= i1 else (slice(i0, i1), slice(j0, j1))
+
+
+def _hand(g, acc, rng, pts, base, amp_cells, corr=0.15, taper_cells=4.0):
+    """Handstrich wie in _skizze (dort lokal): Zittern quer zur Laufrichtung, Druck schwankt, Enden laufen duenn aus."""
+    c = _cell(g)
+    step = HAND_STEP_CELLS * c
+    pts = _dense(np.asarray(pts, float), step)
+    n = len(pts)
+    tg = np.gradient(pts, axis=0)
+    tg /= np.hypot(*tg.T)[:, None] + 1e-12
+    pts = pts + np.c_[-tg[:, 1], tg[:, 0]] * (amp_cells * c * _wob(rng, n, corr * n))[:, None]
+    s = np.arange(n) * step
+    p = base * (0.72 + 0.28 * _wob(rng, n, 0.12 * n)) * np.clip(np.minimum(s, s[-1] - s) / (taper_cells * c), 0.2, 1)
+    _pen(g, acc, pts, p)
+
+
+def _plate_seed(base, x0, y0, R):
+    """Seed je Plakat aus der Sternlage (wie S48d): jedes Plakat anders, gleiche Lage = gleiches Bild."""
+    return base + int(abs(x0 * 9973 + y0 * 7919 + R * 6007) * 1e4) % 2 ** 31
+
+
+def c_neonblasen(g):
+    """S56 Neonblasen (Still 06, ITSV #64: Miles liegt im Bett, ringsum Wolken aus Blasen in Pink und Cyan). Um den Stern
+    quellen Blasen in sieben Wolken hervor, drei Tiefen wie im Still: hinten dunkle Kreise mit hellem Ring (erste Colorway),
+    in der Mitte Blasen mit Ben-Day-Schatten zur Lichtgegenseite und zum Rand (unterste Lichtstufe), vorn kleine Neonblasen,
+    deren Kern in der hellsten Stufe leuchtet, mit Lichthof (exponentiell). Der Stern selbst traegt denselben Ben-Day-
+    Schatten (Halbton als Licht, Technik 06). Die Wolken sitzen auf dem Stern und drehen mit; Blasen, die JOIN US + QR
+    beruehren wuerden, entfallen ganz."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    rng = np.random.default_rng(BUB_SEED)
+    qfree = _qr_free(g)
+    bd = _benday_dist(g, BUB_DOT_CELLS)
+    lx, ly = LIGHT[:2] / np.hypot(*LIGHT[:2])
+    v = bg(g) + 0.06 * glow(d, 0.3)
+    clusters = rng.uniform(0, 360, BUB_CLUSTERS)
+    front = []
+    for layer, (n, (r0, r1), lvl) in enumerate(BUB_LAYERS):
+        for _ in range(n):                                   # erst alles ziehen, dann pruefen: Seed-Folge bleibt fest
+            a = rng.choice(clusters) + rng.normal(0, BUB_CLUSTER_SPREAD_DEG)
+            t = rng.random() ** 1.6                          # dicht am Stern mehr Blasen
+            size = rng.uniform(r0, r1)
+            cx, cy = _polar(x0, y0, R, rot, a, BUB_RING[0] + (BUB_RING[1] - BUB_RING[0]) * t)
+            rad = float(np.clip(size * R * (1 - BUB_FAR_SHRINK * t), BUB_MIN_CELLS * c, BUB_MAX_M))
+            ext = rad + (3 * BUB_GLOW_CELLS * c if layer == 2 else 0)
+            w = _win(g, cx, cy, ext)
+            if w is None:
+                continue
+            dx, dy = g.X[w] - cx, g.Y[w] - cy
+            rr = np.hypot(dx, dy) / rad
+            if (qfree[w][rr * rad < ext] < 0).any():           # beruehrt JOIN US + QR: Blase entfaellt ganz
+                continue
+            inside = rr < 1
+            side = (dx * lx + dy * ly) / rad                  # > 0 zum Licht
+            if layer == 0:
+                val = _dithered(lvl, 0.5 + 0.5 * side, N)
+                val = np.where(rr > 1 - BUB_RING_CELLS * c / rad, (lvl + BUB_RING_STEP) / N, val)
+            elif layer == 1:
+                shade = np.clip(0.5 - 0.5 * side + rr ** 4, 0, 1)
+                dots = bd[w] < np.sqrt(BUB_DOT_MAX * shade / np.pi)
+                val = np.where(dots, (lvl - BUB_DOT_STEP) / N, _grain(lvl, 0.5 + 0.5 * side, N))
+            else:
+                front.append((w, rr, rad))
+                continue
+            v[w] = np.where(inside, val, v[w])
+    halo = np.zeros(d.shape)                                 # Lichthof der Neonblasen ueber allem dahinter
+    lit = np.zeros(d.shape, bool)
+    for w, rr, rad in front:
+        halo[w] = np.maximum(halo[w], np.exp(-np.maximum(rr - 1, 0) * rad / (BUB_GLOW_CELLS * c)))
+        lit[w] |= rr < 1
+    v = np.where(lit, v, v + np.clip(BUB_GLOW_LEVEL / N - v, 0, None) * halo)
+    for w, rr, rad in front:                                 # Kern hellste Stufe, Rand Stufe 4, im Korn
+        v[w] = np.where(rr < 1, _dithered(N, np.clip(1 - rr ** 2, 0, 1), N), v[w])
+    L = _lightfield(x, y, d)
+    shade = np.clip(-(x * lx + y * ly) * 1.2, 0, 1)          # Stern: Ben-Day auf der Schattenseite
+    dots = bd < np.sqrt(BUB_DOT_MAX * shade / np.pi)
+    v = np.where(d < 1, np.where(dots, (N - BUB_DOT_STEP) / N, _dithered(N, L, N)), v)
+    g.lit = ((d < 1) | lit) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def _star_poly(x0, y0, R, rot, rng, cuts, jitter):
+    """Stern als Polygon aus geraden Schnitten (m): Stuetzpunkte auf dem Profil, Spitzen genau, dazwischen je halbe
+    Flanke cuts[k] Schnitte, radial um jitter daneben. Wie S52, aber jede Flanke anders oft geschnitten."""
+    pts = []
+    for k in range(12):                                      # 12 halbe Flanken (Spitze → Kerbe → Spitze)
+        n = int(rng.integers(*cuts)) if np.ndim(cuts) else int(cuts)
+        for f in np.arange(n) / n:
+            a = TIP_DEG + 30 * k + 30 * f
+            pts.append(_polar(x0, y0, R, rot, a, 1 if f == 0 and k % 2 == 0 else 1 + rng.uniform(-jitter, jitter)))
+    return pts
+
+
+def _raster_poly(g, pts):
+    """Polygon (m) aufs Zellraster, ohne Kantenglaettung."""
+    c = _cell(g)
+    im = Image.new("1", (g.gw, g.gh), 0)
+    ImageDraw.Draw(im).polygon([(px / c - 0.5, py / c - 0.5) for px, py in pts], fill=1)
+    return np.asarray(im, bool)
+
+
+def _shift(m, dx, dy):
+    """Maske um ganze Zellen verschieben (x rechts, y unten), was hinausfaellt, ist weg."""
+    out = np.zeros_like(m)
+    h, w = m.shape
+    out[max(dy, 0):h + min(dy, 0), max(dx, 0):w + min(dx, 0)] = m[max(-dy, 0):h - max(dy, 0), max(-dx, 0):w - max(dx, 0)]
+    return out
+
+
+def c_collage(g, scribble=False):
+    """S57 Collage (Still 01, ATSV #35: Hobie als Collage, Spider-Punk). Der Stern als Scherenschnitt, darunter zwei
+    Papierlagen, versetzt und verdreht: eine grosse mit wenigen langen geraden Schnitten und ueberstehenden Ecken (die
+    orange Silhouette hinter Hobie, mit Fotokopie-Raster), eine gerissene mit fransigem Rand und heller Papierfaser (das
+    gelbe Stueck hinter der Gitarre). Jede Lage wirft einen Schlagschatten nach unten rechts. Jedes Plakat ist neu
+    geschnitten und neu hingelegt (Seed aus der Sternlage): im Loop springen die Lagen wie Stop-Motion, holprig, von Hand
+    (Mischraten, Technik 01)."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    rng = np.random.default_rng(_plate_seed(COL_SEED, x0, y0, R))
+    v = bg(g) + 0.05 * glow(d, 0.3)
+    qfree = _qr_free(g)
+    keep = qfree > 0
+    bd = _benday_dist(g, COL_DOT_CELLS)
+    sx, sy = COL_SHADOW_CELLS
+    shadow_v = COL_SHADOW_LEVEL / N
+    papers = []
+    for kind, scale, (ox, oy), drot, lvl in COL_PAPERS:
+        jx, jy = rng.uniform(-1, 1, 2) * COL_JUMP_CELLS
+        lrot = rot + drot + rng.uniform(-1, 1) * COL_JUMP_DEG
+        lx0, ly0 = x0 + (ox + jx) * c, y0 + (oy + jy) * c
+        if kind == "cut":
+            n = int(rng.integers(*COL_CUT_VERTS))
+            ang = np.sort(rng.uniform(0, 360, n))
+            ang = np.sort(np.r_[ang, TIP_DEG + 60 * np.arange(6) + rng.normal(0, 3, 6)])
+            pts = []
+            for a in ang:
+                tip = np.min(np.abs((a - TIP_DEG + 30) % 60 - 30)) < 6
+                over = rng.uniform(*COL_CUT_SPIKE) if tip else 0.0
+                pts.append(_polar(lx0, ly0, R * scale, lrot, a, 1 + over + rng.uniform(-1, 1) * COL_CUT_JITTER))
+            m = _raster_poly(g, pts)
+            fibre = np.zeros_like(m)
+        else:
+            lx, ly = (g.X - lx0) / R, (g.Y - ly0) / R
+            th = np.arctan2(ly, lx) - np.radians(lrot)
+            edge = 1 + sum(amp * np.sin(k * th + rng.uniform(0, 2 * np.pi)) for k, amp in COL_TORN_OCTAVES)
+            dl = sd(lx, ly, lrot) / scale
+            m = dl < edge
+            fw = COL_FIBRE_CELLS[0] + (COL_FIBRE_CELLS[1] - COL_FIBRE_CELLS[0]) * (
+                0.5 + 0.5 * np.sin(23 * th + rng.uniform(0, 6.3)) * np.sin(7 * th + rng.uniform(0, 6.3)))
+            fibre = m & (dl > edge - fw * c / (R * scale))
+        papers.append((m & keep, fibre & keep, lvl, kind))
+    L = _lightfield(x, y, d)
+    for m, fibre, lvl, kind in papers:                         # hinten zuerst; Schatten liegt auf allem darunter
+        v = np.where(_shift(m, sx, sy) & ~m & keep, shadow_v, v)
+        val = _grain(lvl, L, N)
+        if kind == "cut":                                      # Fotokopie: grobes Raster auf der Schnittlage
+            val = np.where(bd < np.sqrt(COL_DOT_FILL / np.pi), _grain(lvl + 1, L, N), val)
+        v = np.where(m, np.where(fibre, _dithered(N, 0.8, N), val), v)
+    star = _raster_poly(g, _star_poly(x0, y0, R, rot, rng, COL_STAR_CUTS, COL_STAR_JITTER))
+    v = np.where(_shift(star, sx, sy) & ~star & keep, shadow_v, v)
+    v = np.where(star, _dithered(N, L, N), v)
+    if scribble:                                               # S57b: lose Kritzelkonturen ueber allem (nie im QR)
+        for lvl, passes, sc, amp in COL_SCRIBBLE:
+            ink = np.zeros(d.shape, np.float32)
+            for _ in range(passes):
+                for k in range(6):
+                    pts = _flank(x0 + rng.normal(0, 2) * c, y0 + rng.normal(0, 2) * c, R * sc * rng.uniform(0.97, 1.03),
+                                 rot + rng.normal(0, 2), k, rng.uniform(-0.05, 0.1), rng.uniform(0.9, 1.05))
+                    ov = [rng.uniform(*COL_SCRIBBLE_OVER_CELLS) * c if rng.random() < 0.6 else 0.0 for _ in (0, 1)]
+                    _hand(g, ink, rng, _extend(pts, *ov), rng.uniform(0.75, 1.0), amp, corr=0.06, taper_cells=5)
+            ink = np.clip(maximum_filter(ink, IMP_SKETCH_W_CELLS), 0, 1) * keep
+            v = v + (_grain(lvl, 0.7, N) - v) * ink
+    g.lit = star & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def c_collage_kritzel(g):
+    """S57b Collage Kritzel: S57, dazu lose Kritzelkonturen ueber allem wie die orangen Linien ueber Hobie im Still 01:
+    eine weite, zittrige Kontur in der Papierstufe, mehrmals gezogen, an den Spitzen weit ueberschiessend, und eine dunkle
+    Tuschekontur knapp innen. Die Kritzel springen je Plakat mit (Seed aus der Sternlage)."""
+    return c_collage(g, scribble=True)
+
+
+def c_tunnel(g):
+    """S58 Tunnel (Still 02, ITSV #22: Peter B. vor Fluchtlinien, Licht rechts). IM Stern ein Fluchtbild: aus einem hellen
+    Fluchtpunkt neben der Mitte laufen Speedlines als Keile (am Fluchtpunkt haarfein, zum Rand breit) in vier Helligkeiten
+    wie im Still (dunkel, mittel, hell, Licht), ein Teil gestrichelt; der Grund wird zum Rand dunkler und traegt dort
+    Ben-Day-Punkte; das Licht faellt vom Fluchtpunkt exponentiell ab. Eine helle Kante macht den Stern zum Fenster.
+    Ausserhalb des Sterns nur der Grund: der Tunnel liegt im Stern. Linien und Fluchtpunkt drehen mit dem Stern."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    rng = np.random.default_rng(TUN_SEED)
+    a0 = np.radians(rot)
+    vx = TUN_VP[0] * np.cos(a0) - TUN_VP[1] * np.sin(a0)       # Fluchtpunkt dreht mit
+    vy = TUN_VP[0] * np.sin(a0) + TUN_VP[1] * np.cos(a0)
+    inside = d < 1
+    rr = np.hypot(x - vx, y - vy)                               # Sternradien vom Fluchtpunkt
+    ang = np.arctan2(y - vy, x - vx)
+    t = np.clip(rr / TUN_BASE_REACH, 0, 1)
+    dots = _benday_dist(g, TUN_DOT_CELLS) < np.sqrt(TUN_DOT_MAX * t ** 1.5 / np.pi)
+    base = (TUN_BASE[0] + (TUN_BASE[1] - TUN_BASE[0]) * t) / N - 0.3 / N
+    v = np.where(dots, base - 1 / N, base)
+    for _ in range(TUN_LINES):
+        a = np.radians(rot) + rng.uniform(0, 2 * np.pi)
+        r0 = rng.uniform(*TUN_START)
+        hw = rng.uniform(*TUN_HALF_W_CELLS) * c / R             # halbe Breite in Sternradien bei rr = 1
+        lvl = rng.choice(TUN_LEVELS, p=TUN_LEVEL_P)
+        dash = rng.random() < TUN_DASH_P
+        dl, ph = rng.uniform(*TUN_DASH_CELLS) * c / R, rng.random()
+        da = np.abs((ang - a + np.pi) % (2 * np.pi) - np.pi)
+        on = inside & (rr > r0) & (da * rr < hw * rr)
+        if dash:
+            on &= ((rr / dl + ph) % 1.5) < 1
+        light = np.exp(-rr / (3 * TUN_CORE))                    # zum Fluchtpunkt hin heller
+        v = np.where(on, (lvl - 0.15 - 0.6 * (1 - light)) / N, v)
+    core = np.exp(-rr / TUN_CORE)
+    v = np.maximum(v, core * (N - 0.15) / N)                    # Licht im Fluchtpunkt, im Korn
+    rim = d >= 1 - TUN_RIM_CELLS * c / R
+    v = np.where(inside, np.where(rim, _dithered(TUN_RIM_LEVEL + 0.4, 0.6, N), v), bg(g) + 0.06 * glow(d, 0.3))
+    g.lit = inside & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def _blob(g, acc, cx, cy, rad, rng):
+    """Farbklecks: Kreis mit unregelmaessigen Ausbuchtungen (zwei Frequenzen), in acc odern."""
+    w = _win(g, cx, cy, 1.6 * rad)
+    if w is None:
+        return
+    dx, dy = g.X[w] - cx, g.Y[w] - cy
+    th = np.arctan2(dy, dx)
+    k = int(rng.integers(*IMP_SPLAT_LOBES))
+    r = rad * (1 + 0.28 * np.sin(k * th + rng.uniform(0, 6.3)) * rng.uniform(0.5, 1)
+               + 0.12 * np.sin((2 * k + 1) * th + rng.uniform(0, 6.3)))
+    acc[w] |= dx * dx + dy * dy < np.maximum(r, _cell(g) * SV_CELL_MIN) ** 2
+
+
+def c_impact(g):
+    """S59 Impact (Still 03, ITSV "KRACK"): der Stern hell, darum Farbe wie gemalt: Kleckse mit Tropfen und Schweifen,
+    einseitig geworfen (Faecher um eine Wurfrichtung, damit es Farbe ist und kein Burst), dazu eine grosse Pinselschlaufe
+    (die pinke Ellipse im Still), die anschwillt und duenn auslaeuft. Die Kontur ist mehrmals von Hand nachgezogen, jede
+    Lage versetzt, etwas anders gross und in einer anderen Stufe (blaue und schwarze Skizzenlinien neben der Fuellung),
+    mit Ueberschwingern an den Spitzen. Alles sitzt auf dem Stern und dreht mit; was JOIN US + QR beruehrt, entfaellt."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    rng = np.random.default_rng(IMP_SEED)
+    qfree = _qr_free(g)
+    keep = qfree > 0
+    L = _lightfield(x, y, d)
+    v = np.where(d < 1, _dithered(N, L, N), bg(g) + 0.06 * glow(d, 0.3))
+    # Pinselschlaufe hinter den Klecksen: Ellipse um den Stern, Breite schwillt an und laeuft aus
+    ax_, bx_ = rng.uniform(*IMP_LOOP_R), rng.uniform(*IMP_LOOP_R) * 0.75
+    tilt, t0 = np.radians(rot + rng.uniform(0, 180)), rng.uniform(0, 2 * np.pi)
+    tt = t0 + np.linspace(0, 2 * np.pi * IMP_LOOP_TURNS, 700)
+    grow = 1 + 0.12 * np.linspace(0, 1, tt.size)                  # Spirale: die Hand zieht nach aussen
+    ex, ey = ax_ * R * grow * np.cos(tt), bx_ * R * grow * np.sin(tt)
+    px_ = x0 + 0.1 * R + ex * np.cos(tilt) - ey * np.sin(tilt)
+    py_ = y0 - 0.05 * R + ex * np.sin(tilt) + ey * np.cos(tilt)
+    s = np.linspace(0, 1, tt.size)
+    width = IMP_LOOP_W_CELLS[0] + (IMP_LOOP_W_CELLS[1] - IMP_LOOP_W_CELLS[0]) * np.sin(np.pi * s ** 0.8) ** 1.5
+    loop = np.zeros(d.shape, bool)
+    ln = np.r_[0, np.cumsum(np.hypot(np.diff(px_), np.diff(py_)))]
+    for q in np.arange(0, ln[-1], 0.5 * c):                       # Stempel dicht genug: der Strich reisst nie
+        k = min(np.searchsorted(ln, q), tt.size - 1)
+        _disk(g, loop, px_[k], py_[k], width[k] * c)
+    v = np.where(loop & keep, _grain(IMP_LOOP_LEVEL, 0.5, N), v)
+    # Kleckse: einseitig in einem Faecher
+    throw = np.degrees(np.arctan2(g.B / 2 - y0, g.A / 2 - x0)) - rot + rng.normal(0, 20)   # zur Plakatmitte
+    specks = np.zeros(d.shape, bool)
+    for _ in range(IMP_SPECKS):
+        sx_, sy_ = _polar(x0, y0, R, rot, throw + rng.normal(0, IMP_THROW_SPREAD_DEG * 0.6), rng.uniform(*IMP_SPECK_REACH))
+        _disk(g, specks, sx_, sy_, c * rng.choice([0.6, 0.6, 1.0, 1.5]))
+    v = np.where(specks & keep & (d >= 1), _grain(IMP_SPLAT_LEVELS[0], 0.7, N), v)
+    for k in range(IMP_SPLATS):
+        paint = np.zeros(d.shape, bool)
+        a = throw + rng.uniform(-1, 1) * IMP_THROW_SPREAD_DEG
+        cx, cy = _polar(x0, y0, R, rot, a, rng.uniform(*IMP_SPLAT_RING))
+        rad = rng.uniform(*IMP_SPLAT_R) * min(R, 0.8)
+        _blob(g, paint, cx, cy, rad, rng)
+        out = np.radians(rot + a)
+        for _ in range(int(rng.integers(*IMP_DROPS))):              # Tropfen: je weiter, desto kleiner
+            f = rng.uniform(1.1, IMP_DROP_REACH)
+            b = out + rng.normal(0, 0.9)
+            _disk(g, paint, cx + f * rad * np.cos(b), cy + f * rad * np.sin(b), rad * rng.uniform(0.06, 0.3) / f ** 0.5)
+        for _ in range(IMP_TAILS):                                  # Schweif: Tropfenkette vom Stern weg, wird duenner
+            b = out + rng.normal(0, 0.35)
+            ln = rng.uniform(1.5, 3.5) * rad
+            for q in np.linspace(0, 1, 24):
+                _disk(g, paint, cx + (rad + q * ln) * np.cos(b), cy + (rad + q * ln) * np.sin(b), rad * 0.35 * (1 - q) ** 1.3)
+        lvl = IMP_SPLAT_LEVELS[k % len(IMP_SPLAT_LEVELS)]
+        v = np.where(paint & keep, _grain(lvl, 0.5 + 0.5 * rng.random(), N), v)
+    # versetzte Skizzenkonturen: jede Flanke einmal oder zweimal, mit Ueberschwingern
+    for (ox, oy), lvl, passes in IMP_SKETCH:
+        ink = np.zeros(d.shape, np.float32)
+        for _ in range(passes):
+            sc = rng.uniform(*IMP_SKETCH_SCALE)
+            for k in range(6):
+                pts = _flank(x0 + ox * c, y0 + oy * c, R * sc, rot + rng.normal(0, 1.2), k)
+                ov = [rng.uniform(*IMP_OVER_CELLS) * c if rng.random() < 0.7 else 0.0 for _ in (0, 1)]
+                _hand(g, ink, rng, _extend(pts, *ov), rng.uniform(0.8, 1.0), 0.8, corr=0.12, taper_cells=4)
+        ink = np.clip(maximum_filter(ink, IMP_SKETCH_W_CELLS), 0, 1) * keep
+        v = v + (lvl / N - v) * ink
+    g.lit = (d < 1) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
+def _spray(rng, m, cells, dens_max):
+    """Spruehnebel um eine Maske: Dichte faellt mit dem Abstand (Zellen) exponentiell, Punkte zufaellig gesetzt."""
+    dist = distance_transform_edt(~m)
+    p = dens_max * np.exp(-(dist - 1) / cells) * (dist > 0)
+    return m | (rng.random(m.shape) < p)
+
+
+def c_graffiti(g):
+    """S60 Graffiti (eigene Interpretation, Spraydose an der Wand): Spruehwolke hinter dem Piece, helle zweite Outline
+    (Hintergrundlinie), Fuellung mit Fade von unten (Stufe 3) nach oben (hellste Stufe), wolkig von Hand, dunkle Outline
+    etwas neben der Fuellung (zweiter Arbeitsgang). Jede Lage hat Spruehnebel (Dichte faellt exponentiell, zufaellige
+    Punkte). Laeufer (Drips) laufen von der Unterkante senkrecht nach unten, Schwerkraft auf der Seite, egal wie der Stern
+    steht, mit Tropfen am Ende. Glanzstriche an den Flanken zum Licht und zwei Glanzsterne oben links. Nichts davon
+    beruehrt JOIN US + QR."""
+    x0, y0, R, rot, x, y = _local(g)
+    N, c = g.N, _cell(g)
+    d = sd(x, y, rot)
+    rng = np.random.default_rng(GRF_SEED)
+    qfree = _qr_free(g)
+    keep = qfree > 0
+    kc = c / R                                                   # eine Zelle in Sternprofilen (gut genug fuer Baender)
+    v = bg(g).astype(np.float64)
+    # Spruehwolke hinter dem Piece: Stern-nahe Wolke mit welligem Rand
+    th = np.arctan2(y, x)
+    wave = 1 + 0.08 * np.sin(3 * th + rng.uniform(0, 6.3)) + 0.05 * np.sin(7 * th + rng.uniform(0, 6.3))
+    # vor JOIN US + QR endet die Wolke im Spruehnebel (wie an Klebeband), nicht an einer harten Kante
+    cloud = _spray(rng, (np.hypot(x, y) < GRF_CLOUD * wave * 0.82) & (qfree > 3 * GRF_OVERSPRAY_CELLS * c),
+                   2 * GRF_OVERSPRAY_CELLS, 0.5) & keep
+    v = np.where(cloud, _grain(GRF_CLOUD_LEVEL, 0.8 + 0.2 * _star_noise(g, x, y, rot, 6, GRF_SEED), N), v)
+    # Reihenfolge wie an der Wand: Fuellung (mit Nebel), helle zweite Outline aussen (deckt den Fuellnebel, eigener Nebel
+    # nach aussen), zuletzt die dunkle Outline dazwischen, etwas versetzt (nachgezogen)
+    sxo, syo = GRF_OUTLINE_SHIFT_CELLS
+    out_d = distance_transform_edt(~(sd(x - sxo * kc, y - syo * kc, rot) < 1))   # Zellen ausserhalb der versetzten Form:
+    inner = out_d < GRF_OUTLINE_CELLS                              # gleich breit an Spitzen und Kerben (Sternprofile waeren
+    figure = out_d < GRF_OUTLINE_CELLS + GRF_BACK_CELLS            # an der Kerbe nur halb so breit). Das Piece selbst liegt
+                                                                   # auch ueber der QR-Zone,
+    fill = _spray(rng, d < 1, GRF_OVERSPRAY_CELLS, GRF_OVERSPRAY_MAX) & (keep | (d < 1))   # nur der Nebel bleibt draussen
+    up_ = np.clip(0.5 - (g.Y - y0) / (2 * R * 0.9), 0, 1)        # 0 unten, 1 oben (Seite, nicht Stern: Fade steht)
+    fade = GRF_FILL[0] + (GRF_FILL[1] - GRF_FILL[0]) * up_ + GRF_FILL_NOISE * _star_noise(g, x, y, rot, 5, GRF_SEED + 1)
+    fill_v = np.clip(fade - 0.2, 0, N - 0.15) / N
+    v = np.where(fill, fill_v, v)
+    back = _spray(rng, figure, GRF_OVERSPRAY_CELLS, GRF_OVERSPRAY_MAX) & ~inner & (keep | figure)
+    v = np.where(back, _grain(GRF_BACK_LEVEL, 0.6, N), v)
+    outline = inner & ~(d < 1)
+    v = np.where(outline, _dithered(GRF_OUTLINE_LEVEL + 0.5, 0.5, N), v)
+    # Laeufer: von der Unterkante der Fuellung senkrecht nach unten
+    body = d < 1
+    bottom = body & ~np.roll(body, -1, 0)
+    bottom[-1] = False
+    ii, jj = np.nonzero(bottom)
+    drips = np.zeros(d.shape, bool)
+    drng = np.random.default_rng(GRF_SEED + 1)                   # eigener Zufall: ohne Laeufer bleibt der Rest gleich
+    if ii.size and GRF_DRIPS:                                    # (Selbsttest vergleicht mit und ohne)
+        pick = drng.choice(ii.size, size=min(GRF_DRIPS, ii.size), replace=False)
+        for p in pick:
+            i, j = ii[p], jj[p]
+            ln = max(min(drng.uniform(*GRF_DRIP_LEN) * R, GRF_DRIP_MAX_M) / c, GRF_DRIP_MIN_CELLS)
+            hw = drng.uniform(*GRF_DRIP_W_CELLS)
+            if GRF_GRAVITY == "page":
+                ex, ey = 0.0, 1.0
+            else:                                                # alter Fehler: Schwerkraft auf dem Stern
+                ex, ey = -np.sin(np.radians(rot)), np.cos(np.radians(rot))
+            q = np.linspace(0, 1, int(ln * 2) + 2)
+            cxs, cys = (j + 0.5 + ex * ln * q) * c, (i + 0.5 + ey * ln * q) * c
+            one = np.zeros(d.shape, bool)
+            for k, (cx, cy) in enumerate(zip(cxs, cys)):
+                w = hw * (1 - 0.35 * q[k]) if k < len(q) - 1 else hw * 1.4
+                _disk(g, one, cx, cy, max(w, 0.5) * c)
+            if (one & ~keep).any():                              # laeuft in JOIN US + QR: Laeufer entfaellt
+                continue
+            drips |= one & ~body
+            v = np.where(one & ~body, fill_v[i, j], v)
+    g.drips = drips
+    # Glanz: Striche innen an den Flanken zum Licht, zwei Glanzsterne oben links
+    shine = np.zeros(d.shape, np.float32)
+    for k in range(6):
+        nrm = np.radians(rot + TIP_DEG + 60 * k + 30)
+        if np.cos(nrm) * LIGHT[0] + np.sin(nrm) * LIGHT[1] <= 0.15:
+            continue
+        a0, a1 = sorted(rng.uniform(*GRF_SHINE_SPAN, 2))
+        pts = _flank(x0, y0, R * (1 - GRF_SHINE_CELLS * kc), rot, k, a0, a1 + 0.2)
+        _hand(g, shine, rng, pts, 1.0, 0.2, taper_cells=3)
+    tips_lit = sorted(range(6), key=lambda k: -np.cos(np.radians(rot + TIP_DEG + 60 * k) - np.arctan2(LIGHT[1], LIGHT[0])))
+    for k in tips_lit[:2]:
+        gx, gy = _polar(x0, y0, R, rot, TIP_DEG + 60 * k, rng.uniform(0.55, 0.8))
+        arm = rng.uniform(*GRF_GLINT_CELLS) * c * (1 if k == tips_lit[0] else 0.6)
+        for e in ((1, 0), (0, 1)):
+            for q in np.linspace(-1, 1, int(4 * arm / c) + 2):
+                _pen(g, shine, np.array([[gx + q * arm * e[0], gy + q * arm * e[1]]]), np.array([1.0]))
+                if abs(q) < 0.3:                                 # Mitte dicker: Stern statt Kreuz
+                    _pen(g, shine, np.array([[gx + q * arm * e[0] + c * e[1], gy + q * arm * e[1] + c * e[0]]]),
+                         np.array([1.0]))
+    v = np.where((shine > 0.5) & keep, (N - 0.1) / N, v)
+    g.lit = (fill | drips) & (v >= 0.5)
+    return np.clip(v, 0, 1)
+
+
 CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) stehen unter ihrem Stamm
     ("S13", c_sternkind, "Sternkind", "Jede Spitze gebiert einen kleineren Stern, der nach aussen weiterwaechst: Stern-Koch-Kurve."),
     ("S14", c_attraktor, "Sternstaub", "Chaos-Spiel-Attraktor aus zwoelf Sternpunkten, leicht verdreht: der Stern als Staubgalaxie."),
@@ -2277,6 +2852,13 @@ CANDS = [  # (code, fn, titel, beschreibung); Varianten (Buchstaben-Suffix) steh
     ("S54b", c_skizze_hand, "Skizze Hand", "Mehrfach gezogene Konturen, Ueberschwinger, Schraffur je Flaeche, Wisch- und Radierspur."),
     ("S54c", c_skizze_studie, "Skizze Studie", "S54b + Konstruktion wie auf einem Leonardo-Blatt: Sechseck, Zirkelboegen, doppelte Schattenkontur."),
     ("S55", c_halbton, "Halbton", "ITSV Ben-Day: echtes Druckraster fest auf der Seite, der Stern fliegt darunter durch."),
+    # Spider-Verse-Serie 2 (2.10.): nach den Stills 06, 01, 02, 03 + Graffiti
+    ("S56", c_neonblasen, "Neonblasen", "Still 06: Wolken aus Blasen um den Stern, hinten dunkle Ringe, Mitte Ben-Day, vorn Neon mit Lichthof."),
+    ("S57", c_collage, "Collage", "Still 01 Hobie: Scherenschnitt auf versetzten Papierlagen (gerade Schnitte, gerissener Rand), jedes Plakat neu gelegt."),
+    ("S57b", c_collage_kritzel, "Collage Kritzel", "S57 + lose Kritzelkonturen ueber allem (Hobies orange Linien), dunkle Tusche knapp innen."),
+    ("S58", c_tunnel, "Tunnel", "Still 02: im Stern ein Fluchtbild, Speedlines aus einem hellen Fluchtpunkt, Ben-Day zum Rand."),
+    ("S59", c_impact, "Impact", "Still 03 KRACK: Farbkleckse, Pinselschlaufe, Kontur mehrfach versetzt in anderen Stufen nachgezogen."),
+    ("S60", c_graffiti, "Graffiti", "Spraydose: Wolke, zweite Outline, Fade-Fuellung, versetzte Outline, Spruehnebel, Laeufer, Glanz."),
 ]
 BY = {c[0]: c for c in CANDS}
 CMP = {"S26v1": c_xortitel_alt, "S30v1": c_versatz_alt, "S31b2": c_lichtfall_kurz}   # alte Fassungen, nur Vergleich
@@ -2358,6 +2940,8 @@ URTEIL.update({"S50": (5, "Loop", "Vadim 1.10.: kommt rein, so wie er ist."),
                **{c: (2, "nicht gewaehlt", "Vadim 1.10.: nicht gewaehlt (nicht verworfen).") for c in "S49 S52 S53 S55".split()}})
 # Vadim 2.10.: "eine weitere Glitch-Version, die wenn sie gut ist die alte abloest, ein Glitch in Poly-/Dreiecksversion"
 URTEIL.update({c: (3, "Loop", "neu, Vadim hat noch nicht gewaehlt. Soll S48c abloesen, wenn gut.") for c in ("S48e", "S48f")})
+# Vadim 2.10.: "neue Sterne nach den Spider-Verse-Referenzen" (Stills 06, 01, 02, 03) + Graffiti-Spark
+URTEIL.update({c: (3, "Loop", "neu, Vadim hat noch nicht gewaehlt.") for c in ("S56", "S57", "S57b", "S58", "S59", "S60")})
 KEPT =[c for c in BY if URTEIL[c][1] != "raus"]
 
 # Kick-off-Sichtung 2026-09-25 nachts (Vadim)
@@ -2555,6 +3139,14 @@ HAND_TEST_STARS = ((-0.13, 0.65, 0.87, 0.0), (0.95, 0.61, 0.64, 225.0))  # Selbs
                              # der Bahn haengt: mit der Ellipse (1.10. abends) sind Frame 1/16 leer, der Test war blind
 
 POLY_TEST_MIN_FRAC = 0.01    # Selbsttest Poly: so viel der Seite unter dem Titelblock muss der Bruch mindestens aendern
+SV2_CODES = ("S56", "S57", "S57b", "S58", "S59", "S60")
+SV2_TEST_STARS = ((0.22, 0.30, 0.0), (0.45, 0.12, 37.0))   # Selbsttest QR: Stern so weit rechts ueber der QR-Zone (Ecke +
+                             # Radius x Faktor, m) mit Radius und Drehung: nah genug, dass Blasen/Spritzer/Nebel hineinreichen
+SV2_TEST_TOL = 0.11          # ... Abweichung vom Grund (bg) ausserhalb des Sterns, die noch Schein ist (glow <= 0.10)
+SV2_TEST_BODY_CELLS = 9      # ... so viele Zellen um den Stern zaehlen zum Stern (S60: Outline + zweite Outline = 6)
+DRIP_TEST_ROT = (0.0, 37.0)  # Selbsttest Laeufer: Drehungen des Sterns (37: weder Spiegelachse noch Spitze senkrecht)
+DRIP_TEST_MAX_DEG = 12       # Hauptachse jedes Laeufers hoechstens so weit von der Senkrechten (Median)
+DRIP_TEST_BUG_DEG = 25       # Gegenprobe (Schwerkraft auf dem Stern, rot 37): muss mindestens so schief sein
 
 
 def selftest_hand(codes=("S54", "S54b", "S54c"), frames=(0, 15)):
@@ -2625,6 +3217,98 @@ def selftest_poly(codes=("S48e", "S48f")):
     return got
 
 
+def _sv2_g(code_st_frame, star, rot):
+    """G fuer ein Loop-Plakat (Frame 9) mit Stern an fester Stelle: (st, ctx, g)."""
+    import kickoff_loop as KL
+    st = KL.poster_style(KL.load(), code_st_frame)
+    st["star"], st["rot"] = star, rot
+    c = styles.Ctx(st, KL.PREVIEW)
+    g = G(st, KL.PREVIEW, c)
+    cx, cy, R, _ = c.L["star"]
+    g.K, g.rot = (cx / g.m, cy / g.m, R / g.m), rot
+    return st, c, g
+
+
+def selftest_sv2_qr(codes=SV2_CODES):
+    """Selbsttest Serie 2: JOIN US + QR bleiben frei. Stern rechts ueber der QR-Zone (SV2_TEST_STARS), gemessen am Wertfeld,
+    das ins Plakat geht: Zellen in _qr_zone, ausserhalb des Sterns (+ SV2_TEST_BODY_CELLS), duerfen nur Grund + Schein
+    tragen. Gegenprobe mit SV2_KEEP_QR = False: dann muessen Blasen/Papier/Spritzer/Nebel hineinlaufen (sonst ist der Test
+    blind); S58 malt nur im Stern und ist von der Gegenprobe ausgenommen."""
+    global SV2_KEEP_QR
+    got = {}
+    for keep in (True, False):
+        SV2_KEEP_QR = keep
+        for code in codes:
+            n = 0
+            for f, rr, rot in SV2_TEST_STARS:
+                g0 = _sv2_g(8, (0.5, 0.5, 0.1), rot)[2]
+                zone = _qr_zone(g0)
+                ys, xs = np.nonzero(zone)
+                corner = (xs.max() * _cell(g0), ys.min() * _cell(g0))     # Ecke oben rechts der Zone (m)
+                star = (corner[0] + f * (1 + rr), corner[1] - f * 0.3, rr)
+                st, c, g = _sv2_g(8, star, rot)
+                v = BY[code][1](g)
+                x0, y0, R, rot_, x, y = _local(g)
+                body = distance_transform_edt(~(sd(x, y, rot_) < 1)) <= SV2_TEST_BODY_CELLS
+                n += int((zone & ~body & (np.abs(v - bg(g)) > SV2_TEST_TOL)).sum())
+            got[(code, keep)] = n
+    SV2_KEEP_QR = True
+    print("Selbsttest QR frei (Zellen mit Effekt in der QR-Zone; mit Sperre | Gegenprobe ohne):",
+          {k: (got[(k, True)], got[(k, False)]) for k in codes})
+    blind = [k for k in codes if k != "S58" and got[(k, False)] == 0]
+    assert not blind, f"Test blind: ohne Sperre kein Effekt in der QR-Zone bei {blind}"
+    bad = {k: got[(k, True)] for k in codes if got[(k, True)]}
+    assert not bad, f"Effekte in JOIN US + QR: {bad}"
+    return got
+
+
+def _drip_angles(st, fmt):
+    """Laeufer am fertigen Plakat: Pixel, die sich mit / ohne Laeufer unterscheiden, je Zusammenhangsgebiet die Abweichung
+    der Hauptachse von der Senkrechten (Grad). Ohne Cache gerendert (kickoff.frame_of), weil der Cache-Schluessel die
+    umgeschalteten Konstanten nicht kennt."""
+    import kickoff as KK
+    import lab_spark as me                                       # kickoff rendert ueber das Modul, nicht ueber __main__
+    from scipy.ndimage import label as nd_label
+    keep, img = me.GRF_DRIPS, {}
+    for n in (keep, 0):
+        me.GRF_DRIPS = n
+        img[n] = KK.frame_of(st, fmt)
+    me.GRF_DRIPS = keep
+    diff = (img[keep] != img[0]).any(-1)
+    lab, k = nd_label(diff)
+    out = []
+    for i in range(1, k + 1):
+        yy, xx = np.nonzero(lab == i)
+        if yy.size < 40:                                         # Krume (Titelkante, einzelne Kornzellen)
+            continue
+        cov = np.cov(np.c_[xx, yy].T)
+        w, e = np.linalg.eigh(cov)
+        ax = e[:, -1]                                            # Hauptachse
+        out.append(float(np.degrees(np.arctan2(abs(ax[0]), abs(ax[1])))))
+    return out
+
+
+def selftest_drips():
+    """Selbsttest S60 am fertigen Plakat: Laeufer fallen senkrecht (Schwerkraft auf der Seite), egal wie der Stern gedreht
+    ist. Gegenprobe GRF_GRAVITY = "star" (Laeufer folgen der Sterndrehung) muss bei 37 Grad anschlagen."""
+    import kickoff_loop as KL
+    import lab_spark as me
+    got = {}
+    for grav in ("page", "star"):
+        me.GRF_GRAVITY = grav
+        for rot in DRIP_TEST_ROT:
+            st, c, g = _sv2_g(8, (0.55, 0.62, 0.35), rot)
+            st["S"] = "lab:S60"
+            ang = _drip_angles(st, KL.PREVIEW)
+            got[(grav, rot)] = (len(ang), float(np.median(ang)) if ang else float("nan"))
+    me.GRF_GRAVITY = "page"
+    print("Selbsttest Laeufer (Anzahl, Median Abweichung von senkrecht in Grad):", got)
+    assert all(got[("page", r)][0] > 0 for r in DRIP_TEST_ROT), "keine Laeufer gefunden"
+    assert all(got[("page", r)][1] <= DRIP_TEST_MAX_DEG for r in DRIP_TEST_ROT), "Laeufer laufen schief"
+    assert got[("star", DRIP_TEST_ROT[-1])][1] >= DRIP_TEST_BUG_DEG, "Test blind: schiefe Laeufer nicht erkannt"
+    return got
+
+
 def main():
     """Argumente: Codes (S31b ...; ohne = alle behaltenen), --pal a,b | all, --fmt 16x9|9x16|a3, --kick (Test mit
     Kick-off-Titel SPARK nach styles/lab/spark/_kick/), --sheet name. 'posters [codes]' = A3 im echten Satz, 'html' = Galerie.
@@ -2634,6 +3318,8 @@ def main():
     if args == ["test"]:
         selftest_hand()
         selftest_poly()
+        selftest_sv2_qr()
+        selftest_drips()
         return
     if args == ["sheet"] or args == ["html"]:
         gallery()

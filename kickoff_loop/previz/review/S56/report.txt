@@ -1,0 +1,69 @@
+S56-S60 (+S57b) Spider-Verse-Serie 2 · 2.10. · Sterne-Agent
+Neue Labor-Sterne nach kickoff_loop/ref/spiderverse/img/: S56 Neonblasen (06), S57/S57b Collage (01), S58 Tunnel (02),
+S59 Impact (03), S60 Graffiti (eigene Interpretation). Code: src/lab_spark.py, Abschnitt "Spider-Verse-Serie 2".
+Boegen: stars.png (uv run src/kickoff_loop.py stars S56 S57 S57b S58 S59 S60), gross.png (F1 5 9 13 17 24, halbe Aufl.),
+ref_vergleich_<Code>.png (Referenz | 2 Plakate). Nicht in loop.toml, Vadim hat noch nicht gewaehlt.
+
+Je Plakat (Farbe des Loop-Frames, Stil ersetzt): QR dekodiert (kickoff.check_qr), Lesbarkeit (kickoff_loop.legibility;
+die Effekte laufen hinter SPARK weiter und werden invertiert), Lila-Anteil = Flaeche, die nach optischer Mischung (Box
+4x4 Zellen) im Lila-Band liegt (Regel is_lilac). Zum Vergleich, gleiche Frames 5/9/13/24: S48d max 0.028, S54c 0.031,
+S50 0.123 (Grund F13 Navy + Blau).
+
+S56   F1   QR ok    Lesbarkeit 0.976  Lila-Anteil 0.0000
+S56   F5   QR ok    Lesbarkeit 0.949  Lila-Anteil 0.0000
+S56   F9   QR ok    Lesbarkeit 0.901  Lila-Anteil 0.0232
+S56   F13  QR ok    Lesbarkeit 0.846  Lila-Anteil 0.0277
+S56   F17  QR ok    Lesbarkeit 0.812  Lila-Anteil 0.0000
+S56   F24  QR ok    Lesbarkeit 0.754  Lila-Anteil 0.0231
+S57   F1   QR ok    Lesbarkeit 0.976  Lila-Anteil 0.0000
+S57   F5   QR ok    Lesbarkeit 0.784  Lila-Anteil 0.0000
+S57   F9   QR ok    Lesbarkeit 0.889  Lila-Anteil 0.0052
+S57   F13  QR ok    Lesbarkeit 0.808  Lila-Anteil 0.0076
+S57   F17  QR ok    Lesbarkeit 0.836  Lila-Anteil 0.0000
+S57   F24  QR ok    Lesbarkeit 0.847  Lila-Anteil 0.0003
+S57b  F1   QR ok    Lesbarkeit 0.976  Lila-Anteil 0.0000
+S57b  F5   QR ok    Lesbarkeit 0.805  Lila-Anteil 0.0000
+S57b  F9   QR ok    Lesbarkeit 0.891  Lila-Anteil 0.0241
+S57b  F13  QR ok    Lesbarkeit 0.837  Lila-Anteil 0.0156
+S57b  F17  QR ok    Lesbarkeit 0.793  Lila-Anteil 0.0000
+S57b  F24  QR ok    Lesbarkeit 0.827  Lila-Anteil 0.0014
+S58   F1   QR ok    Lesbarkeit 0.905  Lila-Anteil 0.0000
+S58   F5   QR ok    Lesbarkeit 0.871  Lila-Anteil 0.0000
+S58   F9   QR ok    Lesbarkeit 0.868  Lila-Anteil 0.0337
+S58   F13  QR ok    Lesbarkeit 0.943  Lila-Anteil 0.0152
+S58   F17  QR ok    Lesbarkeit 0.852  Lila-Anteil 0.0000
+S58   F24  QR ok    Lesbarkeit 0.821  Lila-Anteil 0.0017
+S59   F1   QR ok    Lesbarkeit 0.976  Lila-Anteil 0.0000
+S59   F5   QR ok    Lesbarkeit 0.807  Lila-Anteil 0.0000
+S59   F9   QR ok    Lesbarkeit 0.759  Lila-Anteil 0.0292
+S59   F13  QR ok    Lesbarkeit 0.845  Lila-Anteil 0.0294
+S59   F17  QR ok    Lesbarkeit 0.780  Lila-Anteil 0.0000
+S59   F24  QR ok    Lesbarkeit 0.773  Lila-Anteil 0.0050
+S60   F1   QR ok    Lesbarkeit 0.976  Lila-Anteil 0.0000
+S60   F5   QR ok    Lesbarkeit 0.925  Lila-Anteil 0.0000
+S60   F9   QR ok    Lesbarkeit 0.786  Lila-Anteil 0.0164
+S60   F13  QR ok    Lesbarkeit 0.826  Lila-Anteil 0.0064
+S60   F17  QR ok    Lesbarkeit 0.710  Lila-Anteil 0.0000
+S60   F24  QR ok    Lesbarkeit 0.778  Lila-Anteil 0.0053
+Minimum Lesbarkeit: S56 0.75 · S57 0.78 · S57b 0.79 · S58 0.82 · S59 0.76 · S60 0.71 (Gate 0.95 verfehlt wie alle Sterne
+mit Effekten hinter dem Titel; Loop-Minimum heute 0.60).
+
+Befunde beim Bauen:
+- _dithered mischt immer mit der Stufe darunter. Auf Stufe 3 liegt das quer ueber der Naht der Split-Palette (Stufe 2 =
+  erste Colorway): Rot + Dunkelblau las sich als Flieder (S57 F9), Gelb + Blau als Oliv (S57 F5), Pink + Cyan in P25 als
+  Flieder (S60 F24). Neu: _grain haelt das Korn in derselben Colorway (ab Stufe 3 nach oben) und schmal (SV2_GRAIN_SPAN).
+- S60 v1 maskierte den Sternkoerper an der QR-Zone: in F1 ein dunkler Kasten um den QR. Jetzt entfaellt nur Loses
+  (Nebel, Wolke, Laeufer), die Figur selbst darf ueber der Zone liegen wie bei allen Sternen.
+- S60 Laeufer v1 an Riesensternen (F5) halbe Seite lang: GRF_DRIP_MAX_M. Outline v1 in Sternprofilen: an den Kerben halb
+  so breit, unsichtbar; jetzt in Zellen (Abstandstransformation).
+- S59 Spritzer v1 in fester Sternrichtung: landeten in F5/F9 ausserhalb der Seite. Jetzt Faecher zur Plakatmitte.
+
+Selbsttests (uv run --with numpy --with pillow --with scipy --with qrcode --with scikit-image --with opencv-python-headless
+python src/lab_spark.py test), alle gruen:
+Selbsttest Hand (laengste gerade Schraffurkante, Zellen): {'S54': 79, 'S54b': 9, 'S54c': 13} Grenze 20
+Selbsttest Poly (Pixel anders im Titelblock, Anteil anders darunter): {'S48e': (0, 0.0944), 'S48f': (0, 0.1572)}
+Selbsttest QR frei (Zellen mit Effekt in der QR-Zone; mit Sperre | Gegenprobe ohne): {'S56': (0, 3166), 'S57': (0, 230),
+  'S57b': (0, 263), 'S58': (0, 0), 'S59': (0, 512), 'S60': (0, 1281)}   (S58 malt nur im Stern)
+Selbsttest Laeufer am fertigen Plakat (Anzahl, Median Abweichung von senkrecht, Grad): page rot 0: (8, 0.3),
+  page rot 37: (12, 2.8); Gegenprobe Schwerkraft auf dem Stern rot 37: (10, 37.8) -> schlaegt an
+uv run src/kickoff_loop.py test: gruen.

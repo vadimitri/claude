@@ -49,7 +49,8 @@ SPARKS = [("S2", "grad"), ("S7", "nest"), ("S33", "matrjoschka")]
 LAB = ["S13", "S14", "S18d", "S19d", "S23", "S24", "S26", "S31", "S31b", "S31c", "S31d", "S31e", "S31f", "S31g", "S36", "S40",
        "S44", "S45", "S46", "S47",
        "S48", "S49", "S50", "S51", "S52", "S53", "S54", "S55",      # Spider-Verse-Serie 1.10. (ref/spiderverse/README.md)
-       "S48b", "S48c", "S48d", "S54b", "S54c", "S48e", "S48f"]  # Ueberarbeitung 1.10.; Vadim behaelt S48c S48d S54c (+ S50); 2.10. S48e/f Poly-Glitch neu
+       "S48b", "S48c", "S48d", "S54b", "S54c", "S48e", "S48f",  # Ueberarbeitung 1.10.; Vadim behaelt S48c S48d S54c (+ S50); 2.10. S48e/f Poly-Glitch neu
+       "S56", "S57", "S57b", "S58", "S59", "S60"]  # Spider-Verse-Serie 2 (2.10.): Neonblasen, Collage (+Kritzel), Tunnel, Impact, Graffiti
 # Raus (Vadim 1.10.): Aquarell S51 (und S51b/S51c in lab_spark, nicht registriert).
 OWN = {"S24", "S26", "S31", "S31b", "S31c", "S31d", "S31e", "S31f"}
 # Eigene Platzierung im einzeiligen Satz (x0, y0, R in Bruchteilen von W, H, kurzer Seite): Stern gross genug, dass er den Leerraum fuellt
