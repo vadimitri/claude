@@ -25,8 +25,9 @@ In `previz/review/` liegt, was offen ist (`geparkt/` = Alternativen, `alt/` = ve
   - **C4b/C4c, C5b/C5c** (2.10.): dieselben Stationen wie C4/C5, umsortiert in Hell-Dunkel-Blöcke (b à 16, c à 8),
     innerhalb nach Farbton.
     - Vadim zu C4/C5: „zu viele Invertierungen, zu hoher Kontrast zwischen zwei Frames, bunter Grund neben schwarzem".
-    - Befund: Der Grund ist zweigeteilt (L 0.10–0.31 oder 0.92–1.00). C4/C5 sprangen in **jedem** Frame um ΔE ~0.8,
-      b/c springen nur noch 2- bzw. 4-mal pro Loop.
+    - Befund am fertigen Bild (mittlere OKLab-Helligkeit je Frame, Sprung > 0.25 pro Loop): C4 29, C5 27 → C4b 3,
+      C5b 3, C4c 5. Der Grund ist zweigeteilt (L 0.10–0.31 oder 0.92–1.00). Auf B20c macht der Riesenstern F1–4/F29–32
+      hell, auch bei dunklem Grund. Messskript noch nicht im Report (Kandidat für `sheet_report`).
     - Weicher ginge es nur mit Grund-Stufen in der Mitte (dunkle Gründe anheben bzw. helle absenken), noch nicht gebaut.
 - `geparkt/`: B19 (Ellipse um den Kopf) und B20d–g mit `screen_frac` (gleicher sichtbarer Weg pro Frame) bzw.
   `ends_dwell_frac` (Posen halten).
