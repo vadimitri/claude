@@ -532,6 +532,8 @@ class DigitalFrames:
         return len(self.keys)
 
     def __getitem__(self, j):
+        if isinstance(j, slice):                         # wie eine Liste: digital[::2]
+            return [self[i] for i in range(len(self))[j]]
         k = self.keys[j]
         if k not in self.pil:
             if k in self.load:
@@ -629,13 +631,13 @@ def photo_key(cfg, tl):
         p = aligned_photo(k)
         return hashlib.sha1(open(p, "rb").read()).hexdigest() if os.path.exists(p) else None
     shown = [(k, KL.cache_key(KL.poster_style(cfg, k), KL.PREVIEW), real(k)) for k in sorted({c[0] for c in cam})]
-    key = json.dumps([cam, shown, cfg["simulation"], cfg["video"], PREVIEW_ENCODER, KL._source_hash(PHOTO_SOURCES)],
+    key = json.dumps([cam, shown, cfg["simulation"], cfg["video"], encoder(cfg), KL._source_hash(PHOTO_SOURCES)],
                      sort_keys=True, default=str)
     return hashlib.sha1(key.encode()).hexdigest()[:16]
 
 
 class PhotoSegment:
-    """Die Foto-Phase als fertig kodiertes Videostueck (MPEG-TS, PREVIEW_ENCODER) im Cache (_cache/video/), Schluessel
+    """Die Foto-Phase als fertig kodiertes Videostueck (MPEG-TS, encoder(cfg)) im Cache (_cache/video/), Schluessel
     photo_key; preview haengt den Digitalteil ohne Neukodieren an (concat_video). Treffer: keine Platten, keine
     Kamera, kein Encoder, kein Pool fuer die Foto-Phase (Befund 1.10.: ~60 der ~120 CPU-Sekunden einer warmen
     Vorschau; Ausstiegs-Varianten und --draft aendern nur den Digitalteil). Sonst rechnet PhotoFrames wie bisher und
@@ -660,7 +662,7 @@ class PhotoSegment:
     def _encode(self, cfg, tl):
         try:
             tmp = f"{self.path}.{os.getpid()}.ts"
-            ff = ffmpeg_writer(tmp, tuple(cfg["video"]["size_px"]), cfg["video"]["timeline_fps"])
+            ff = ffmpeg_writer(tmp, tuple(cfg["video"]["size_px"]), cfg["video"]["timeline_fps"], enc=encoder(cfg))
             for t in range(tl.zoom_end):
                 img = self.photo[t]
                 ff.stdin.write(img.tobytes())
@@ -950,17 +952,29 @@ def song(cfg, tl, path):
     KM.write_wav(path, x)
 
 
-# x264-Preset der Vorschauen. Befund 2.10. (Z5, 635 Bilder 1080x1920, crf 16): medium ~14 s Encode, fast ~3 s, bei
-# PSNR gegen die Quellbilder 36.97 dB (medium) / 36.87 dB (fast), Datei gleich gross. veryfast verliert 2 dB, deshalb fast.
+# Master (preview --master, ganz am Ende): x264. Befund 2.10. (Z5, 635 Bilder 1080x1920, crf 16): medium ~14 s Encode,
+# fast ~3 s, PSNR gegen die Quellbilder 36.97 / 36.87 dB, Datei gleich gross. veryfast verliert 2 dB, deshalb fast.
 X264_PRESET = "fast"
-# Vorschauen (preview.mp4, loop.mp4): Hardware-Encoder (Apple VideoToolbox) bei q 85 statt x264. Befund 1.10. (Z5, je
-# 140 Foto- und 160 Digitalbilder 1080x1920, gegen die Quellbilder): Digitalteil PSNR 39.9 dB / SSIM 0.954 (x264 fast
-# crf 16: 37.6 / 0.937), Foto-Phase 27.0 / 0.898 (x264: 26.7 / 0.889), also nirgends schlechter. CPU 6-11 ms statt
-# 70-240 ms pro Bild: x264 frass ~95 der ~230 CPU-Sekunden einer warmen Vorschau und bremste den Pool. Datei groesser
-# (Foto-Phase x1.5, das Korn). Gilt auch fuer --draft (vorher VT q 65: gleich schnell, nur weicher), damit Entwurf und
-# Endversion dasselbe Foto-Segment teilen (PhotoSegment). Ohne VideoToolbox (Linux, CT dev): x264 wie bisher.
-PREVIEW_ENCODER = ["-c:v", "h264_videotoolbox", "-q:v", "85"] if sys.platform == "darwin" else \
-    ["-c:v", "libx264", "-preset", X264_PRESET, "-crf", "16"]
+MASTER_ENCODER = ["-c:v", "libx264", "-preset", X264_PRESET, "-crf", "16"]
+# Alle Vorschauen (preview inkl. --draft, Digitalteil, loop.mp4, sheet): Hardware-Encoder (Apple VideoToolbox), Vadim 3.10.:
+# "fuers Vorschauen brauche ich nicht die highest Quality, es geht um schnelles Iterieren". Befund 1.10. (Z5, 140 Foto- und
+# 160 Digitalbilder, gegen die Quellbilder; x264 fast crf 16 zum Vergleich):
+#            Foto-Phase: MB  dB    SSIM   ms/Bild CPU | Digitalteil: MB  dB    SSIM
+#   x264     69.9 26.72 0.889  252                    | 9.8 37.57 0.937   70 ms CPU
+#   VT q65   34.8 26.01 0.815    7                    | 6.7 34.92 0.898    6 ms CPU
+#   VT q75   58.7 26.61 0.850    8                    | 7.9 38.40 0.946
+#   VT q85  105.5 26.97 0.898   10                    | 11.5 39.86 0.954
+# q65 = halbe Datei von x264 (preview ~85 statt 136 MB), Korn etwas weicher; schaerfer: Zahl hoeher (75 ~ x264 im
+# Digitalteil). Die CPU bleibt dem Pool: x264 frass ~95 der ~230 CPU-Sekunden einer warmen Vorschau.
+# Ohne VideoToolbox (Linux, CT dev): x264.
+PREVIEW_ENCODER = ["-c:v", "h264_videotoolbox", "-q:v", "65"] if sys.platform == "darwin" else MASTER_ENCODER
+
+
+def encoder(cfg):
+    """Encoder dieses Laufs: MASTER_ENCODER mit preview --master, sonst PREVIEW_ENCODER."""
+    return MASTER_ENCODER if cfg.get("_master") else PREVIEW_ENCODER
+
+
 DRAFT_STEP = 2       # preview --draft: Digitalteil nur jedes 2. Bild rendern und halten (Zweier, 12 fps): halbe Renderzeit
 
 
@@ -972,13 +986,13 @@ def draft_name(cfg, name):
     return f"{stem}_draft{ext}"
 
 
-def ffmpeg_writer(path, size, fps, audio=None):
-    """Roh-RGB auf stdin → H.264 (PREVIEW_ENCODER). Mit Ton: AAC (Pegel stellt song() ein). *.ts: MPEG-TS ohne Ton,
+def ffmpeg_writer(path, size, fps, audio=None, enc=PREVIEW_ENCODER):
+    """Roh-RGB auf stdin → H.264 (enc, siehe encoder()). Mit Ton: AAC (Pegel stellt song() ein). *.ts: MPEG-TS ohne Ton,
     ein Segment fuer concat_video."""
     W, H = size
     ts = path.endswith(".ts")
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(fps),
-           "-i", "-"] + (["-i", audio] if audio else []) + PREVIEW_ENCODER + ["-pix_fmt", "yuv420p"] + \
+           "-i", "-"] + (["-i", audio] if audio else []) + enc + ["-pix_fmt", "yuv420p"] + \
           (["-f", "mpegts"] if ts else ["-movflags", "+faststart"]) + \
           (["-c:a", "aac", "-b:a", "256k", "-shortest"] if audio else []) + [path]
     return subprocess.Popen(cmd, stdin=subprocess.PIPE)
@@ -1081,7 +1095,7 @@ def loop_video(cfg, posters, path):
     wav = os.path.splitext(path)[0] + ".wav"
     KM.write_wav(wav, x)
     h, w = posters[0].shape[:2]
-    ff = ffmpeg_writer(path, (w // 2, h // 2), fps, wav)
+    ff = ffmpeg_writer(path, (w // 2, h // 2), fps, wav, enc=encoder(cfg))
     small = [np.asarray(Image.fromarray(img).resize((w // 2, h // 2), Image.BOX)).tobytes() for img in posters]
     for b in small * m["loop_passes"]:                 # jedes Plakat einmal verkleinern, nicht je Durchgang
         ff.stdin.write(b)
@@ -1155,7 +1169,7 @@ def preview(cfg, posters, qr_ok, legib):
     song(cfg, tl, wav)
     part = os.path.join(out, draft_name(cfg, "digital.ts"))
     try:
-        ff = ffmpeg_writer(part, size, tfps)
+        ff = ffmpeg_writer(part, size, tfps, enc=encoder(cfg))
         for j in range(len(digital)):
             img, t = digital[j], tl.zoom_end + j
             ff.stdin.write(np.asarray(img).tobytes())
@@ -1216,6 +1230,7 @@ def preview(cfg, posters, qr_ok, legib):
     draft = bool(cfg.get("_draft"))
     lines = [*([f"DRAFT (preview --draft): Digitalteil auf Zweiern ({tfps // DRAFT_STEP} fps), Hardware-Encoder, kein "
                 "Zoom-Check. Nicht zur Abnahme."] if draft else []),
+             *([f"MASTER (--master): Encoder x264 {X264_PRESET} crf 16 statt Hardware-Encoder"] if cfg.get("_master") else []),
              f"Version {os.path.basename(out)} · {time.strftime('%Y-%m-%d %H:%M')} · {time.time() - t0:.0f} s Renderzeit",
              f"Loop: {n} Frames = {len(keys)} Aushaenge ({' '.join(str(i + 1) for i in keys)}) + {n - len(keys)} "
              f"Zwischenframes (nur Video), {n / top_fps:.2f} s pro Umlauf im schnellsten Tempo",

@@ -14,6 +14,7 @@ Handbuch (Vision, Begriffe, Entscheidungen, Status, offene Fragen): kickoff_loop
   uv run src/kickoff_loop.py preview [A|B]  Vorschau-Video + Kontaktbogen + Checks  → kickoff_loop/previz/vNNN/
   uv run src/kickoff_loop.py preview X.toml --draft   Entwurf: Digitalteil auf Zweiern, Hardware-Encoder, ohne
                                             Zoom-/QR-Pruefung → *_draft.mp4 + report_draft.txt (Endversion unveraendert)
+  uv run src/kickoff_loop.py preview ... --master    Encoder x264 statt Hardware (VideoToolbox), fuer die Endabnahme
   uv run src/kickoff_loop.py variants [N..] Detailvarianten der Frames N nebeneinander → kickoff_loop/previz/variants/
   uv run src/kickoff_loop.py frames         nur die Plakat-Frames rendern (fuellt den Cache)
   uv run src/kickoff_loop.py stars [S..]     Sterne-Bogen: jeder Stil an 3 Stellen der Bahn → previz/variants/stars.png
@@ -1187,11 +1188,13 @@ def print_files(cfg):
 def main():
     args = sys.argv[1:]
     draft = "--draft" in args                           # preview --draft: schnelle Runde, sieht anders aus (DRAFT_* in
-    args = [a for a in args if a != "--draft"]          # kickoff_loop_video), Dateien heissen *_draft
+    master = "--master" in args                         # --master: x264 statt Hardware-Encoder (Endabnahme, V.encoder)
+    args = [a for a in args if a not in ("--draft", "--master")]   # kickoff_loop_video), Dateien heissen *_draft
     cmd = args[0] if args else "preview"
     arg = args[1] if len(args) > 1 else None
     var = arg if cmd in ("sheet", "preview") and arg and arg.endswith(".toml") else None   # <variante.toml> neben loop.toml
     cfg = load(var or CONFIG, music=arg if cmd == "preview" and arg and not var else None)
+    cfg["_master"] = master
     if cmd == "frames":
         _, ok, leg = frames(cfg)
         print(f"{len(ok)} Plakate, QR lesbar: {sum(ok)}/{len(ok)}, Lesbarkeit: {' '.join(f'{x:.2f}' for x in leg)}")
