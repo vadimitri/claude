@@ -133,6 +133,7 @@ def load(path=CONFIG, music=None):
     assert sp["ahead"] >= 0 and abs(sp["ahead"] - 1) > BEHIND_Z, \
         "[spark].ahead: 0..1 (Betrachter in der Bahn) oder > 1 (Bahn vor ihm), nicht ~1 (Stern durchfliegt den Kopf)"
     assert 0 <= sp["kepler_frac"] <= 1 and sp["width"] > 0, "[spark]: kepler_frac 0..1, width > 0"
+    assert 0 <= sp.get("front_dwell_frac", 0) < 1, "[spark].front_dwell_frac: 0 (gleichmaessig) bis < 1"
     assert cfg["spark"]["spin_deg"] % 60 == 0, "[spark].spin_deg: Vielfaches von 60 (6-zackiger Stern), sonst ruckt der Loop"
     q = cfg["qr"]
     for key, ok in (("glow_shape", ("round", "square")), ("glow_profile", ("gauss", "light", "linear", "steps"))):
@@ -329,7 +330,9 @@ def orbit(cfg, phase):
     mehrere Frames lang riesig. Er verlaesst das Plakat hinter dem Kopf, dort ist der Frame leer (Radius 0). Frontal,
     dreht sich nur in der Bildebene (spin_deg). Zentralprojektion aufs Plakat (x ~ X/Z, Groesse ~ 1/Z)."""
     sp, n = cfg["spark"], count(cfg)
-    X, Z = _ellipse(sp["width"], sp["ahead"], sp["kepler_frac"], (phase + 0.5 + sp["phase_shift_frames"]) / n)
+    t = (phase + 0.5 + sp["phase_shift_frames"]) / n
+    t -= sp.get("front_dwell_frac", 0) * np.sin(2 * np.pi * t) / (2 * np.pi)   # Tempo 1 - a cos: am Nahpunkt (t=0) langsam
+    X, Z = _ellipse(sp["width"], sp["ahead"], sp["kepler_frac"], t)
     rot = float(sp["rot_start_deg"] + sp["spin_deg"] * phase / n)
     if Z <= BEHIND_Z:                                         # hinter/neben dem Kopf: kein Stern auf dem Plakat
         return 0.5, 0.5, 0.0, rot
