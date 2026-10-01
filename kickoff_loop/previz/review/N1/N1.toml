@@ -8,6 +8,7 @@ cycle = ["S33", "S33", "S33", "S33", "S48d", "S23", "S54c", "S47",       # Welt 
          "S31e", "S18d", "S31g", "S45", "S48c", "S26", "S50", "S45",     # F17-24
          "S54c", "S14", "S24", "S19d", "S48c", "S54c", "S47", "S23",     # F25-32
          "S33", "S33", "S33", "S33", "S58", "S23", "S54c", "S47",        # Welt 2 F1-8:  F5 S58 Tunnel (statt S48d)
-         "S59", "S14", "S24", "S57", "S56", "S19d", "S50", "S54c",       # F9 S59 Impact, F12 S57 Collage, F13 S56 Neonblasen
+         "S59", "S14", "S24", "S54c", "S56", "S19d", "S50", "S54c",      # F9 S59 Impact, F13 S56 Neonblasen (F12: S57 raus,
+                                                                          # Vadim 2.10. "nur S57b kommt weiter")
          "S31e", "S18d", "S31g", "S45", "S48c", "S26", "S60", "S57b",    # F23 S60 Graffiti, F24 S57b Collage Kritzel
          "S54c", "S14", "S24", "S19d", "S48c", "S54c", "S47", "S23"]
