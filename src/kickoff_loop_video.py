@@ -842,8 +842,12 @@ def qr_scan(images):
             except cv2.error:              # OpenCV 5 bricht bei manchen Bildern ohne QR intern ab (resize: leere Groesse,
                 return False               # O1 1.10.: Matrjoschka-Ringe im Zoom) → gilt als nicht lesbar
         return KL.memo("qr9x16", hashlib.sha1(a.tobytes()).hexdigest(), read)
+    by = {}                                  # gleiche Bilder (stehende Endkarte) nur einmal: zwei Threads mit demselben
+    for im in images:                        # Bild schrieben dieselbe Merk-Datei (gleiche Temp-Datei, FileNotFoundError)
+        by.setdefault(hashlib.sha1(np.asarray(im).tobytes()).hexdigest(), im)
     with ThreadPoolExecutor() as ex:
-        return list(ex.map(one, images))
+        got = dict(zip(by, ex.map(one, by.values())))
+    return [got[hashlib.sha1(np.asarray(im).tobytes()).hexdigest()] for im in images]
 
 
 def contact_sheet(cfg, posters, qr_ok, legib, stills, path):

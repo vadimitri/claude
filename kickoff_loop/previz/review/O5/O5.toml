@@ -1,0 +1,57 @@
+# O5 Wurf auf die Kamera + Infinite Zoom (Vadim 3.10.: "am Ende bzw. Anfang des Loops, wo der Spark riesig und frontal
+# ist, soll er weiter in die eine Richtung geschleudert werden, aber zu einem hin, und das dann mit einem Infinite Zoom,
+# also das Momentum da auch"): 4 Takte T16, auf dem Bass-Boom (11.76 s) genau ein digitaler Umlauf (F1 -> F1). Im
+# riesigen frontalen F1 (S33) faehrt er in seiner Richtung weiter (nach links, laeuft aus) und fliegt auf einen zu: der
+# Infinite Zoom der Matrjoschka startet mit dem Sehtempo des Loops (nicht aus dem Stand) und beschleunigt, Drehung zieht
+# an. Endkarte ab 15.07 s (SPARK), QR 17.28 s, Ende 23.16 s. Musik-Sync zweitrangig (Vadim schneidet am
+# Ende). Nur geaenderte Abschnitte, Rest aus loop.toml.
+
+[ending]
+carousel_bars = 4          # Karussell T16 bis zum Bass-Boom (Takt 5)
+runout_bars = 0
+runout_hold_beats = 0.0
+length_bars = 7.875        # QR steht ~6 s (ab Beat 7.5 nach dem Boom)
+card_on = true
+# Bahn-Ende (end_mode = "orbit"). Zeiten in Beats ab dem Karussell-Ende (= Bass-Boom); end_frame folgt daraus
+orbit_path = "dive"        # Wurf auf die Kamera, ohne Bruch in den Infinite Zoom der Matrjoschka
+orbit_frame = 1            # im riesigen frontalen F1 (S33, Naht F32 -> F1)
+orbit_loops = 1.0          # Vadim 3.10.: ab dem Moment, wo es digital ist, EIN Umlauf (1.96 s), dann die neue Bahn
+orbit_dive_match = 1.25    # Zoom-Anfangstempo = so viel x Sehtempo der Mitte auf der Bahn (0 = aus dem Stand). 1.0 gab
+                           # einen Einbruch auf x0.88 (die Mitte laeuft schneller aus, als der Zoom anzieht)
+orbit_dive_drift_beats = 0.1   # die Mitte faehrt in ihrer Richtung weiter und laeuft so schnell aus (Beats, exponentiell)
+orbit_dive_core_shrink = 1.0   # Kern zieht sich pro Puppe zurueck: innen oeffnen sich neue Puppen (wie Z4)
+orbit_throw_speedup = 1.5  # Zoomtempo x1.5 pro Beat (exponentiell). x2 erreichte 16 Puppen/s (2/3 Puppe pro Bild: flackert)
+orbit_throw_boost = 0.0    # der Tempo-Faktor legt pro Beat so viel zu (0 = rein exponentiell)
+orbit_spin_speedup = 2.0   # Drehung: Bahntempo, legt pro Beat das 1-fache zu
+orbit_cycle_beats = 2.67   # Farben wechseln im T16-Raster bis zum Wurf, dann zoomt er in EINER Colorway (bildfuellend
+                           # mit Farbwechsel je Bild = die verworfenen Hypno-Ringe, 1.10.)
+orbit_type_out_at_beats = 3.5      # Titelblock des Plakats zerfaellt im Korn ab hier ...
+orbit_type_out_beats = 1.0         # ... in so vielen Beats
+card_reveal = "bayer"
+card_diff = false
+card_moves = [["title", 4.5, 0.0, -0.12, 1.0],     # SPARK faellt von oben (Zoom geht darunter in den Grund)
+              ["what", 5.5, -0.6, 0.0, 1.0],       # KICK-OFF von links
+              ["when", 6.5, 0.6, 0.0, 1.0],       # Datum von rechts
+              ["qr", 7.5, 0.0, 0.0, 0.0],         # QR springt aus der Mitte auf
+              ["cta", 8.0, 0.0, 0.03, 1.0],       # JOIN US
+              ["info", 8.5, 0.0, 0.03, 1.0]]
+card_in_beats = 0.5
+card_overshoot = 1.70158
+card_dim_frac = 1.0        # Zoom geht unter SPARK im Korn ganz in den Grund (dann steht er, Karte frei)
+card_title_w_frac = 0.74
+card_top_frac = 0.14
+card_sub_frac = 0.40
+card_gap_frac = 0.30
+card_qr_module_cells = 4
+card_qr_quiet_cells = 4
+card_qr_y_frac = 0.58
+card_glow_cells = 16
+card_cta_cells = 12
+card_cta_gap_cells = 8
+card_info = ["ORT FOLGT"]
+card_info_frac = 0.30
+
+[endcard]
+end_mode = "orbit"
+burst_on = false
+impact_on = false

@@ -1,35 +1,35 @@
-# O4 Schleuder in die Tiefe (Vadim 2.10.: "der Stern wird wie gewohnt klein Richtung Mitte und fliegt dann weg wie
-# geschleudert"): wie O2, aber er laesst vor dem fernsten Punkt los (F14, noch auf dem Weg nach hinten): die Tangente
-# zeigt rechts in die Tiefe, er schiesst davon und schrumpft zu einem Punkt. Loslassen auf der Snare (Takt 6 Beat 3),
-# Tempo x5 pro Beat und der Faktor waechst (boost 2), Drehung x5 (wirbelt). Weg vor SPARK der Karte.
-# Takt 7: Endkarte wie Z5 (SPARK faellt, KICK-OFF/Datum auf den Beats, QR auf dem Hit 20.59 s).
-# Nur geaenderte Abschnitte, Rest aus loop.toml. Musik: IGOR ungeschnitten.
+# O4 Schleuder in die Tiefe (wie O2, Vadim 3.10.: "nur noch EINEN Loop, dann zack"): ein digitaler Umlauf ab dem
+# Bass-Boom (F14 -> F14), er laesst vor dem fernsten Punkt los (F14, 13.72 s, noch auf dem Weg nach hinten): die Tangente
+# zeigt rechts in die Tiefe, er schiesst davon und schrumpft zu einem Punkt (weg ab 14.81 s). Tempo x5 pro Beat und der
+# Faktor waechst (boost 2), Drehung x5 (wirbelt). Endkarte auf den Beats ab 14.70 s (SPARK), QR 16.90 s, Ende 22.79 s.
+# Musik-Sync zweitrangig (Vadim schneidet am Ende). Nur geaenderte Abschnitte, Rest aus loop.toml.
 
 [ending]
 carousel_bars = 4          # Karussell T16 bis zum Bass-Boom (Takt 5)
 runout_bars = 0
 runout_hold_beats = 0.0
-length_bars = 9.0          # bis Takt 10 (26.47 s): der QR steht ~6 s
+length_bars = 7.75         # QR steht ~6 s (ab Beat 7 nach dem Boom)
 card_on = true
 # Bahn-Ende (end_mode = "orbit"). Zeiten in Beats ab dem Karussell-Ende (= Bass-Boom); end_frame folgt daraus
 orbit_path = "throw"       # Schleuder: verlaesst die Ellipse tangential (im Raum), beschleunigt raus
 orbit_frame = 14           # loslassen auf F14 (noch auf dem Weg nach hinten): Tangente rechts in die Tiefe
-orbit_at_beats = 6.0       # ... auf Beat 3 von Takt 6 (16.17 s, Snare): in die Tiefe braucht er laenger, bis er weg ist
+orbit_loops = 1.0          # Vadim 3.10.: ab dem Moment, wo es digital ist, EIN Umlauf (1.96 s), dann die neue Bahn
+                           # (v1 hatte 1.1-2.6 Umlaeufe: "zu teasing"). Karussell-Endframe und Zeitpunkt folgen daraus
 orbit_throw_speedup = 5.0  # Tempo x5 pro Beat (exponentiell): in der Tiefe braucht es mehr, um schneller zu wirken
 orbit_throw_boost = 2.0    # der Tempo-Faktor legt pro Beat so viel zu (0 = rein exponentiell). In die Tiefe noetig:
                            # rein exponentiell schrumpft er mit festem Verhaeltnis pro Bild (wirkt gleichmaessig, O4 v1)
 orbit_spin_speedup = 5.0   # Drehung: Bahntempo, legt pro Beat das 4-fache zu
-orbit_cycle_beats = 8.0    # Farben/Sterne wechseln im T16-Raster bis Takt 7, dann steht die Farbe der Karte
-orbit_type_out_at_beats = 7.0      # Titelblock des Plakats zerfaellt im Korn ab hier (Stern ist dann ein Punkt) ...
+orbit_cycle_beats = 4.0    # Farben/Sterne wechseln im T16-Raster bis SPARK der Karte, dann steht die Farbe
+orbit_type_out_at_beats = 3.0      # Titelblock des Plakats zerfaellt im Korn ab hier (Stern fliegt gerade raus) ...
 orbit_type_out_beats = 1.0         # ... in so vielen Beats (weg, wenn SPARK der Karte faellt)
 card_reveal = "bayer"
 card_diff = false
-card_moves = [["title", 8.0, 0.0, -0.12, 1.0],     # Takt 7: SPARK faellt von oben
-              ["what", 9.0, -0.6, 0.0, 1.0],       # KICK-OFF von links
-              ["when", 10.0, 0.6, 0.0, 1.0],       # Datum von rechts; Beat 11 = IGORs Stopp, Stille, alles steht
-              ["qr", 12.0, 0.0, 0.0, 0.0],         # Hit nach dem Stopp: QR springt aus der Mitte auf
-              ["cta", 12.5, 0.0, 0.03, 1.0],       # JOIN US
-              ["info", 13.0, 0.0, 0.03, 1.0]]
+card_moves = [["title", 4.0, 0.0, -0.12, 1.0],     # SPARK faellt von oben
+              ["what", 5.0, -0.6, 0.0, 1.0],       # KICK-OFF von links
+              ["when", 6.0, 0.6, 0.0, 1.0],       # Datum von rechts
+              ["qr", 7.0, 0.0, 0.0, 0.0],         # QR springt aus der Mitte auf
+              ["cta", 7.5, 0.0, 0.03, 1.0],       # JOIN US
+              ["info", 8.0, 0.0, 0.03, 1.0]]
 card_in_beats = 0.5
 card_overshoot = 1.70158
 card_dim_frac = 0.0        # nichts abzudimmen: der Stern ist weg, die Karte steht auf dem Grund der Colorway
