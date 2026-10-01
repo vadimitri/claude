@@ -38,6 +38,7 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
   Zellspalte nach unten verschoben, Bayer-Matrix fest → die Dither-Konturen tropfen), `mode = "depth"` (Verlauf radial vom
   Fluchtpunkt `center = "vanish"` bzw. vom Stern `"star"`, je ferner desto radialer), `gain` (Spannweite).
   **V1** linear + Melt · **V2** Fluchtpunkt + Melt, gain 1.8 · **V3** Stern-Tiefe + Melt, gain 1.8.
+  **Vadim: „wir nehmen V3“ → `[ground]` in `loop.toml`**, V1–V3 archiviert. Gilt damit auch für alle Varianten-TOMLs.
   Befunde: Melt muss auf den ganzen Grund (der Nebel in `styles.ground` macht die sichtbaren Konturen), Tropfen ~1
   Konturabstand lang (~36 Zellen) und 2 Zellen breit (1 verschwindet im Bayer). Bei gain 1 (heute: halbe Stufe) änderte
   der gedrehte Verlauf ≤ 4 % der Pixel, mit 1.8 10–14 %. Auf Papier-Frames ist Stufe 0 das Papier: dort wird es um den
@@ -70,7 +71,8 @@ Loop hinein (digital, 24 fps, dieselbe Bahn/Sterne/Farben), dann ändert der Ste
 - Nach jedem Render: Bildstreifen über die Zeit selbst ansehen (ffmpeg fps=1.5 → Bogen) + Report, **bevor** Vadim es sieht
   (Z4 v1 war kaputt und ging ungeprüft raus).
 
-**Offen zur Wahl** (`previz/review/<Code>/`): V1–V3 (Verlauf mit Melt/Ausrichtung). Z4/Z5 archiviert, W1/W2 geparkt (3.10.).
+**Hauptversion `previz/v022/`** (3.10.: neuer Zyklus, S59b, Grund V3; altes Ende). Offen: neue Enden (Agent `enden`).
+Z4/Z5 archiviert, W1/W2 geparkt (3.10.).
 G1/N1 sind seit 3.10. in `loop.toml` (archiviert). Hauptversion `previz/v021/` (loop.toml, altes Ende).
 **Render-Tempo** (gemergt 74b61df, Bild bitgleich per Frame-Hash): `sheet` warm ~3.5 s, `preview` warm ~33 s / kalt ~57 s,
 `preview … --draft` ~20 s (Digitalteil auf Zweiern, Hardware-Encoder, `*_draft.mp4`, nicht zur Abnahme). Cache-Schlüssel nur
