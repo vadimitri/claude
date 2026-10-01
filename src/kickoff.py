@@ -228,7 +228,7 @@ def check_qr(img, px):
 
 def frame_of(st, fmt):
     _EXTRA.clear()
-    frame = S.render(st, fmt)[0]
+    frame = S.render(st, fmt, layers=False)[0]                              # Ebenen braucht hier niemand
     for v2, mask, p2 in _EXTRA.get("extra", []):                            # Zweitlicht ausserhalb der Schrift einsetzen
         pl = S.hexpal(p2)
         col = pl[S.dither(v2, len(pl) - 1, st["D"], st["R"] * S.SIZES[fmt][2])]

@@ -131,7 +131,7 @@ def tile(t, shape):
 
 def dither(v, N, D, px, seed=0, shift=(0, 0)):
     """shift (Zellen y, x): Schwellenmuster verschieben. Wechselt es von Bild zu Bild, "kocht" das Korn wie
-    handgezeichnete Linien (Boil); bleibt es (0, 0), ist alles wie immer."""
+    handgezeichnete Linien (Boil); bleibt es (0, 0), ist alles wie immer. px = 1: Palettenindex je Zelle."""
     thr = {"blue": lambda s: tile(np.roll(BN, (seed * 37 % 128, seed * 71 % 128), (0, 1)), s),
            "bayer2": lambda s: tile(bayer(2), s), "bayer4": lambda s: tile(bayer(4), s),
            "lines": lambda s: np.broadcast_to(((np.arange(s[0]) % 4 + 0.5) / 4)[:, None], s),
@@ -336,8 +336,12 @@ def type_layers(c):
 
 # ---------------------------------------------------------------- Render
 
-def render(st, fmt="16x9"):
-    """-> (frame RGB uint8, {ebene: RGBA uint8})"""
+def render(st, fmt="16x9", layers=True):
+    """-> (frame RGB uint8, {ebene: RGBA uint8}). layers=False: nur das Bild, das Ebenen-Dict bleibt leer, und das
+    Bild wird auf dem Zellraster zusammengesetzt (px x px weniger Pixel) und erst am Ende hochskaliert. Bitgleich, weil
+    jede Eingabe (Index aus dither, Ebenen-Alpha aus Ctx.add) pro Zelle konstant ist; das wird je Ebene geprueft,
+    sonst rechnet es in voller Aufloesung wie bisher. Zusammen ~3-5x schneller (Befund 2.10.: kickoff.frame_of warf
+    pro Ebene ein volles RGBA-Float-Bild weg, das Zusammensetzen war 2/3 der Renderzeit)."""
     c = Ctx(st, fmt)
     bg = background(c)
     st.get("spark_fn", spark)(c)
@@ -346,17 +350,31 @@ def render(st, fmt="16x9"):
     for _, _, v, _, _ in c.layers:
         V = np.where(np.isnan(v), V, v)
     D, sd, sh = st["D"], st.get("seed", 0), tuple(st.get("dither_shift", (0, 0)))
-    idx_bg, idx = dither(bg, c.N, D, c.px, sd, sh), dither(V, c.N, D, c.px, sd, sh)
+    p = c.px
+    cells = not layers and c.gh * p == c.H and c.gw * p == c.W and all(
+        np.array_equal(up(a[::p, ::p], p), a) for _, a, *_ in c.layers)
+    q = 1 if cells else p                                  # Pixel pro Zelle, in denen zusammengesetzt wird
+    idx_bg, idx = dither(bg, c.N, D, q, sd, sh), dither(V, c.N, D, q, sd, sh)
     frame = c.pal[idx_bg]
-    layers = {"bg": np.dstack([c.pal[idx_bg], np.full((c.H, c.W), 255, np.float32)])}
+    out = {"bg": np.dstack([c.pal[idx_bg], np.full((c.H, c.W), 255, np.float32)])} if layers else {}
+    full = None                                   # c.pal[idx] ist fuer alle Ebenen ohne eigenes D gleich: einmal rechnen
     for name, a, _, flat, own in c.layers:
-        col = c.pal[flat] if flat is not None else c.pal[dither(V, c.N, own, c.px, sd, sh)] if own else c.pal[idx]
+        a = a[::p, ::p] if cells else a
+        if flat is not None:
+            col = c.pal[flat]
+        elif own:
+            col = c.pal[dither(V, c.N, own, q, sd, sh)]
+        else:
+            full = c.pal[idx] if full is None else full
+            col = full
         frame += a[..., None] * (col - frame)
-        rgba = layers.get(name, np.zeros((c.H, c.W, 4), np.float32))
-        rgba[..., :3] += a[..., None] * (col - rgba[..., :3])
-        rgba[..., 3] = np.maximum(rgba[..., 3], a * 255)
-        layers[name] = rgba
-    return np.clip(frame, 0, 255).astype(np.uint8), {k: np.clip(v, 0, 255).astype(np.uint8) for k, v in layers.items()}
+        if layers:
+            rgba = out.get(name, np.zeros((c.H, c.W, 4), np.float32))
+            rgba[..., :3] += a[..., None] * (col - rgba[..., :3])
+            rgba[..., 3] = np.maximum(rgba[..., 3], a * 255)
+            out[name] = rgba
+    frame = np.clip(frame, 0, 255).astype(np.uint8)
+    return up(frame, p) if cells else frame, {k: np.clip(v, 0, 255).astype(np.uint8) for k, v in out.items()}
 
 
 # ---------------------------------------------------------------- Bausteine (Stand: Feedback 2026-09-25)

@@ -18,7 +18,6 @@ import os
 import shutil
 import subprocess
 import time
-from multiprocessing import Pool
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -35,6 +34,8 @@ RED_SAT_FRAC = 0.8                   # WCAG 2.2 / ISO 9241-391: Zustand "gesaett
 RED_MIN_UV = 0.2                     # ... und ein Rot-Uebergang braucht mehr als 0.2 Abstand in der CIE-1976-Farbtafel
 SRGB_XYZ = np.array([[0.4124, 0.3576, 0.1805], [0.2126, 0.7152, 0.0722], [0.0193, 0.1192, 0.9505]], np.float32)  # D65
 WHITE_UV = (0.1978, 0.4683)          # u', v' von D65: Schwarz hat keine Farbart, gilt als unbunt
+PLATE_ROWS = 512                     # simulated_plate: Filmkorn in Streifen dieser Hoehe (Speicher; das Bild bleibt gleich,
+                                     # Generator.normal zieht in Streifen dieselbe Folge wie am Stueck)
 
 
 # ---------------------------------------------------------------- Zeitachse und Kamera
@@ -138,9 +139,12 @@ def simulated_plate(cfg, poster, k):
         y, x = rng.integers(0, low[0] - h), rng.integers(0, low[1] - w)
         wall[y:y + h, x:x + w] = colorsys.hsv_to_rgb(rng.random(), rng.uniform(0, 0.6), rng.uniform(0.3, 0.95))
     img = Image.fromarray((np.clip(wall, 0, 1) * 255).astype(np.uint8)).resize((PW, PH), Image.BICUBIC)
-    img = img.filter(ImageFilter.GaussianBlur(6))
-    grain = rng.normal(0, 6, (PH, PW, 1))
-    img = grade(Image.fromarray(np.clip(np.asarray(img, np.float32) + grain, 0, 255).astype(np.uint8)), cfg)
+    img = np.asarray(img.filter(ImageFilter.GaussianBlur(6)))
+    noisy = np.empty_like(img)
+    for y in range(0, PH, PLATE_ROWS):                     # Filmkorn streifenweise: gleiche Zufallsfolge, gleiche Werte,
+        g = rng.normal(0, 6, (min(PLATE_ROWS, PH - y), PW, 1))   # aber ~60 MB statt ~600 MB Spitze pro Worker
+        noisy[y:y + len(g)] = np.clip(img[y:y + len(g)].astype(np.float32) + g, 0, 255).astype(np.uint8)
+    img = grade(Image.fromarray(noisy), cfg)
 
     s = Image.fromarray(poster).convert("RGBA").rotate(rng.normal(0, sim["jitter_rot_deg"]), Image.BICUBIC, expand=True)
     jx, jy = rng.normal(0, sim["jitter_px"], 2)
@@ -156,15 +160,20 @@ def simulated_plate(cfg, poster, k):
 def grade(img, cfg, hole=None):
     """Belichtung angleichen: ganzes Bild mit einem Faktor so hell/dunkel, dass die Umgebung (alles ausser `hole`,
     dem Plakat) im Mittel surround_luma hat. Ohne das blitzt bei 8 fps jeder Ortswechsel ueber das ganze Bild
-    (v003 ohne Angleichen: 45 % der Flaeche, Grenze 25 %). Gilt fuer echte Fotos genauso wie fuer die Simulation."""
-    a = np.asarray(img, np.float32) / 255
-    lum = a @ KL.LUMA
+    (v003 ohne Angleichen: 45 % der Flaeche, Grenze 25 %). Gilt fuer echte Fotos genauso wie fuer die Simulation.
+    In Streifen (PLATE_ROWS) gerechnet: ~50 MB statt ~400 MB Spitze bei einer 10-MP-Platte, Werte gleich."""
+    src = np.asarray(img)
+    rows = range(0, src.shape[0], PLATE_ROWS)
+    lum = np.concatenate([(src[y:y + PLATE_ROWS].astype(np.float32) / 255) @ KL.LUMA for y in rows])
     m = np.ones(lum.shape, bool)
     if hole:
         x0, y0, x1, y1 = hole
         m[y0:y1, x0:x1] = False
     gain = cfg["video"]["surround_luma"] / max(float(lum[m].mean()), 1e-3)
-    return Image.fromarray((np.clip(a * gain, 0, 1) * 255).astype(np.uint8))
+    out = np.empty_like(src)
+    for y in rows:
+        out[y:y + PLATE_ROWS] = (np.clip(src[y:y + PLATE_ROWS].astype(np.float32) / 255 * gain, 0, 1) * 255).astype(np.uint8)
+    return Image.fromarray(out)
 
 
 def aligned_photo(k):
@@ -356,7 +365,7 @@ def digital_style(cfg, dt):
         if cfg.get("ending", {}).get("card_on"):                                  # Endkarte im Zoom (Z5)
             import kickoff_loop_end as KE
             card = KE.card_state(cfg, dt)
-        st.update(spark_fn=KD.zoom_spark, type_fn=zoom_card_type)
+        st.update(spark_fn=KD.zoom_spark, type_fn=KD.zoom_card_type)
         st["loop"] = {**st["loop"], "digital": dict(u=0.0, offset=(ox, oy), star=star, show=None, zoom=zoom, card=card,
                                                     black=0.0 if card else clip((t - fade_at) / max(last - fade_at, 1e-6)))}
     else:
@@ -371,14 +380,6 @@ def digital_style(cfg, dt):
     st["star"] = (star[0] / W, star[1] / H, star[2] / W)
     return boil(cfg, st, dt)
 
-
-def zoom_card_type(c):
-    """Satz im Zoom (kickoff_loop_digital.zoom_type), darueber die Endkarte, falls [ending].card_on."""
-    import kickoff_loop_digital as KD
-    KD.zoom_type(c)
-    if c.st["loop"]["digital"].get("card"):
-        import kickoff_loop_end as KE
-        KE.card_layers(c, c.st["loop"]["digital"]["card"])
 
 
 ZOOM_JUMP_FACTOR = 3.0   # Zoom-Check: ein Bildwechsel gilt als Sprung, wenn er mehr als 3x so viel aendert wie der Median
@@ -474,9 +475,12 @@ def invert(img, P):
 
 
 def _digital_job(args):
-    cfg, dt = args
+    """Ein Bild des Digitalteils dt Sekunden nach dem Wechsel. only_cached: nur aus dem Cache, sonst None."""
+    cfg, dt, only_cached = (*args, False)[:3]
     st = digital_style(cfg, dt)
-    img = KL.render_cached(st, "9x16", "end")
+    img = KL.render_cached(st, "9x16", "end", only_cached)
+    if img is None:
+        return None
     if digital_phase(cfg, dt)[0] == "impact":
         return invert(img, st["P"])
     import kickoff_loop_digital as KD                                  # Fade to Black im Korn (Zoom), 0 = nichts
@@ -484,19 +488,93 @@ def _digital_job(args):
 
 
 def digital_frames(cfg, tl):
-    """Alle Bilder des Digitalteils (24 fps). Gleiche Stile (Zweier der Endkarte) nur einmal rendern."""
+    """Alle Bilder des Digitalteils (24 fps). Gleiche Stile (Zweier der Endkarte) nur einmal rendern. Was schon im
+    Cache liegt, laedt der Hauptprozess (Threads, PNG-Dekodieren gibt die GIL frei), nur der Rest geht in den Pool:
+    warm startet kein Pool und es wandern keine 350 x 6 MB Bilder durch die Pipes."""
+    from concurrent.futures import ThreadPoolExecutor
     fps = cfg["video"]["timeline_fps"]
     if cfg["endcard"].get("end_mode", "card") == "zoom":
         check_zoom(cfg)
-    dts = [k / fps for k in range(tl.total - tl.zoom_end)]
-    key = lambda d: repr([digital_style(cfg, d).get(k) for k in ("nest_phase", "dither_shift", "P")]) \
-        + repr(digital_style(cfg, d)["loop"]["digital"]) + digital_phase(cfg, d)[0]                 # noqa: E731
+    step = DRAFT_STEP if cfg.get("_draft") else 1           # Entwurf: Zweier (dieselben Bilder wie die Endversion,
+    dts = [(k - k % step) / fps for k in range(tl.total - tl.zoom_end)]   # nur jedes 2.: der Cache gilt fuer beide)
+
+    def key(d):
+        st = digital_style(cfg, d)
+        return repr([st.get(k) for k in ("nest_phase", "dither_shift", "P")]) + repr(st["loop"]["digital"]) \
+            + digital_phase(cfg, d)[0]
+    keys = [key(d) for d in dts]
     uniq = {}
-    for d in dts:
-        uniq.setdefault(key(d), d)
-    with Pool() as pool:
-        imgs = dict(zip(uniq, pool.map(_digital_job, [(cfg, d) for d in uniq.values()])))
-    return [Image.fromarray(imgs[key(d)]) for d in dts]
+    for k, d in zip(keys, dts):
+        uniq.setdefault(k, d)
+    with ThreadPoolExecutor() as ex:
+        imgs = dict(zip(uniq, ex.map(lambda d: _digital_job((cfg, d, True)), uniq.values())))
+        todo = [k for k, v in imgs.items() if v is None]
+        if todo:                                     # Worker rendern in den Cache, Bilder kommen per PNG zurueck
+            KL.pool().map(_digital_fill, [(cfg, uniq[k]) for k in todo], chunksize=4)
+            imgs.update(zip(todo, ex.map(lambda k: _digital_job((cfg, uniq[k], True)), todo)))
+    return [Image.fromarray(imgs[k]) for k in keys]
+
+
+def _digital_fill(args):
+    """Pool: ein Bild des Digitalteils in den Cache rendern, nichts zurueckgeben (spart ~2 GB Pickle durch die Pipes)."""
+    cfg, dt = args
+    KL.render_cached(digital_style(cfg, dt), "9x16", "end")
+
+
+def _photo_job(args):
+    """Foto-Phase fuer Plakat k: Platte bauen (Foto bzw. Simulation, ~0.5 s) und alle Timeline-Frames ts schiessen, in
+    denen es zu sehen ist. Pro Plakat ein Job, damit die Platte (~30 MB) nicht durch die Pipe muss. Das Plakat kommt
+    aus dem Cache, die Bilder gehen direkt in den gemeinsamen Speicher shm (Bild t an Stelle t): keine 1.7 GB Pickle."""
+    from multiprocessing import shared_memory
+    cfg, k, ts, shm_name = args
+    poster = KL.frame(cfg, k)
+    tl, plate = Timeline(cfg), photo_plate(cfg, poster, k)
+    h, (W, H) = poster.shape[0], cfg["video"]["size_px"]
+    try:                                                            # track=False (ab 3.13): der Hauptprozess raeumt auf
+        shm = shared_memory.SharedMemory(name=shm_name, track=False)
+    except TypeError:
+        shm = shared_memory.SharedMemory(name=shm_name)
+    try:
+        out = np.ndarray((tl.zoom_end, H, W, 3), np.uint8, buffer=shm.buf)
+        for t in ts:
+            sc, roll = camera(cfg, tl, t, h)
+            out[t] = np.asarray(shoot(plate, sc, (W, H), roll))
+        del out
+    finally:
+        shm.close()
+
+
+class PhotoFrames:
+    """Alle Bilder der Foto-Phase (Timeline-Frames 0 .. zoom_end-1), parallel je Plakat in gemeinsamen Speicher
+    gerechnet. Bitgleich zur frueheren seriellen Schleife (Platten sind pro Plakat fest geseedet), die ~60 s fuer
+    Platten + Kamera im Hauptprozess brauchte. Als Kontext: with PhotoFrames(cfg, tl) as photo: photo[t] (Ansicht in
+    den Speicher, fuer Behalten kopieren)."""
+
+    def __init__(self, cfg, tl):
+        from multiprocessing import shared_memory
+        W, H = cfg["video"]["size_px"]
+        self.shm = shared_memory.SharedMemory(create=True, size=max(tl.zoom_end, 1) * H * W * 3)
+        self.frames = np.ndarray((tl.zoom_end, H, W, 3), np.uint8, buffer=self.shm.buf)
+        by = {}
+        for t in range(tl.zoom_end):
+            by.setdefault(tl.poster_at(t), []).append(t)
+        self.job = KL.pool().map_async(_photo_job, [(cfg, k, ts, self.shm.name) for k, ts in by.items()], chunksize=1)
+
+    def __getitem__(self, t):
+        if self.job is not None:                       # laeuft im Hintergrund, waehrenddessen z. B. der Digitalteil
+            self.job.get()
+            self.job = None
+        return self.frames[t]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        if self.job is not None:
+            self.job.wait()
+        del self.frames
+        self.shm.close()
+        self.shm.unlink()
 
 
 # ---------------------------------------------------------------- Pruefungen
@@ -642,11 +720,15 @@ def switch_jumps(cfg, lum, chroma):
 
 
 def cta_legibility(cfg, i, img):
-    """Lesbarkeit von JOIN US (kickoff.legible, gleiche Messung wie Titel/Datum) auf Plakat i."""
+    """Lesbarkeit von JOIN US (kickoff.legible, gleiche Messung wie Titel/Datum) auf Plakat i (img = dessen Bild).
+    Gemerkt pro Plakat (KL.memo), warm kostet der Bogen-Report so keine 2 s."""
     st = KL.poster_style(cfg, i)
-    c = S.Ctx(st, KL.PREVIEW)
-    K._EXTRA["title"] = K._EXTRA["date"] = KL.qr_glow(c, st["loop"]["qr"])[-1][1]
-    return K.legible(img, KL.PREVIEW_CELL_PX)
+
+    def measure():
+        c = S.Ctx(st, KL.PREVIEW)
+        K._EXTRA["title"] = K._EXTRA["date"] = KL.qr_glow(c, st["loop"]["qr"])[-1][1]
+        return K.legible(img, KL.PREVIEW_CELL_PX)
+    return KL.memo("cta", KL.cache_key(st, KL.PREVIEW), measure)
 
 
 def sheet_report(cfg, posters, qr_ok, legib, name=""):
@@ -714,14 +796,47 @@ def song(cfg, tl, path):
     KM.write_wav(path, x)
 
 
-def ffmpeg_writer(path, size, fps, audio=None):
-    """Roh-RGB auf stdin → H.264. Mit Ton: AAC (Pegel stellt song() ein)."""
+# x264-Preset der Vorschauen. Befund 2.10. (Z5, 635 Bilder 1080x1920, crf 16): medium ~14 s Encode, fast ~3 s, bei
+# PSNR gegen die Quellbilder 36.97 dB (medium) / 36.87 dB (fast), Datei gleich gross. veryfast verliert 2 dB, deshalb fast.
+X264_PRESET = "fast"
+# preview --draft: Hardware-Encoder (Apple VideoToolbox) statt x264. Befund 2.10. (Z5, 635 Bilder, PSNR RGB gegen die
+# Quellbilder): x264 fast 30.14 dB / 18 s, VideoToolbox q 65 29.22 dB / 7.8 s, halbe Datei, fast keine CPU (die braucht
+# der Pool). Sichtbar weicher im Korn, deshalb nur im Entwurf.
+DRAFT_ENCODER = ["-c:v", "h264_videotoolbox", "-q:v", "65"]
+DRAFT_STEP = 2       # preview --draft: Digitalteil nur jedes 2. Bild rendern und halten (Zweier, 12 fps): halbe Renderzeit
+
+
+def draft_name(cfg, name):
+    """Ausgabedatei, im Entwurf mit _draft: preview.mp4 → preview_draft.mp4 (nie die Endversion ueberschreiben)."""
+    if not cfg.get("_draft"):
+        return name
+    stem, ext = os.path.splitext(name)
+    return f"{stem}_draft{ext}"
+
+
+def ffmpeg_writer(path, size, fps, audio=None, draft=False):
+    """Roh-RGB auf stdin → H.264. Mit Ton: AAC (Pegel stellt song() ein). draft: DRAFT_ENCODER."""
     W, H = size
+    enc = DRAFT_ENCODER if draft else ["-c:v", "libx264", "-preset", X264_PRESET, "-crf", "16"]
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(fps),
            "-i", "-"] + (["-i", audio] if audio else []) + \
-          ["-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + \
+          enc + ["-pix_fmt", "yuv420p", "-movflags", "+faststart"] + \
           (["-c:a", "aac", "-b:a", "256k", "-shortest"] if audio else []) + [path]
     return subprocess.Popen(cmd, stdin=subprocess.PIPE)
+
+
+def qr_scan(images):
+    """QR lesbar ja/nein fuer 9:16-Bilder (wie KE.card_check(...)[0]), parallel in Threads (OpenCV gibt die GIL frei)
+    und je Bildinhalt gemerkt (KL.memo): der Endkarten-Check rechnete vorher ~25 Bilder seriell neu (~6 s)."""
+    import hashlib
+    from concurrent.futures import ThreadPoolExecutor
+    px = S.BASE["R"] * S.SIZES["9x16"][2]
+
+    def one(im):
+        a = np.asarray(im)
+        return KL.memo("qr9x16", hashlib.sha1(a.tobytes()).hexdigest(), lambda: bool(K.check_qr(a, px)))
+    with ThreadPoolExecutor() as ex:
+        return list(ex.map(one, images))
 
 
 def contact_sheet(cfg, posters, qr_ok, legib, stills, path):
@@ -753,11 +868,14 @@ def contact_sheet(cfg, posters, qr_ok, legib, stills, path):
 def sheet(cfg, posters, qr_ok, legib, out, tag=""):
     """Schnelle Runde (~15 s statt ~2 min): nur Kontaktbogen + Plakat-Loop im Karusselltempo + report.txt (Befund aus
     sheet_report) → previz/now/. Fuer Standbild-Entscheidungen; das Video erst mit preview, wenn die Standbilder stehen."""
+    import threading
     os.makedirs(out, exist_ok=True)
+    video = threading.Thread(target=loop_video, args=(cfg, posters, os.path.join(out, tag + "loop.mp4")))
+    video.start()                                       # ffmpeg rechnet, waehrenddessen Bogen + Report
     contact_sheet(cfg, posters, qr_ok, legib, [], os.path.join(out, tag + "contact.png"))
     with open(os.path.join(out, tag + "report.txt"), "w", encoding="utf-8") as f:
         f.write(sheet_report(cfg, posters, qr_ok, legib, tag.rstrip("_") or "loop.toml"))
-    loop_video(cfg, posters, os.path.join(out, tag + "loop.mp4"))
+    video.join()
     return out
 
 
@@ -781,9 +899,10 @@ def loop_video(cfg, posters, path):
     wav = os.path.splitext(path)[0] + ".wav"
     KM.write_wav(wav, x)
     h, w = posters[0].shape[:2]
-    ff = ffmpeg_writer(path, (w // 2, h // 2), fps, wav)
-    for img in posters * m["loop_passes"]:
-        ff.stdin.write(np.asarray(Image.fromarray(img).resize((w // 2, h // 2), Image.BOX)).tobytes())
+    ff = ffmpeg_writer(path, (w // 2, h // 2), fps, wav, draft=bool(cfg.get("_draft")))
+    small = [np.asarray(Image.fromarray(img).resize((w // 2, h // 2), Image.BOX)).tobytes() for img in posters]
+    for b in small * m["loop_passes"]:                 # jedes Plakat einmal verkleinern, nicht je Durchgang
+        ff.stdin.write(b)
     ff.stdin.close()
     ff.wait()
     os.remove(wav)
@@ -831,46 +950,47 @@ def preview(cfg, posters, qr_ok, legib):
     tfps, bpm = cfg["video"]["timeline_fps"], cfg["loop"]["bpm"]
     bar_s = 16 * cfg["music"]["grid"]["sixteenth_s"]
 
-    # 1. Plakat-Loop allein im schnellsten Karusselltempo, mit Ton (man soll den Neustart sehen)
-    h, w = posters[0].shape[:2]
+    # 1. Plakat-Loop allein im schnellsten Karusselltempo, mit Ton (man soll den Neustart sehen). Laeuft nebenher
+    # (ffmpeg ist ein eigener Prozess), statt die Vorschau ~3 s aufzuhalten.
+    import threading
     top_fps = max(per for per, _ in cfg["video"]["cadence"]) / bar_s
-    loop_video(cfg, posters, os.path.join(out, "loop.mp4"))
+    loop_job = threading.Thread(target=loop_video, args=(cfg, posters, os.path.join(out, draft_name(cfg, "loop.mp4"))))
+    loop_job.start()
 
     # 2. Das Video: Platten → Kamera → Digitalteil, Musik
-    plates = [photo_plate(cfg, img, k) for k, img in enumerate(posters)]
-    digital = digital_frames(cfg, tl)
-    wav = os.path.join(out, "music.wav")
-    song(cfg, tl, wav)
-    ff = ffmpeg_writer(os.path.join(out, "preview.mp4"), size, tfps, wav)
     fly = round(cfg["endcard"]["burst_beats"] * beat_s(cfg) * tfps)
     card = fly + cfg["endcard"]["impact_frames"]
     marks = {0: "Start", tl.zoom_end // 2: "Zoom Mitte", tl.zoom_end - 1: "Zoom Ende", tl.zoom_end + fly // 2: "Ausbruch",
              tl.zoom_end + fly: "Impact", tl.zoom_end + card + 2: "Endkarte", tl.total - 1: "Ende"}
+    gate = cfg["checks"]["flash_gate"]                         # Helligkeit/Rot je Bild braucht nur der Blitz-Check
     stills, lum, chroma = [], [], []
-    for t in range(tl.total):
-        if t < tl.zoom_end:
-            sc, roll = camera(cfg, tl, t, h)
-            img = shoot(plates[tl.poster_at(t)], sc, size, roll)
-        else:
-            img = digital[t - tl.zoom_end]
-        ff.stdin.write(np.asarray(img).tobytes())
-        if t == tl.zoom_end - 1:
-            last_img = img                                     # letztes Karussellbild (Zoom-Check: nahtlos?)
-        lum.append(luminance(img))
-        chroma.append(chroma_state(img))
-        if t in marks:
-            stills.append((f"{marks[t]} {t / tfps:.2f}s", img))
-    ff.stdin.close()
+    with PhotoFrames(cfg, tl) as photo:                        # Foto-Phase rechnet im Pool, parallel dazu der Digitalteil
+        digital = digital_frames(cfg, tl)
+        wav = os.path.join(out, "music.wav")
+        song(cfg, tl, wav)
+        ff = ffmpeg_writer(os.path.join(out, draft_name(cfg, "preview.mp4")), size, tfps, wav, draft=bool(cfg.get("_draft")))
+        for t in range(tl.total):
+            img = Image.fromarray(photo[t].copy()) if t < tl.zoom_end else digital[t - tl.zoom_end]
+            ff.stdin.write(np.asarray(img).tobytes())
+            if t == tl.zoom_end - 1:
+                last_img = img                                 # letztes Karussellbild (Zoom-Check: nahtlos?)
+            if gate:
+                lum.append(luminance(img))
+                chroma.append(chroma_state(img))
+            if t in marks:
+                stills.append((f"{marks[t]} {t / tfps:.2f}s", img))
+        ff.stdin.close()
     ff.wait()
     os.remove(wav)                                             # steckt im Video
+    loop_job.join()
 
     # 3. Pruefungen, Kontaktbogen, Report
-    flash = flash_check(np.array(lum), cfg, np.array(chroma)) if cfg["checks"]["flash_gate"] else None
+    flash = flash_check(np.array(lum), cfg, np.array(chroma)) if gate else None
     end_leg = KL.legibility(digital_style(cfg, (tl.total - tl.zoom_end - 1) / tfps), np.asarray(digital[-1]), "9x16")
-    contact_sheet(cfg, posters, qr_ok, legib, stills, os.path.join(out, "contact.png"))
+    contact_sheet(cfg, posters, qr_ok, legib, stills, os.path.join(out, draft_name(cfg, "contact.png")))
     mode = cfg["endcard"].get("end_mode")
     if mode in ("zoom", "words"):
-        zoom_sheet(cfg, tl, digital, last_img, os.path.join(out, f"{mode}.png"))
+        zoom_sheet(cfg, tl, digital, last_img, os.path.join(out, draft_name(cfg, f"{mode}.png")))
     ground = [float(KL.LUMA @ (np.array([int(c[j:j + 2], 16) for j in (1, 3, 5)]) / 255))
               for c in (KL.palette_hex(cfg, i)[0] for i in range(n))]
     real = sum(os.path.exists(aligned_photo(k)) for k in range(n))
@@ -889,15 +1009,20 @@ def preview(cfg, posters, qr_ok, legib):
         if e["card_on"]:
             qr, leg = KE.card_check(digital_style(cfg, (len(digital) - 1) / tfps), np.asarray(digital[-1]))
             run = 0.0                                          # wie lange vor Schluss der QR schon lesbar ist (1/4 s)
-            for k in range(len(digital) - 1, -1, -(tfps // 4)):
-                if not KE.card_check(digital_style(cfg, k / tfps), np.asarray(digital[k]))[0]:
+            steps = list(range(len(digital) - 1, -1, -(tfps // 4)))
+            readable = qr_scan([digital[k] for k in steps])
+            for k, ok in zip(steps, readable):                 # = KE.card_check(...)[0], nur parallel und gemerkt
+                if not ok:
                     break
                 run = (len(digital) - k) / tfps
             ending.append(f"Endkarte: QR {'lesbar' if qr else 'NICHT lesbar'}, scanbar die letzten {run:.2f} s, "
                           f"Lesbarkeit SPARK + KICK-OFF/Datum {leg:.2f} {tier(leg)}")
 
     cad = " → ".join(f"{bars}x{per}tel" for per, bars in cfg["video"]["cadence"])
-    lines = [f"Version {os.path.basename(out)} · {time.strftime('%Y-%m-%d %H:%M')} · {time.time() - t0:.0f} s Renderzeit",
+    draft = bool(cfg.get("_draft"))
+    lines = [*([f"DRAFT (preview --draft): Digitalteil auf Zweiern ({tfps // DRAFT_STEP} fps), Hardware-Encoder, kein "
+                "Zoom-Check. Nicht zur Abnahme."] if draft else []),
+             f"Version {os.path.basename(out)} · {time.strftime('%Y-%m-%d %H:%M')} · {time.time() - t0:.0f} s Renderzeit",
              f"Loop: {n} Frames = {len(keys)} Aushaenge ({' '.join(str(i + 1) for i in keys)}) + {n - len(keys)} "
              f"Zwischenframes (nur Video), {n / top_fps:.2f} s pro Umlauf im schnellsten Tempo",
              f"Musik: {cfg['music']['file']}, Impact {cfg['music']['grid']['impact_s']:.2f} s (Drop), "
@@ -918,7 +1043,8 @@ def preview(cfg, posters, qr_ok, legib):
              *([f"Ende: Infinite Zoom ({cfg['endcard']['zoom_ease']}, {cfg['endcard']['zoom_dolls']} Puppen, Ausbruch "
                 f"{'an' if cfg['endcard']['burst_on'] else 'aus'}, Impact {'an' if cfg['endcard']['impact_on'] else 'aus'}), "
                 f"Karussell endet auf F{end_index(cfg) + 1}, Bogen zoom.png",
-                zoom_check(cfg, tl, digital, last_img)] if cfg["endcard"].get("end_mode") == "zoom" else []),
+                "Zoom-Check: aus (Draft)" if draft else zoom_check(cfg, tl, digital, last_img)]
+               if cfg["endcard"].get("end_mode") == "zoom" else []),
              f"Ton: preview.mp4 {cfg['music']['file']}, loop.mp4 {cfg['music']['loop_file']} "
              f"({cfg['music']['loop_passes']} Durchgaenge, {loop_fps(cfg):.2f} Plakate/s)",
              "", "Frame  Aushang  Farbe               S     Radius Grund  Lesbarkeit"]
@@ -926,7 +1052,7 @@ def preview(cfg, posters, qr_ok, legib):
               f"{KL.style_code(cfg, i):<5} {KL.star_at(cfg, i)[2]:.2f}   {g:.2f}   {x:.2f} {tier(x)}"
               for i, (g, x) in enumerate(zip(ground, legib))]
     report = "\n".join(lines) + "\n"
-    open(os.path.join(out, "report.txt"), "w", encoding="utf-8").write(report)
+    open(os.path.join(out, draft_name(cfg, "report.txt")), "w", encoding="utf-8").write(report)
     gallery()
     return report + out
 

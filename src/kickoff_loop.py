@@ -12,6 +12,8 @@ Handbuch (Vision, Begriffe, Entscheidungen, Status, offene Fragen): kickoff_loop
   uv run src/kickoff_loop.py sheet X.toml   dasselbe fuer eine Variante (Kopie der loop.toml) → previz/review/X_*
   uv run src/kickoff_loop.py boil           Test: Digitalteil ohne | mit Boil nebeneinander → previz/now/boil.mp4
   uv run src/kickoff_loop.py preview [A|B]  Vorschau-Video + Kontaktbogen + Checks  → kickoff_loop/previz/vNNN/
+  uv run src/kickoff_loop.py preview X.toml --draft   Entwurf: Digitalteil auf Zweiern, Hardware-Encoder, ohne
+                                            Zoom-/QR-Pruefung → *_draft.mp4 + report_draft.txt (Endversion unveraendert)
   uv run src/kickoff_loop.py variants [N..] Detailvarianten der Frames N nebeneinander → kickoff_loop/previz/variants/
   uv run src/kickoff_loop.py frames         nur die Plakat-Frames rendern (fuellt den Cache)
   uv run src/kickoff_loop.py stars [S..]     Sterne-Bogen: jeder Stil an 3 Stellen der Bahn → previz/variants/stars.png
@@ -29,13 +31,12 @@ Aufbau dieser Datei (von oben nach unten):
 Video, Endkarte, Musik (Song-Ausschnitt), Blitz-Check stehen in kickoff_loop_video.py.
 """
 import colorsys
-import glob
 import hashlib
 import json
 import os
-import subprocess
 import sys
 import tomllib
+from functools import lru_cache
 from multiprocessing import Pool
 from types import SimpleNamespace
 
@@ -637,30 +638,139 @@ def type_layers(c):
 
 # ---------------------------------------------------------------- Rendern
 
-def _source_hash():
-    """Aendert sich irgendein Quelltext in src/, sind alle gecachten Plakate ungueltig."""
+# Cache-Schluessel: nur die Quelltexte, die das Bild bestimmen. Wurzeln = Module, deren Code beim Rendern laeuft
+# (gemessen per Trace, cache_selftest prueft das bei jedem `test`), dazu alles, was sie beim Import laden (Konstanten
+# wie vectors.STAR, makernight.blue_noise; _import_closure). Vorher invalidierte jede Aenderung an irgendeiner
+# src/*.py alle Bilder (z. B. ein ffmpeg-Schalter in kickoff_loop_video.py: Plakate + Digitalteil kalt neu, ~3 min).
+POSTER_SOURCES = ("styles.py", "kickoff.py", "kickoff_loop.py", "lab_spark.py", "makernight_sparks.py")
+DIGITAL_SOURCES = POSTER_SOURCES + ("kickoff_loop_digital.py", "kickoff_loop_end.py")   # Zoom, Endkarte, Begriffe
+CHECK_SOURCES = POSTER_SOURCES + ("kickoff_loop_end.py", "kickoff_loop_video.py")      # QR, Lesbarkeit, card_check
+_POOL = None
+
+
+def _import_closure(roots):
+    """Die Wurzeln plus alle src-Module, die sie auf Modulebene importieren (rekursiv). Importe in Funktionen zaehlen
+    nicht (kickoff_loop.main laedt kickoff_loop_video nur fuer Befehle); was davon beim Rendern laeuft, steht in den
+    Wurzeln."""
+    import ast
+    seen, todo = set(), list(roots)
+    while todo:
+        f = todo.pop()
+        if f in seen:
+            continue
+        seen.add(f)
+        nodes = list(ast.parse(open(os.path.join(ROOT, "src", f), encoding="utf-8").read()).body)
+        while nodes:
+            n = nodes.pop()
+            if isinstance(n, (ast.If, ast.Try)):
+                nodes += n.body + n.orelse + [x for h in getattr(n, "handlers", []) for x in h.body]
+            names = [a.name for a in n.names] if isinstance(n, ast.Import) else \
+                [n.module] if isinstance(n, ast.ImportFrom) and n.module and not n.level else []
+            todo += [m.split(".")[0] + ".py" for m in names
+                     if os.path.exists(os.path.join(ROOT, "src", m.split(".")[0] + ".py"))]
+    return tuple(sorted(seen))
+
+
+@lru_cache(maxsize=None)
+def _source_hash(roots):
+    """Hash ueber die Quelltexte von _import_closure(roots) (pro Prozess einmal gelesen)."""
     h = hashlib.sha1()
-    for p in sorted(glob.glob(os.path.join(ROOT, "src", "*.py"))):
-        h.update(open(p, "rb").read())
+    for name in _import_closure(roots):
+        h.update(name.encode() + open(os.path.join(ROOT, "src", name), "rb").read())
     return h.hexdigest()
 
 
-def render_cached(st, fmt, tag):
-    """Bild zu einem Stil-Dict, gecacht nach allem, was es bestimmt (Stil, Lage, Satzwerte, Palette, Quelltext)."""
-    key = json.dumps([fmt, st["P"], S.PALS[st["P"]], st["S"], st["star"], st["rot"], st.get("nest_phase"), st["seed"],
-                      st.get("dither_shift"), st.get("fx_behind_title"),
-                      st["loop"], _source_hash()], sort_keys=True, default=str)
-    path = os.path.join(CACHE, f"{tag}_{hashlib.sha1(key.encode()).hexdigest()[:12]}.png")
+def _key_default(o):
+    """Fuer den Cache-Schluessel: Funktionen (layout, type_fn, spark_fn) als Datei:Name. Nicht als Modulname: als Skript
+    gestartet heisst dasselbe Modul im Hauptprozess __main__, in den Pool-Workern __mp_main__ (sonst nie Treffer)."""
+    code = getattr(o, "__code__", None)
+    return f"{os.path.basename(code.co_filename)}:{o.__qualname__}" if code else str(o)
+
+
+def cache_key(st, fmt):
+    """Alles, was das Bild bestimmt: das ganze Stil-Dict (auch fx_behind_title, dolls, Hooks), Palette, Format und die
+    Quelltexte, die dabei laufen (Plakat oder Digitalteil). Gleicher Schluessel = gleiches Bild."""
+    files = DIGITAL_SOURCES if (st.get("loop") or {}).get("digital") else POSTER_SOURCES
+    key = json.dumps([fmt, S.PALS[st["P"]], st, _source_hash(files)], sort_keys=True, default=_key_default)
+    return hashlib.sha1(key.encode()).hexdigest()[:12]
+
+
+def cache_path(st, fmt, tag):
+    return os.path.join(CACHE, f"{tag}_{cache_key(st, fmt)}.png")
+
+
+def _save_png(img, path):
+    """Verlustfrei als Paletten-PNG (die Bilder haben nur die Palettenfarben, <= 256). Gleiche Dateigroesse wie
+    styles.save, aber ~30x schneller: styles.save sucht die Farben mit np.unique(axis=0) (1.3-2 s pro Bild, laenger als
+    das Rendern), hier ueber gepackte 24-bit-Werte. Mehr als 256 Farben: normales RGB-PNG. Schreiben ueber eine
+    Temp-Datei, damit ein abgebrochener Lauf kein halbes PNG im Cache hinterlaesst."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    flat = (img[..., 0].astype(np.uint32) << 16) | (img[..., 1].astype(np.uint32) << 8) | img[..., 2]
+    cols, inv = np.unique(flat, return_inverse=True)
+    if len(cols) <= 256:
+        im = Image.fromarray(inv.reshape(img.shape[:2]).astype(np.uint8), "P")
+        im.putpalette(np.stack([cols >> 16, (cols >> 8) & 255, cols & 255], 1).astype(np.uint8).ravel().tolist())
+    else:
+        im = Image.fromarray(img)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    im.save(tmp, format="PNG")
+    os.replace(tmp, path)
+
+
+def render_cached(st, fmt, tag, only_cached=False):
+    """Bild zu einem Stil-Dict, gecacht nach allem, was es bestimmt (cache_key). only_cached: nicht rendern, None,
+    wenn es noch nicht im Cache liegt (frames/digital_frames starten den Pool nur fuer die fehlenden)."""
+    path = cache_path(st, fmt, tag)
     if os.path.exists(path):
         return np.asarray(Image.open(path).convert("RGB"))
+    if only_cached:
+        return None
     img = K.frame_of(st, fmt)
-    S.save(img, path)
+    _save_png(img, path)
     return img
 
 
-def frame(cfg, i, fmt=PREVIEW, style=None):
+def memo(name, key, fn=None):
+    """Ergebnis einer Pruefung (QR, Lesbarkeit, card_check) zu einem Bild merken: key beschreibt das Bild (cache_key bzw.
+    Bild-Hash), dazu der Quelltext der Pruefungen (CHECK_SOURCES). fn = None: nur nachsehen (None, wenn nicht da).
+    Warm kostet so ein `sheet` keine 64 QR-Dekodierungen mehr (vorher 5-11 s)."""
+    h = hashlib.sha1(json.dumps([name, key, _source_hash(CHECK_SOURCES)], default=str).encode()).hexdigest()[:16]
+    path = os.path.join(CACHE, "checks", f"{name}_{h}.json")
+    if os.path.exists(path):
+        return json.load(open(path))["v"]
+    if fn is None:
+        return None
+    v = fn()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    json.dump({"v": v}, open(tmp, "w"))
+    os.replace(tmp, path)
+    return v
+
+
+def _worker_init():
+    """Pool-Worker: OpenCV einfaedig. Sonst startet jeder der 12 Prozesse 12 Threads fuer QR/Resize (Befund: 3x so viel
+    CPU-Zeit fuer dieselben 64 QR-Pruefungen)."""
+    import cv2
+    cv2.setNumThreads(1)
+
+
+def pool():
+    """Ein Prozess-Pool fuer den ganzen Lauf (Plakate, Foto-Phase, Digitalteil): jeder Neustart kostet ~1 s Import pro
+    Worker. Haengt am Modul kickoff_loop, nicht an __main__: als Skript gestartet gibt es dieses Modul zweimal
+    (kickoff_loop_video importiert es noch einmal), es soll trotzdem nur einen Pool geben. Nur aus dem Hauptprozess
+    aufrufen (macOS spawnt: Worker importieren das Modul neu, ohne __main__-Block)."""
+    import atexit
+    import kickoff_loop as me
+    if me._POOL is None:
+        me._POOL = Pool(initializer=_worker_init)
+        atexit.register(me._POOL.terminate)
+    return me._POOL
+
+
+def frame(cfg, i, fmt=PREVIEW, style=None, only_cached=False):
     """Plakat i als RGB-Array."""
-    return render_cached(style or poster_style(cfg, i), fmt, f"{i + 1:02d}")
+    return render_cached(style or poster_style(cfg, i), fmt, f"{i + 1:02d}", only_cached)
 
 
 def legibility(st, img, fmt=PREVIEW):
@@ -673,16 +783,34 @@ def legibility(st, img, fmt=PREVIEW):
 
 
 def _frame_job(args):
-    cfg, i = args
-    img = frame(cfg, i)
-    return img, K.check_qr(img, PREVIEW_CELL_PX), legibility(poster_style(cfg, i), img)
+    """Plakat i + QR + Lesbarkeit. only_cached: nur aus dem Cache (Bild und beide Befunde), sonst None."""
+    cfg, i, only_cached = (*args, False)[:3]
+    st = poster_style(cfg, i)
+    img = frame(cfg, i, style=st, only_cached=only_cached)
+    if img is None:
+        return None
+    key = cache_key(st, PREVIEW)
+    qr = memo("qr", key, None if only_cached else lambda: bool(K.check_qr(img, PREVIEW_CELL_PX)))
+    leg = memo("legib", key, None if only_cached else lambda: legibility(st, img))
+    return None if qr is None or leg is None else (img, qr, leg)
 
 
 def frames(cfg):
-    """Alle Plakate (Vorschaugroesse), je Plakat QR lesbar ja/nein und Lesbarkeit 0..1. Parallel, gecacht in _cache/."""
-    with Pool() as pool:
-        out = pool.map(_frame_job, [(cfg, i) for i in range(posters(cfg))])
+    """Alle Plakate (Vorschaugroesse), je Plakat QR lesbar ja/nein und Lesbarkeit 0..1. Gecacht in _cache/ (Bilder und
+    Befunde); was fehlt, rechnet der Pool. Liegt alles im Cache, startet kein Pool (warm: ~1 s statt 5-11 s)."""
+    n = posters(cfg)
+    out = [_frame_job((cfg, i, True)) for i in range(n)]
+    todo = [i for i in range(n) if out[i] is None]
+    if todo:                                              # Worker fuellen nur den Cache (kein Bild zurueck durch die
+        pool().map(_fill_job, [(cfg, i) for i in todo])  # Pipe), der Hauptprozess liest danach die PNGs (~5 ms)
+        for i in todo:
+            out[i] = _frame_job((cfg, i, True))
     return [list(x) for x in zip(*out)]
+
+
+def _fill_job(args):
+    """Pool: Plakat + Befunde in den Cache, nichts zurueckgeben (6 MB je Bild durch die Pipe sparen)."""
+    _frame_job(args)
 
 
 # ---------------------------------------------------------------- Varianten zum Abstimmen
@@ -804,6 +932,55 @@ def stars(cfg, codes):
 
 
 # ---------------------------------------------------------------- Selbsttest
+
+def _traced_sources(fn, *args):
+    """Welche src/*.py waehrend fn(*args) Code ausfuehren (sys.setprofile, nur Funktionsaufrufe)."""
+    src, seen = os.path.join(ROOT, "src"), set()
+
+    def prof(frame, event, arg):
+        if event == "call" and frame.f_code.co_filename.startswith(src):
+            seen.add(os.path.basename(frame.f_code.co_filename))
+    sys.setprofile(prof)
+    try:
+        fn(*args)
+    finally:
+        sys.setprofile(None)
+    return seen
+
+
+def cache_selftest(cfg):
+    """Cache-Schluessel deckt ab, was beim Rendern laeuft: je Stern-Stil des Zyklus ein Plakat und drei Bilder des
+    Digitalteils werden mit Trace gerendert, jede dabei ausgefuehrte src-Datei muss im Schluessel stecken
+    (POSTER_SOURCES bzw. DIGITAL_SOURCES samt Importen). Sonst lieferte der Cache nach einer Aenderung dort alte Bilder.
+    Gegenprobe: ohne lab_spark.py in den Wurzeln schlaegt der Test an (Labor-Sterne im Zyklus). Dazu: das Cache-PNG
+    gibt das Bild bitgleich zurueck (_save_png verlustfrei)."""
+    import kickoff_loop_video as V
+    n, done, ran = count(cfg), set(), set()
+    for i in range(n):
+        if style_code(cfg, i) not in done and star_at(cfg, i)[2] > 0:
+            done.add(style_code(cfg, i))
+            ran |= _traced_sources(K.frame_of, poster_style(cfg, i), PREVIEW)
+    miss = ran - set(_import_closure(POSTER_SOURCES))
+    assert not miss, f"Cache-Schluessel Plakate: {sorted(miss)} laufen beim Rendern, fehlen in POSTER_SOURCES"
+    without = ran - set(_import_closure(tuple(f for f in POSTER_SOURCES if f != "lab_spark.py")))
+    bites = "lab_spark.py" not in ran or bool(without)
+    assert bites, "Cache-Selbsttest blind: fehlendes lab_spark.py faellt nicht auf"
+    tl = V.Timeline(cfg)
+    m = tl.total - tl.zoom_end
+    dig = set()
+    for k in (0, m // 2, m - 1):
+        dig |= _traced_sources(K.frame_of, V.digital_style(cfg, k / cfg["video"]["timeline_fps"]), "9x16")
+    miss = dig - set(_import_closure(DIGITAL_SOURCES))
+    assert not miss, f"Cache-Schluessel Digitalteil: {sorted(miss)} laufen beim Rendern, fehlen in DIGITAL_SOURCES"
+    i = next(i for i in range(n) if star_at(cfg, i)[2] > 0)
+    st = poster_style(cfg, i)
+    fresh = K.frame_of(st, PREVIEW)
+    render_cached(st, PREVIEW, f"{i + 1:02d}")                 # sicher im Cache
+    assert np.array_equal(render_cached(st, PREVIEW, f"{i + 1:02d}", only_cached=True), fresh), \
+        "Cache-PNG gibt das Bild nicht bitgleich zurueck"
+    return (f"Selbsttest ok (Cache: {len(done)} Stile + 3 Digitalbilder getract, alle Quellen im Schluessel, Gegenprobe "
+            f"{'schlaegt an' if 'lab_spark.py' in ran else 'entfaellt (kein Labor-Stern)'}, PNG bitgleich)")
+
 
 def selftest_frames(cfg):
     """Standardframes fuer `test` ohne Argumente, aus der Bahn statt fest (die alten 3/7/9 passten nur zu 16 Frames):
@@ -966,6 +1143,8 @@ def print_files(cfg):
 
 def main():
     args = sys.argv[1:]
+    draft = "--draft" in args                           # preview --draft: schnelle Runde, sieht anders aus (DRAFT_* in
+    args = [a for a in args if a != "--draft"]          # kickoff_loop_video), Dateien heissen *_draft
     cmd = args[0] if args else "preview"
     arg = args[1] if len(args) > 1 else None
     var = arg if cmd in ("sheet", "preview") and arg and arg.endswith(".toml") else None   # <variante.toml> neben loop.toml
@@ -976,6 +1155,7 @@ def main():
     elif cmd == "test":
         for i in [int(a) - 1 for a in args[1:]] or selftest_frames(cfg):
             print(selftest(cfg, i))
+        print(cache_selftest(cfg))
         if cfg["checks"]["flash_gate"]:
             import kickoff_loop_video as V
             print(V.flash_selftest(cfg))
@@ -996,6 +1176,7 @@ def main():
         print(out)
     elif cmd == "preview":
         import kickoff_loop_video as V
+        cfg["_draft"] = draft
         print(V.preview(cfg, *frames(cfg)))
     elif cmd == "resolve":                              # Bausteine fuer Resolve → kickoff_loop/resolve/
         import kickoff_loop_video as V

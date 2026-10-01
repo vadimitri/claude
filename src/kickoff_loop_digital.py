@@ -267,6 +267,16 @@ def zoom_type(c):
         c.add("info", mk, np.where(c.star_m, c.lvl(0), c.lvl(c.N)))
 
 
+def zoom_card_type(c):
+    """Satz im Zoom (zoom_type), darueber die Endkarte, falls [ending].card_on. Steht hier und nicht in
+    kickoff_loop_video, damit der Cache-Schluessel des Digitalteils nur Quelltext enthaelt, der beim Rendern laeuft
+    (kickoff_loop.DIGITAL_SOURCES)."""
+    zoom_type(c)
+    if c.st["loop"]["digital"].get("card"):
+        import kickoff_loop_end as KE
+        KE.card_layers(c, c.st["loop"]["digital"]["card"])
+
+
 def blackout(img, frac, px):
     """Fade to Black im Korn: Zellen kippen in Bayer-Reihenfolge auf Schwarz (#000), frac 0..1. Bei frac >= 1 ist jedes
     Pixel schwarz (groesste Bayer-Schwelle 15.5/16 < 1), das letzte Bild also wirklich #000."""
