@@ -1,12 +1,15 @@
 # Z4 Auslauf + Zoom (Vadim 2.10.: "der Loop soll nicht prompt stehen bleiben, nochmal ein Loop mit Ease-out, dann der
-# Infinite Zoom"): 2 Takte T16, 1 Umlauf bremst ab wie ein Gluecksrad und landet auf F1 genau auf IGORs Bass-Boom
-# (Takt 5, 11.76 s), Kamera bremst mit. Der Zoom startet aus dem Stand und beschleunigt, Schwarz auf IGORs Stopp.
+# Infinite Zoom"): 2 Takte T16, 1 Umlauf bremst ab wie ein Gluecksrad und landet auf F1 (Matrjoschka mittig), steht
+# 2 Beats, auf IGORs Bass-Boom (Takt 5, 11.76 s) startet der Zoom und beschleunigt, Schwarz auf IGORs Stopp.
+# Z4 v2 (Vadim zu v1: "beschissen"; Befund v1: Landung fiel auf den Zoom-Start, F1 nie als Plakat, 1.8 s Stand auf
+# F32, harter Schnitt in eine andere Matrjoschka; Zoom 4 s fast ohne Bewegung).
 # Nur geaenderte Abschnitte, Rest aus loop.toml. Musik: IGOR ungeschnitten (Vadim schneidet spaeter selbst).
 
 [ending]
 carousel_bars = 2          # Karussell im vollen Tempo T16 (Takte ab Videoanfang = IGOR-Einstieg 22.435 s)
 runout_bars = 2            # Auslauf: ein Umlauf bremst ab und landet auf [endcard].end_frame. Anfangstempo = T16, daraus
                            # die Steilheit (2 Takte → kubisch). 0 = aus (Karussell endet abrupt wie bisher)
+runout_hold_beats = 2.0    # F1 steht so lange still, bevor der Zoom auf dem Boom startet (Landung sichtbar)
 length_bars = 6.75         # Videolaenge in Takten: 6.75 = bis IGORs Stopp (19.85 s, 1 Beat Stille)
 card_on = false            # Endkarte ueber dem Zoom (Z5)
 
@@ -23,9 +26,9 @@ info_y_frac = 0.50
 info_in_beats = 0.5
 burst_on = false
 impact_on = false
-zoom_dolls = 9.0           # so viele Puppen taucht die Kamera ein (1 Puppe = x1.56)
+zoom_dolls = 14.0          # so viele Puppen taucht die Kamera ein (1 Puppe = x1.56); v1: 9
 zoom_ease = "ease_in"      # aus dem Stand (das Rad steht), dann der Sog
-zoom_ease_pow = 2.5
+zoom_ease_pow = 1.6        # v1: 2.5, die ersten 4 s fast Stillstand
 zoom_spin_deg_per_s = 20
 info = []
 info_at_beats = 0.0

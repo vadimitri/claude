@@ -7,6 +7,7 @@
 [ending]
 carousel_bars = 4
 runout_bars = 0
+runout_hold_beats = 0.0
 length_bars = 6.75         # bis IGORs Stopp (19.85 s)
 card_on = false
 words = ["HARDWARE", "ROBOTER", "LÖTEN", "3D-DRUCK", "CODE", "WORKSHOPS", "PROJEKTE", "SPARK"]   # VORSCHLAG, frei

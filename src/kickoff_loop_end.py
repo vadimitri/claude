@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kickoff as K            # noqa: E402
 import styles as S             # noqa: E402
 
-KEYS = ("carousel_bars", "runout_bars", "length_bars", "card_on")
+KEYS = ("carousel_bars", "runout_bars", "runout_hold_beats", "length_bars", "card_on")
 WORD_KEYS = ("words", "words_term_beats", "words_far_scale", "words_vanish_beats", "words_width_frac", "words_lead_frac",
              "words_lines")
 CARD_KEYS = ("card_moves", "card_in_beats", "card_overshoot", "card_dim_frac", "card_title_w_frac", "card_top_frac",
@@ -78,19 +78,27 @@ def grid(cfg):
                 file_offset_s=ig["in_s"])
 
 
+def runout_bars(cfg):
+    """Takte, in denen das Rad bremst: runout_bars minus der Halt auf dem Landeframe (runout_hold_beats). Vorschau Z4
+    vom 2.10.: ohne Halt fiel die Landung auf den Beginn des Digitalteils, F1 war nie als Plakat zu sehen, das Rad
+    stand 1.8 s auf F32 und es schnitt hart in den Zoom (Zoom-Check: Sprung x5.8)."""
+    e = cfg["ending"]
+    return e["runout_bars"] - e["runout_hold_beats"] / 4
+
+
 def runout_pow(cfg):
     """Steilheit des Auslaufs: Position = n (1 - (1 - u)^p). Anfangstempo n p / Dauer muss das Karussell-Tempo
-    (changes_per_bar pro Takt) sein, also p = runout_bars * changes_per_bar / n. 2 Takte, 48, 32 Frames → p = 3."""
-    return cfg["ending"]["runout_bars"] * cfg["loop"]["changes_per_bar"] / cfg["loop"]["frames"]
+    (changes_per_bar pro Takt) sein, also p = Bremstakte * changes_per_bar / n. 1.5 Takte, 48, 32 Frames → p = 2.25."""
+    return runout_bars(cfg) * cfg["loop"]["changes_per_bar"] / cfg["loop"]["frames"]
 
 
 def runout_times(cfg, p=None):
     """Wechselzeiten (s) des Auslaufs: n + 1 Wechsel (Neustart auf dem Taktstrich, dann ein Umlauf), auf das
-    32tel-Triolen-Raster gerundet. Der letzte liegt genau auf dem Landetakt (burst_s) und zeigt end_frame."""
+    32tel-Triolen-Raster gerundet. Der letzte zeigt end_frame und steht dann runout_hold_beats bis zum Zoom (burst_s)."""
     g, n = cfg["music"]["grid"], cfg["loop"]["frames"]
     bar = 16 * g["sixteenth_s"]
     slot = bar / 48                                         # kickoff_loop.SUBDIV_PER_BAR
-    t0, R = cfg["ending"]["carousel_bars"] * bar, cfg["ending"]["runout_bars"] * bar
+    t0, R = cfg["ending"]["carousel_bars"] * bar, runout_bars(cfg) * bar
     p = p or runout_pow(cfg)
     out = []
     for k in range(n + 1):
@@ -104,7 +112,7 @@ def camera_u(cfg, tl, t):
     derselben Kurve wie das Rad (Ease-out mit runout_pow) und steht auf dem Landetakt. Steigung am Uebergang gleich."""
     fps = cfg["video"]["timeline_fps"]
     bar = 16 * cfg["music"]["grid"]["sixteenth_s"]
-    t0, R, p = cfg["ending"]["carousel_bars"] * bar * fps, cfg["ending"]["runout_bars"] * bar * fps, runout_pow(cfg)
+    t0, R, p = cfg["ending"]["carousel_bars"] * bar * fps, runout_bars(cfg) * bar * fps, runout_pow(cfg)
     a = 1 / (t0 + R / p)
     if t <= t0:
         return a * t
@@ -418,7 +426,7 @@ def report(cfg, tl):
         ts = runout_times(cfg)
         d = np.diff(ts)
         out.append(f"Auslauf: {len(ts)} Wechsel, Abstand {d[0]:.3f} s (= T16 {bar / 48:.3f} s) → {d[-1]:.2f} s, "
-                   f"Potenz {runout_pow(cfg):.2f}, landet auf F{tl.changes[-1][1] + 1} bei {ts[-1]:.2f} s")
+                   f"Potenz {runout_pow(cfg):.2f}, landet auf F{tl.changes[-1][1] + 1} bei {ts[-1]:.2f} s, steht bis {g['burst_s']:.2f} s")
     return out
 
 
@@ -435,7 +443,9 @@ def selftest(cfg):
             d = np.diff(ts)
             return d[0] < bar / 48 + 1e-6 and (d[1:] >= d[:-1] - bar / 48 - 1e-9).all() and d[-1] > 8 * d[0]   # 1 Slot Rundung
         ts, tl = runout_times(cfg), V.Timeline(cfg)
-        good = brakes(ts) and abs(ts[-1] - cfg["music"]["grid"]["burst_s"]) < 1e-6 and tl.changes[-1][1] == V.end_index(cfg)
+        land = (cfg["ending"]["carousel_bars"] + runout_bars(cfg)) * bar             # sichtbar gelandet, vor dem Zoom
+        good = brakes(ts) and abs(ts[-1] - land) < 1e-6 and ts[-1] < cfg["music"]["grid"]["burst_s"] \
+            and tl.changes[-1][1] == V.end_index(cfg)
         bites = not brakes(runout_times(cfg, p=1))
         lines.append(f"Auslauf: {'ok' if good else 'FEHLER'} (bremst ab, landet auf F{tl.changes[-1][1] + 1}); "
                      f"Gegenprobe linear: {'schlaegt an' if bites else 'TEST BLIND'}")
@@ -445,7 +455,7 @@ def selftest(cfg):
         v0, v1 = camera_u(cfg, tl, t0) - camera_u(cfg, tl, t0 - 1), camera_u(cfg, tl, t0 + 1) - camera_u(cfg, tl, t0)
         end = tl.zoom_end - 1
         vend = camera_u(cfg, tl, end) - camera_u(cfg, tl, end - 1)
-        cam = abs(v1 - v0) / v0 < 0.02 and vend < 0.01 * v0 and abs(camera_u(cfg, tl, (cfg['ending']['carousel_bars'] + cfg['ending']['runout_bars']) * bar * fps) - 1) < 1e-9
+        cam = abs(v1 - v0) / v0 < 0.02 and vend < 0.01 * v0 and abs(camera_u(cfg, tl, land * fps) - 1) < 1e-9
         lines.append(f"Kamera: Tempo vor/nach Auslauf-Beginn {v0:.5f}/{v1:.5f}, am Ende {vend:.6f}: {'ok' if cam else 'FEHLER'}")
         ok &= cam
     c = _cells(270, 480)

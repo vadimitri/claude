@@ -7,6 +7,7 @@
 [ending]
 carousel_bars = 4
 runout_bars = 0
+runout_hold_beats = 0.0
 length_bars = 9.0          # bis Takt 10: der QR steht ~6 s (scannen)
 card_on = true
 # Einsatz je Teil: [Teil, Beat ab Karussell-Ende, Start-Versatz x (Bruchteil Bildbreite), y (Bildhoehe), Startmassstab].

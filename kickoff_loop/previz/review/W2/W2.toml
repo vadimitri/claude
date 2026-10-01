@@ -6,6 +6,7 @@
 [ending]
 carousel_bars = 4
 runout_bars = 0
+runout_hold_beats = 0.0
 length_bars = 9.0
 card_on = true
 words = ["HARDWARE", "ROBOTER", "LÖTEN", "3D-DRUCK", "CODE", "WORKSHOPS", "PROJEKTE"]   # VORSCHLAG, frei
