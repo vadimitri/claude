@@ -95,6 +95,15 @@ mochte Blau. Vorschauen mit Hardware-Encoder, Tempo vor Qualität.
   0.6): am Wurfpunkt F1 ist die Bahn fast still, „weiterfliegen“ hat kaum Schwung zum Übernehmen.
 - O4: Loslassen auf F14, wo B20c hinter dem Titel kriecht (Befund 2.10.: 0.08/Frame gegen 0.26 an den Seiten), danach x5/Beat
   + `boost`: Stopp → Anfahren. Die Tangente ist im Raum gerade, im Bild biegt sie perspektivisch ab (keine gerade Linie).
+- **O5-Zoom (Vadim 3.10., nachgeschoben): „der Zoom bei O5 ist kein richtiger Zoom und hat nicht das Momentum!!!“**
+  Vermutung: `zoom_spark` + `orbit_dive_core_shrink` lässt innen neue Puppen aufgehen (Ringe wandern nach außen, eher
+  Palette-Cycling/Hypno als Kamerafahrt), das Tempo ist auf x1.5/Beat gedeckelt, weil schnellere Ringe flackerten (x2 = 16
+  Puppen/s). Gefordert: **echter Kamera-Zoom** – das Bild selbst (Stern samt Korn/Effekten, Satz fällt weg) skaliert um die
+  weiterfliegende Sternmitte, Maßstab wächst exponentiell und **beschleunigt** (d ln s/dt steigt), Startrate = Größenrate
+  des Sterns im Wurf. Gegen Flackern nicht bremsen, sondern das Detail anpassen (Selbstähnlichkeit der Matrjoschka als
+  Endlos-Zoom: nach einer Puppe Faktor 1/0.64 nahtlos zurücksetzen, so bleibt die Zoomrate frei wählbar) bzw. Bewegungs-
+  unschärfe/Smear im Korn auf den schnellsten Bildern. Messung: Maßstab pro Bild aus dem Bild selbst (z. B. Phasenkorrelation
+  log-polar), muss monoton beschleunigen; Gegenprobe heutiger O5 schlägt an.
 - Der bisherige Selbsttest misst nur Größensprung und Tempo-Verhältnis am Wechsel, **nicht Richtungsumkehr und Bremsen
   danach** – deshalb grün trotz Überschießen.
 
