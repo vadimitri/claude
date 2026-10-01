@@ -43,7 +43,6 @@ TRUE_PEAK_MAX = -1.0                      # dBTP-Grenze der Hoerversion (Streami
 LIMIT = 0.79                              # Hoerversion: Limiter-Decke -2 dBFS, AAC legt ~1 dB Ueberschwinger drauf (Befund M1a)
 HAT_HZ = (4000, 12000)                    # Band fuer die Raster-Messung am Sprung (Hats: scharfe Anschlaege)
 ONSET_HOP = 48                            # 1 ms Aufloesung der Onset-Huellkurve
-LP_OPEN_HZ = 12000                        # ab hier gilt der Tiefpass als offen: Ausklang startet dort, Einblende endet dort
 
 
 # ---------------------------------------------------------------- Konfiguration
@@ -125,7 +124,7 @@ def air(pre, sec, mx):
     Drop hin aus. Hall statt Stille, damit die Pause nach Absicht klingt und nicht nach Aussetzer (wie 30.9.)."""
     last = pre[-n(sec * 4):]
     wet = A.reverb(np.concatenate([last, np.zeros((n(sec), 2))]), mx["air_reverb_s"])[len(last):]
-    return declick(wet * mx["air_tail"], mx["fade_cut_s"], start=False)
+    return declick(wet * mx["air_tail"], mx["fade_cut_s"])        # auch vorn: das Material davor endet auf 0
 
 
 # ---------------------------------------------------------------- Song
@@ -145,7 +144,7 @@ def build(cfg, grid, song, v):
     # Einblende: Original ab s0, Tiefpass oeffnet ueber lp_open_bars (Kurve > 1 = bleibt laenger dunkel), Pegel-Fade
     pre = song[n(s0):n(s0) + n(stop)].copy()
     t_open = get("lp_open_bars") * bar
-    pre = sweep(pre, lambda t: lo * (hi / lo) ** (min(t / t_open, 1) ** mx["lp_curve"]) if t < t_open else SR / 2.2)
+    pre = sweep(pre, lambda t: lo * (hi / lo) ** (min(t / t_open, 1) ** mx["lp_curve"]) if t < t_open else hi)
     k = n(get("fade_in_s"))
     pre[:k] *= (np.linspace(0, 1, k) ** 2)[:, None]                           # quadratisch: leise Anfaenge bleiben leise
     pre = declick(pre, mx["fade_cut_s"], start=False)
@@ -208,7 +207,7 @@ def checks(x, t, bar):
     """Befunde am fertigen Audio: Einblende steigt, Luft leiser als davor, Drop-Sprung, kein Knack, Ende auf Stille."""
     jump = np.abs(np.diff(x, axis=0)).max(1)
     typ = np.percentile(jump, 99.9)
-    worst = max(jump[n(c) - n(0.002):n(c) + n(0.002)].max() / typ for c in (t["air_s"], t["drop_s"]))
+    worst = max(jump[n(c) - 2:n(c) + 2].max() / typ for c in (t["air_s"], t["drop_s"]))   # Sprung genau an der Kante
     q = t["air_s"] / 4
     rise = [db(x, i * q, (i + 1) * q) for i in range(4)]
     last = np.abs(x[-n(0.01):]).max()
@@ -217,7 +216,7 @@ def checks(x, t, bar):
             f"  Luft {t['drop_s'] - t['air_s']:.2f} s: {db(x, t['air_s'], t['drop_s']):.1f} dBFS gegen den Takt davor "
             f"{db(x, t['air_s'] - bar, t['air_s']):.1f}, erster Takt nach dem Drop "
             f"{db(x, t['drop_s'], min(t['drop_s'] + bar, t['fade_from_s'])):.1f} dBFS",
-            f"  Schnitte {t['air_s']:.2f} / {t['drop_s']:.2f} s: max. Sample-Sprung {worst:.2f}x des 99.9-%-Werts "
+            f"  Schnitte {t['air_s']:.2f} / {t['drop_s']:.2f} s: Sample-Sprung an der Kante {worst:.2f}x des 99.9-%-Werts "
             f"({'ok, kein Knack' if worst <= 1 else 'KNACK?'}); letzte 10 ms Spitze {20 * np.log10(last + 1e-12):.0f} "
             f"dBFS ({'ok, klingt aus' if last < 1e-3 else 'endet NICHT in Stille'})"]
 

@@ -1,36 +1,21 @@
-Musik M2 (reiner IGOR-Schnitt, Sprung in den B-Teil) · uv run src/kickoff_loop_music.py kickoff_loop/previz/review/M2a.toml
+Musik M3 (IGOR-Schnitt 16-20 s) · uv run src/kickoff_loop_music.py kickoff_loop/previz/review/M3a.toml
 
-B-Teil beginnt 45.963 s (Song-Takt 8); Tylers Gesang setzt bei ~47.0 s ein (Band 300-3400 Hz +6 dB gegen davor, gemessen 2.10.). Naechster Downbeat zu 48 s: 48.904 s (Takt 9), da singt er schon.
+Sprung auf Songzeit 45.963 s (B-Anfang, Tyler ab ~47.0 s). Phase (Kamm-Fit Hat-Band, 4 Takte): B-Teil -4 ms, IGORs Drums ab in_s -20 ms gegen das Raster, Differenz +16 ms (ok, Grenze 20 ms ~ Raster-Streuung 19 ms)
 
-M2a: 2 Takte Brummen, 4 Takte IGOR-Drums (Loop 1), Schnitt auf B-Anfang
-  Zeitachse (Video): 0.00 s: Song 16.55 s x2 raw | 5.88 s: Song 22.44 s x4 raw | 17.65 s: Song 45.96 s x4 drop
-  Ausbruch 17.28 s, DROP 17.646 s = Sprung auf Songzeit 45.963 s, Ende 29.41 s
-  Sprung-Phase (Kamm-Fit Hat-Band, 4 Takte): ab Songzeit 45.96 s -4 ms, IGORs Drums vor dem Drop (ab in_s) -20 ms, Differenz +16 ms (ok, Grenze 20 ms ~ Raster-Streuung 19 ms)
-  Lohnt sich: 2 Takte nach dem Drop -9.5 LUFS gegen 2 Takte davor -13.0 LUFS (+3.5 LU)
-  Schnitte 5.88, 17.65 s: max. Sample-Sprung 0.06x des 99.9-%-Werts (ok, kein Knack); letzter Beat vor dem Drop -18.1 dBFS, Beat davor -12.0, erster Beat danach -11.2
-  Karussell 2x16 + 4x48 (Takte x Wechsel) = 224 Wechsel; 10 Hits
-  WAV -11.8 LUFS, True Peak -1.0 dBTP, Spitze -1 dBFS statisch
-  Hoerversion previz/music/mashup_M2a.m4a: -14.1 LUFS, True Peak -3.1 dBTP (ok), Samples >= 0 dBFS: 0 (ok)
+M3a: 16 s: 2 Takte Brummen (Einblende), 2 Takte IGOR-Drums, 1/2 Takt Luft, Drop, 1/2 Takt Original + 1 Takt Ausklang
+  Verlauf: 0 s Einblende (Song 16.55 s, Brummen; Tiefpass offen bei 5.88 s), IGORs Drum-Loop ab 5.88 s (erster Hit 7.48 s), Luft 10.29 s, Ausbruch 11.40 s, DROP 11.764 s, Ausklang 13.23-16.18 s (2.94 s)
+  Laenge 16.18 s, Karussell 4 Takte x 48 = 192 Wechsel (16.32/s), 5 Hits
+  Einblende (Viertel bis zur Luft): -29 → -20 → -17 → -15 dBFS (ok, steigt)
+  Luft 1.47 s: -26.3 dBFS gegen den Takt davor -14.6, erster Takt nach dem Drop -11.8 dBFS
+  Schnitte 10.29 / 11.76 s: Sample-Sprung an der Kante 0.01x des 99.9-%-Werts (ok, kein Knack); letzte 10 ms Spitze -98 dBFS (ok, klingt aus)
+  WAV -14.4 LUFS, True Peak -1.0 dBTP, Spitze -1 dBFS statisch
+  Hoerversion previz/music/mashup_M3a.m4a: -14.3 LUFS, True Peak -1.8 dBTP (ok), Samples >= 0 dBFS: 0 (ok)
 
-Boil-Test ref/audio/boil_test.wav: Endkarte M2a ab Drop, 4 s, 48 Ticks alle 83.3 ms (12/s = 24 fps auf 2ern)
-  Hoerversion previz/music/boil_test.m4a: -14.0 LUFS, True Peak -5.1 dBTP (ok), Samples >= 0 dBFS: 0 (ok)
-
-M2b: 1 Takt Brummen, 4 Takte IGOR-Drums, IGORs Stopp-Takt, Schnitt auf B-Anfang
-  Zeitachse (Video): 0.00 s: Song 19.49 s x1 raw | 2.94 s: Song 22.44 s x4 raw | 14.70 s: Song 40.08 s x1 raw | 17.65 s: Song 45.96 s x4 drop
-  Ausbruch 17.28 s, DROP 17.646 s = Sprung auf Songzeit 45.963 s, Ende 29.41 s
-  Sprung-Phase (Kamm-Fit Hat-Band, 4 Takte): ab Songzeit 45.96 s -4 ms, IGORs Drums vor dem Drop (ab in_s) -20 ms, Differenz +16 ms (ok, Grenze 20 ms ~ Raster-Streuung 19 ms)
-  Lohnt sich: 2 Takte nach dem Drop -9.5 LUFS gegen 2 Takte davor -13.1 LUFS (+3.6 LU)
-  Schnitte 2.94, 14.70, 17.65 s: max. Sample-Sprung 0.11x des 99.9-%-Werts (ok, kein Knack); letzter Beat vor dem Drop -31.6 dBFS, Beat davor -15.0, erster Beat danach -11.2
-  Karussell 1x16 + 5x48 (Takte x Wechsel) = 256 Wechsel; 14 Hits
-  WAV -11.6 LUFS, True Peak -1.0 dBTP, Spitze -1 dBFS statisch
-  Hoerversion previz/music/mashup_M2b.m4a: -14.0 LUFS, True Peak -3.2 dBTP (ok), Samples >= 0 dBFS: 0 (ok)
-
-M2c: wie b, Schnitt auf 48.904 s (Downbeat naechst 48 s)
-  Zeitachse (Video): 0.00 s: Song 19.49 s x1 raw | 2.94 s: Song 22.44 s x4 raw | 14.70 s: Song 40.08 s x1 raw | 17.65 s: Song 48.90 s x4 drop
-  Ausbruch 17.28 s, DROP 17.646 s = Sprung auf Songzeit 48.904 s, Ende 29.41 s
-  Sprung-Phase (Kamm-Fit Hat-Band, 4 Takte): ab Songzeit 48.90 s -4 ms, IGORs Drums vor dem Drop (ab in_s) -20 ms, Differenz +16 ms (ok, Grenze 20 ms ~ Raster-Streuung 19 ms)
-  Lohnt sich: 2 Takte nach dem Drop -9.4 LUFS gegen 2 Takte davor -13.2 LUFS (+3.8 LU)
-  Schnitte 2.94, 14.70, 17.65 s: max. Sample-Sprung 0.20x des 99.9-%-Werts (ok, kein Knack); letzter Beat vor dem Drop -31.7 dBFS, Beat davor -15.1, erster Beat danach -8.5
-  Karussell 1x16 + 5x48 (Takte x Wechsel) = 256 Wechsel; 14 Hits
-  WAV -11.6 LUFS, True Peak -1.0 dBTP, Spitze -1 dBFS statisch
-  Hoerversion previz/music/mashup_M2c.m4a: -14.1 LUFS, True Peak -3.4 dBTP (ok), Samples >= 0 dBFS: 0 (ok)
+M3b: 20 s: 3 Takte Brummen (laengere Einblende), 2 Takte IGOR-Drums, 1/2 Takt Luft, Drop, 1/2 + 1 1/4 Takt Ausklang
+  Verlauf: 0 s Einblende (Song 13.61 s, Brummen; Tiefpass offen bei 8.82 s), IGORs Drum-Loop ab 8.82 s (erster Hit 10.42 s), Luft 13.23 s, Ausbruch 14.34 s, DROP 14.705 s, Ausklang 16.18-19.85 s (3.68 s)
+  Laenge 19.85 s, Karussell 5 Takte x 48 = 240 Wechsel (16.32/s), 5 Hits
+  Einblende (Viertel bis zur Luft): -34 → -21 → -20 → -15 dBFS (ok, steigt)
+  Luft 1.47 s: -26.3 dBFS gegen den Takt davor -14.6, erster Takt nach dem Drop -11.8 dBFS
+  Schnitte 13.23 / 14.70 s: Sample-Sprung an der Kante 0.01x des 99.9-%-Werts (ok, kein Knack); letzte 10 ms Spitze -107 dBFS (ok, klingt aus)
+  WAV -14.6 LUFS, True Peak -1.0 dBTP, Spitze -1 dBFS statisch
+  Hoerversion previz/music/mashup_M3b.m4a: -14.4 LUFS, True Peak -1.7 dBTP (ok), Samples >= 0 dBFS: 0 (ok)
