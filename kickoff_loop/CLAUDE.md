@@ -21,8 +21,18 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
   `uv run src/kickoff_loop.py grounds kickoff_loop/previz/review/I{1,2,3,4}/I*.toml` → `previz/variants/grounds.png`.
   Befund: `gain` 2.5–3 hob den Grund 2 Stufen (P41 flächig Magenta, Split-Frames liefen in die zweite Colorway) → 1.6–2.0.
   Lesbarkeit unverändert (Mittel 0.806–0.808 gegen 0.807).
-- **Lesbarkeit min 0.38** = Plakat 43 (W2 F11, S24), stand schon in N1 so (die 0.60 unten sind veraltet).
-- **Render-Pipeline:** ein Agent prüft weitere Beschleunigung (Machbarkeit + Prototyp, eigener Branch, kein Merge).
+- **Lesbarkeit min 0.38** = Plakat 43 (W2 F11, S24), stand schon in N1 so (die 0.60 unten sind veraltet). Vadim 3.10.:
+  „menschlich easy lesbar“ → kein Handlungsbedarf; das Gate 0.95 ist für die Sterne mit Effekten im Titel zu streng.
+- **Approved 3.10.:** S48e, S58b, S60d, S59b (= S59 ohne Pinselschlaufe/Schein, Kleckse gleich: Zufall wird gezogen,
+  nicht gemalt). Belegung der S45-Plätze bleibt (Vadim meldet sich, sonst gilt sie). Keine Rückfrage zu diesen mehr.
+- **Hintergrund, Runde 2** (Vadim zu I1–I4: „Mix aus I1 und I3, harte Landmassen, aber mehr Stufen, eher ein Gradient, der
+  flowy ist, 8-Bit, pixelated, toSquares“): `[ground].mode = "flow"` = schräger Verlauf, von `waves` Wellen quer verbogen
+  (laufen `flow_per_loop` Perioden pro Umlauf, nahtlos), `terraces` harte Stufen, `blocks_cells` grobe Quadrate,
+  `islands` > 0 mischt Inseln dazu. **I5** Fluss 6 Stufen · **I6** + 4er-Quadrate · **I7** 8 Stufen, 8er-Quadrate,
+  4 Wellen (am meisten 8-Bit) · **I8** Fluss + 4 Inseln, 4er-Quadrate. Befund: `warp_frac` 0.18 gab fast parallele
+  Streifen → 0.35. I5/I6 bleiben streifiger, I7/I8 fließen. Lesbarkeit unverändert.
+- **Agenten (3.10.):** `pipeline` (Render-Tempo: Machbarkeit + Prototyp, eigener Branch, kein Merge) und `enden`
+  (neue digitale Enden laut Übergabe unten: v1 nach hinten + Zoom, Schleuder-Varianten; eigener Branch, kein Merge).
 
 ## Übergabe → nächste Session (Stand 2.10., 20 Uhr)
 
@@ -47,7 +57,7 @@ Loop hinein (digital, 24 fps, dieselbe Bahn/Sterne/Farben), dann ändert der Ste
 - Nach jedem Render: Bildstreifen über die Zeit selbst ansehen (ffmpeg fps=1.5 → Bogen) + Report, **bevor** Vadim es sieht
   (Z4 v1 war kaputt und ging ungeprüft raus).
 
-**Sonst offen zur Wahl** (`previz/review/<Code>/`): Z4 v2, Z5, W1, W2 (Begriffe), I1–I4 (Hintergrund-Inseln).
+**Sonst offen zur Wahl** (`previz/review/<Code>/`): Z4 v2, Z5, W1, W2 (Begriffe), I1–I8 (Hintergrund; Favorit-Richtung I5–I8).
 G1/N1 sind seit 3.10. in `loop.toml` (archiviert). Hauptversion `previz/v021/` (loop.toml, altes Ende).
 **Render-Tempo** (gemergt 74b61df, Bild bitgleich per Frame-Hash): `sheet` warm ~3.5 s, `preview` warm ~33 s / kalt ~57 s,
 `preview … --draft` ~20 s (Digitalteil auf Zweiern, Hardware-Encoder, `*_draft.mp4`, nicht zur Abnahme). Cache-Schlüssel nur

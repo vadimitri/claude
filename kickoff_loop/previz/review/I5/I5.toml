@@ -1,0 +1,14 @@
+# I5 Fluss (Vadim 3.10.: "Mix aus I1 und I3, harte Landmassen, aber mehr Stufen, eher ein Gradient, der flowy ist, 8-Bit"):
+# schraeger Verlauf, von 3 Wellen verbogen (fliesst einmal pro Umlauf durch), 6 harte Stufen. Nur [ground].
+[ground]
+mode = "flow"        # linear | islands | flow (styles.ground_shape)
+angle_deg = 110      # Richtung des Verlaufs (0 = links→rechts, 90 = oben→unten), dunkel → hell
+waves = 3            # so viele Wellen verbiegen den Verlauf nacheinander (mehr = verschlungener)
+wave_freq = [0.35, 1.0]   # Perioden pro kurzer Plakatseite, zufaellig dazwischen (klein = grosse Schwuenge)
+warp_frac = 0.35     # wie weit die Wellen schieben (kurze Seite; Befund 3.10.: 0.18 gab fast parallele Streifen)
+flow_per_loop = 1    # jede Welle laeuft so viele Perioden pro Umlauf weiter (ganzzahlig = nahtlos, 0 = steht)
+terraces = 6         # harte Stufen (jede Stufe eine eigene Bayer-Dichte), 0 = weich
+blocks_cells = 0     # 0 = aus | k = Feld je k x k Zellen (grobe Quadrate)
+gain = 2.2           # Hoehe: 2 = gut eine Palettenstufe ueber dem Grund (bleibt in der ersten Colorway)
+lin_frac = 0.0
+seed = 5
