@@ -276,7 +276,13 @@ def zoom_sparks(c):
     beschnitten (Labor-Sterne malen bildfuellend, ihr eigener Grund bleibt so im Stern). Gemalt wird ab der groessten Puppe,
     die das Bild noch ganz deckt, bis zur kleinsten mit SPARK_MIN_CELLS Zellen Radius: neue Puppen wachsen aus dem Punkt.
     Ohne Bewegungsunschaerfe (die Sterne sind nicht selbstaehnlich, kein Stroboskop; die Zoomrate ist gedeckelt).
-    Zweitlicht der Labor-Sterne (kickoff._EXTRA["extra"]) faellt im Zoom weg."""
+    Zweitlicht der Labor-Sterne (kickoff._EXTRA["extra"]) faellt im Zoom weg.
+    O10 (Vadim 2.10. zu O9): Puppe j ist um j x spin Grad weitergedreht ("damit die Drehung nicht abrupt aufhoert"), und
+    jede Puppe j >= 1 hat ihre eigene Colorway pals[j - 1] (die letzte gilt fuer alle tieferen; Puppe 0 = Plakat). Die
+    Stern-Ebene bekommt dafuer eine Palette je Zelle (c.pals, c.pal_map, styles.render); alles andere (Schrift, Gluehen,
+    Abdimmen) steht in der Colorway der Puppe, die gerade das ganze Bild deckt (c.pal), so wechselt die Schrift genau dann,
+    wenn diese Puppe den Grund bildet. Puppe j ist auf dim^j ihrer Werte abgedimmt (0 = Grund): die Colorways allein
+    machten das Bild nicht dunkler, die Sterne malen in den hohen Stufen (Befund O10, Bogen beat 8-13 hellgrau)."""
     import copy
     import kickoff as K
     import kickoff_loop as KL
@@ -289,17 +295,27 @@ def zoom_sparks(c):
     j1 = math.floor(math.log(SPARK_MIN_CELLS * c.px / R) / lr)            # kleinste, die noch zu sehen ist
     V = np.full(d.shape, np.nan, np.float32)
     lit = np.zeros(d.shape, bool)
+    pj = np.zeros(d.shape, np.int16)                                      # Puppe je Zelle (Palette)
     for j in range(j0, j1 + 1):
         sub = copy.copy(c)
         code = "matrjoschka" if j == 0 else KL.S_CODES[sp["codes"][(j - 1) % len(sp["codes"])]]
-        sub.st, sub.L, sub.layers = dict(c.st, S=code), dict(c.L, star=(cx, cy, R * sp["ratio"] ** j, rot)), []
+        rj = rot + j * sp["spin"]
+        sub.st = dict(c.st, S=code, rot=rj)
+        sub.L, sub.layers = dict(c.L, star=(cx, cy, R * sp["ratio"] ** j, rj)), []
         K.spark(sub)
-        v = sub.layers[-1][2]
-        clip = d < sp["ratio"] ** j
+        f = sp["dim"] ** j                                                # O10: tiefer = dunkler ("Untergang ins Dunkle")
+        v = sub.layers[-1][2] * f
+        clip = styles.star_d(c, cx, cy, R * sp["ratio"] ** j, rj)[0] < 1 if sp["spin"] else d < sp["ratio"] ** j
         V = np.where(clip & ~np.isnan(v), v, np.where(clip, np.nan, V))
-        lit = np.where(clip, sub.star_m, lit)
+        lit = np.where(clip, sub.star_m & (v > 0.5) if f < 1 else sub.star_m, lit)   # abgedimmt ist kein Licht mehr
+        pj = np.where(clip, j, pj)
     K._EXTRA["extra"] = []
     c.star_m = lit
+    if sp["pals"]:
+        pal = lambda j: c.pal if j == 0 else styles.hexpal_list(sp["pals"][min(j, len(sp["pals"])) - 1])  # noqa: E731
+        c.pals = np.stack([pal(j) for j in range(j0, j1 + 1)])
+        c.pal_map = np.clip(pj - j0, 0, j1 - j0)
+        c.set_pal(c.pals[0])
     c.add("spark", ~np.isnan(V), np.nan_to_num(V))
 
 

@@ -1217,9 +1217,10 @@ def preview(cfg, posters, qr_ok, legib):
         if mode == "words":
             ending.append(f"Ende: Begriffe {' / '.join(e['words'])}, je {e['words_term_beats']} Beat, Bogen words.png")
         if "orbit_close_at_beats" in e and mode == "orbit":
-            qr, leg = KE.finale_check(digital_style(cfg, (len(digital) - 1) / tfps), np.asarray(digital[-1]))
+            qr, leg, black = KE.finale_check(digital_style(cfg, (len(digital) - 1) / tfps), np.asarray(digital[-1]))
             ending.append(f"Finale: QR im Schlussbild {'NOCH LESBAR' if qr else 'weg'}, Lesbarkeit SPARK + KICK-OFF/Datum "
-                          f"+ {' '.join(e['orbit_words'][-1])} {leg:.2f} {tier(leg)}")
+                          f"+ {' '.join(e['orbit_words'][-1])} {leg:.2f} {tier(leg)}, Grund #000 {black:.1%} "
+                          f"{'ok' if black > 0.999 else '(NICHT schwarz)'}")
         if e["card_on"]:
             qr, leg = KE.card_check(digital_style(cfg, (len(digital) - 1) / tfps), np.asarray(digital[-1]))
             run = 0.0                                          # wie lange vor Schluss der QR schon lesbar ist (1/4 s)

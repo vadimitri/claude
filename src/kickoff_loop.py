@@ -44,7 +44,7 @@ from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import binary_dilation, gaussian_filter, label, minimum_filter
+from scipy.ndimage import binary_dilation, gaussian_filter, minimum_filter
 
 import kickoff as K
 import styles as S
@@ -121,7 +121,7 @@ def load(path=CONFIG, music=None):
     wf, key = col["world_frames"], cfg["loop"]["key_every"]
     for w, st in enumerate(col["worlds"]):
         where = f"[color] Welt {w + 1} {st}"
-        bad = [p for p in st if len(p.split("/")) > 2 or any(q.removeprefix("~") not in P_CODES for q in p.split("/"))]
+        bad = [p for p in st if not station_ok(p)]
         assert st and not bad, (f"{where}: unbekannte oder lila Codes {bad}. Erlaubt: {sorted(P_CODES)}, "
                                 "Split-Tone als \"Grund/Licht\", z. B. \"P11/P18\", Negativ als \"~P11\"")
         bad = [p for p in st if len({is_paper(q) for q in p.split("/")}) > 1]
@@ -267,6 +267,19 @@ RAINBOW_GREY_CHROMA = 0.03   # OKLab-Buntheit, unter der eine Stufe keinen verla
 RAINBOW_SAMPLES = 36         # Stuetzstellen, an denen ein Farbton-Weg auf das Lila-Band geprueft wird (10° Abstand)
 
 
+BW = "BW"   # Pseudo-Station Schwarz-Weiss (Vadim 2.10. zu O9: am Ende "Farbe komplett weg", blankes Schwarz, helle Schrift)
+
+
+def station_ok(p):
+    """Station aus Kick-off-Colorways: "P11", Negativ "~P11", Split "Grund/Licht" (kein Lila, P_CODES)."""
+    return len(p.split("/")) <= 2 and all(q.removeprefix("~") in P_CODES for q in p.split("/"))
+
+
+def station_hex(p, steps, split_level=None):
+    """Hex-Liste einer Station (oder BW) wie palette_hex, fuer Paletten ausserhalb der Farbreise (Puppen im Finale)."""
+    return ["#%02X%02X%02X" % tuple(int(v) for v in c) for c in station(p, steps, split_level)]
+
+
 def is_paper(p):
     """Papier-Colorway: der Grund (Stufe 0) ist heller als die Tinte (letzte Stufe), z. B. P16 P21-P24.
     Split-Station "P23/P16": zaehlt der Grund."""
@@ -280,7 +293,10 @@ def station(p, steps, split_level=None):
     Split-Tone "P11/P18" (Vadim 1.10.: "interdimensional"): Stufen unter split_level aus P11 (Grund, Schatten), ab
     split_level aus P18 (Licht, Tinte). Das Korn zwischen den beiden Haelften mischt die Welten im Bild.
     Negativ "~P11" (Vadim 2.10.: "extremer"): Stufen umgedreht, aus einer dunklen Colorway wird Papier (heller Grund,
-    dunkle Tinte), aus Papier eine dunkle. Geht auch als Haelfte eines Splits: "~P11/P23", "P20/~P22"."""
+    dunkle Tinte), aus Papier eine dunkle. Geht auch als Haelfte eines Splits: "~P11/P23", "P20/~P22".
+    BW: Grauleiter #000 .. #FFF."""
+    if p == BW:
+        return np.repeat(np.round(np.linspace(0, 255, steps))[:, None], 3, 1)
     if "/" in p:
         ground, light = p.split("/")
         return np.concatenate([station(ground, steps)[:split_level], station(light, steps)[split_level:]])
@@ -551,19 +567,10 @@ def title_value(c, v):
     return t
 
 
-def flip_glyphs(c, mk, v):
-    """Kleine Schrift kippt pro Buchstabe in die Grundfarbe (Mehrheit seiner Pixel liegt auf Hellem), nicht pro Pixel.
-    So bleibt sie auch in Strahlen und Sternkanten lesbar. Gleiche Regel wie in kickoff.py."""
-    bright = c.star_m | (under(c) > 0.5)
-    lab, n = label(mk)
-    share = np.bincount(lab.ravel(), bright.ravel(), n + 1) / np.maximum(np.bincount(lab.ravel(), minlength=n + 1), 1)
-    return np.where(share[lab] > 0.5, c.lvl(0), v)
-
-
 def flip_word(c, mk, v):
     """JOIN US kippt als Ganzes hell/dunkel (Vadim 1.10.: "niemals unterschiedliche Buchstabenfarben, entweder hell
-    oder dunkel, alles kombiniert"): Mehrheit aller Pixel des Worts auf Hellem → Grundfarbe, sonst v. Datum/KICK-OFF
-    kippen weiter pro Buchstabe (flip_glyphs)."""
+    oder dunkel, alles kombiniert"): Mehrheit aller Pixel des Worts auf Hellem → Grundfarbe, sonst v. Seit O10 auch
+    KICK-OFF/Datum je Zeile (vorher pro Buchstabe)."""
     bright = c.star_m | (under(c) > 0.5)
     return c.lvl(0) if bright[mk].mean() > 0.5 else v
 
@@ -663,17 +670,15 @@ def type_layers(c):
         for (s, b, cap), m in zip(lines, masks):
             v = np.where(m, line_gradient(c, b, cap, steps, phase), v)
             mk |= m
-        # Titel kippt pro Pixel (XOR mit dem Stern), die kleineren Zeilen pro Buchstabe, im Ende je Zeile als Ganzes
-        # (Vadim 2.10. zu O8: "kein Kippen pro Buchstabe", im Zoom wechselten sie hell/dunkel)
+        # Titel kippt pro Pixel (XOR mit dem Stern), die kleineren Zeilen je Zeile als Ganzes (Vadim 2.10. zu O9:
+        # "Kippen je Zeile ueberall", pro Buchstabe gab gemischte Farben in einer Zeile)
         plain = lp["i"] % lp["n"] + 1 in lp["type"].get("title_plain_frames", [])     # dort ohne Differenz
         if name == "title":
             val = v if plain else title_value(c, v)
-        elif (lp["digital"] or {}).get("zoom"):
+        else:
             val = v
             for m in masks:
                 val = np.where(m, flip_word(c, m, v), val)
-        else:
-            val = flip_glyphs(c, mk, v)
         c.add(name, mk, val)
         K._EXTRA[name] = mk
 

@@ -93,7 +93,54 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
   Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
 - **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
-## Übergabe O10 (2.10. abends, Vadims Urteil zu O9, in neuer Session bauen)
+## Finale O10 (2.10. abends, gebaut aus der Übergabe O10 unten, wartet auf Vadims Urteil)
+
+`previz/review/O10/` (sparkle = Version a), `O10b/` (ripple = b), `O10c/` (Begriff zoomt mit), je `preview.mp4`,
+`orbit.png`, Report. Tempo-Vergleich: `O10/tempo.mp4` (Bildmitte, a/b x schnell/mittel/langsam/ohne Fade, mit Musik; Einmal-Skript, nicht im Repo).
+O9 → `archiv/review/alt/O9/` (lädt nicht mehr: neue Pflichtschlüssel). Selbsttest `kl end` grün für alle drei.
+1. **Begriffe mittig** (`finale_words`, `word_layer`): Block waagerecht und senkrecht auf der Bildmitte, Größe wie
+   KICK-OFF/Datum. Befund: aus der Fontbreite gesetzt lag ROBOTICS 5 Zellen rechts (Tinte 1 Zelle versetzt, Schriftgrad
+   gerundet) → Zeile wird einmal gesetzt, an der Tinte nachgemessen, neu gesetzt: ≤ ½ Zelle (Selbsttest).
+2. **Colorway je Puppe** (`orbit_sparks_colors`, `KD.zoom_sparks`, Palette je Zelle in `styles.render` nur für die
+   Sternebene): Puppe j ≥ 1 in Station j, die letzte gilt für alle tieferen. Schrift/Glühen/Abdimmen stehen in der Colorway
+   der Puppe, die gerade das Bild deckt. Liste = dunklere Stationen der Farbreise ab der Endfarbe `~P23/P13`, absteigend
+   nach Grundhelligkeit, dann `BW` (neue Pseudo-Station Schwarz-Weiß). **Befund:** dunkle Colorways allein machten das
+   Bild nicht dunkler (Sterne malen in den hohen Stufen; Beat 8–13 hellgrau) → zusätzlich `orbit_sparks_dim` (Puppe j malt
+   mit dim^j, 0.85; Puppe 0 bitgleich). Die 10 Colorways sind bei O10 bis Beat ~7.5 durch, danach Graustufen ins Schwarze.
+3. **Endbild blankes Schwarz**: BW-Palette, Abschluss kippt in Stufe 0 = #000. Report misst den Anteil #000 außerhalb der
+   Schrift (`finale_check`).
+4. **Pixel-Effekt statt Kristall** (`orbit_words_effect`; Kristall + `crystal_order` gelöscht): **sparkle** (a) jede Zelle
+   setzt zu einem festen Zufallszeitpunkt ein und leuchtet `flash_frac` lang in der hellsten Stufe; **ripple** (b) Ring +
+   3 Nachläufer laufen von der Wortmitte nach außen (Front ~ t^0.8 wie `motionpack._ripple`), zünden Funken, außen
+   verlöschen sie, im Wort bleibt, was die Front überstrichen hat. Selbsttest: monoton, am Ende ganzer Begriff, keine Funken
+   mehr; Gegenproben (neuer Zufall je Bild bzw. die Funken außen) schlagen an.
+5. **Tempo** des Einsetzens: `tempo.mp4`, T1 1/6+1/8 Beat, T2 1/3+1/4 (= O10), T3 1/2+3/8, T4 ohne Fade
+   (`orbit_words_fade_beats = 0`: Pixel landen direkt in der Tinte, keine Difference-Phase). Vadim wählt.
+6. **Kerning (a)**: `styles.KERN = {"PA": -0.15}` (alle Plakate, Druck). **Befund Lesbarkeit (6 + 7 zusammen):** Mittel
+   0.814 → 0.803, 0/64 in Stufe A (O9 3/64), min unverändert 0.38 (Plakat 43). Getrennt an Plakat 29/61 (0.95 → 0.86/0.87):
+   Kerning allein −0.03/−0.04, Kippen je Zeile allein −0.08 (einzelne Buchstaben auf Hellem kippen nicht mehr mit).
+7. **Kippen je Zeile überall**: `KL.flip_glyphs` gelöscht, Plakate kippen KICK-OFF/Datum je Zeile (`flip_word`), in
+   `kickoff.py` Datum und beide Kopfzeilen je Zeile (`flip_lines`).
+8. **Tempo Ende**: `orbit_loop_speedup` 1.6 → 1.3, `orbit_zoom_max_per_frame` 1.5 → 1.3, Gipfel Beat 4 → 2.5, danach
+   x0.7/Beat (O9 0.75): ~12 statt ~31 Puppen bis zum Abschluss (in S33-Einheiten 33 statt 89). Bahn-Check clean.
+   Befund: der Check zählte jedes Bremsen im 2-Beat-Fenster als „langsamer“, also auch den gewollten Abfall nach einem
+   früheren Gipfel → Messfenster endet am Gipfel (geprüft wird der Übergang).
+9. **Weg zur Bildmitte** (`target_path`, `orbit_dive_target_ease` = 3): Tempo v0 (1 − u^p)², startet mit dem Bahntempo
+   ohne Ruck und kommt mit Tempo **und** Bremsung 0 an (Hermite: Tempo fiel linear auf 0, am Ziel voller Ruck), Dauer
+   1.56 statt 2 x Abstand/Tempo. Querausgleich u(1−u)³(1+3u) (erst u(1−u)³ bremste sofort: Tempo am Wechsel x0.60,
+   jetzt x0.83, O9 x0.70; Knick 3.6° statt 8.4°).
+10. **Spin**: Puppe j ist um j x `orbit_sparks_spin_deg` (8°) gedreht.
+11. **O10c Begriff zoomt mit**: jeder Begriff hängt an der Puppe, die bei seinem Einsatz `zoom_from_px` (40) Radius
+    hat, Versalhöhe 0.2 x Puppenradius, Oberkante 0.35 x Puppenradius unter der Mitte → wächst nur nach unten, nie in
+    SPARK. Befund: mit dem ruhigen Zoom von O10 (x0.7/Beat) blieb ROBOTICS bis zum Schluss stehen → O10c zoomt nach dem
+    Gipfel mit x0.9/Beat (~24 Puppen, dim 0.92), jeder Begriff ist ~1 Beat im Bild. Der letzte wächst aus der Mitte
+    (Ease-out) und bleibt; fliegende Begriffe wachsen nach dem Abschluss weiter, bis sie raus sind.
+
+**Offen / Fragen an Vadim:** a, b oder c? Tempo T1–T4? Glühen jetzt auf dunklem Grund ansehen (Befund: es überstrahlt
+KICK-OFF/Datum zwischen Beat 4 und dem Abschluss). Colorways schneller durch als gedacht (bis Beat ~7.5) – Liste
+kürzen/strecken? O7/test.toml lädt nicht mehr (`orbit_dive_target_ease` fehlt).
+
+## Übergabe O10 (2.10. abends, Vadims Urteil zu O9, umgesetzt in Finale O10 oben)
 
 Start: `previz/review/O9/O9.toml` → `O10/O10.toml`. Mehrere Versionen gewünscht, wo unten „Versionen“ steht.
 1. **Begriffe mittig und zentral** im Bild (waagerecht und senkrecht), nicht mehr an der QR-Stelle.
@@ -117,9 +164,9 @@ Start: `previz/review/O9/O9.toml` → `O10/O10.toml`. Mehrere Versionen gewünsc
 11. **Weitere Version „Begriff zoomt mit“**: kein Pixel-Effekt, jeder Begriff kommt aus der Tiefe, sitzt in seiner Puppe und
     wächst mit ihr, fliegt nach **unten** aus dem Bild (nicht in die Wortmarke SPARK), der nächste folgt.
 
-## Finale O9 (2.10. abends, gebaut aus der Übergabe O9, wartet auf Vadims Urteil)
+## Finale O9 (2.10. abends, Urteil umgesetzt in O10 oben, archiviert)
 
-`previz/review/O9/` (`preview.mp4`, `orbit.png`, Report), `O9.toml` = O8 + Vadims Urteil zu O8. O8 → `archiv/review/alt/O8/`
+`archiv/review/alt/O9/` (`preview.mp4`, `orbit.png`, Report), `O9.toml` = O8 + Vadims Urteil zu O8. O8 → `archiv/review/alt/O8/`
 (lädt mit dem neuen Code nicht mehr: `orbit_new_*` sind durch `orbit_words*` ersetzt). Video 6 Takte = 17.6 s.
 1. **JOIN US geht mit dem QR** (`orbit_dissolve = ["qr", "cta"]`).
 2. **Begriffe pro Beat** an der QR-Stelle, je Beat einer ersetzt den vorigen (harter Wechsel auf dem Beat), der letzte bleibt:
@@ -214,10 +261,16 @@ QR löst sich nach vorn in Pixel auf, dann NEW SEMESTER, NEW PROJECTS; das Abdim
 | `orbit_spin_stop_beats`, `_rest_deg` | Finale: Drehung läuft in ~so vielen Beats aus, steht auf rest + n·60° | 2, 0 |
 | `orbit_glow_frames`, `_max_scale` | Finale: Länge des Zoom-Glühens (Zoom in so vielen Bildern), Deckel | 0.25, 1.6 |
 | `orbit_dissolve`, `_at_beats`, `_beats`, `_scale` | Finale: welche Satzteile nach vorn zerfallen, wann, wie lange, bis zu welchem Maßstab | ["qr"], 3, 1.5, 6 |
-| `orbit_words`, `_at_beats`, `_beats`, `_grow_beats`, `_fade_beats` | Finale: Begriffe an der QR-Stelle, je Beat einer, kristallisieren, letzter bleibt | O9: 9 Begriffe, 5, 1, 0.33, 0.25 |
+| `orbit_words`, `_at_beats`, `_beats`, `_grow_beats`, `_fade_beats` | Finale: Begriffe mittig, je Beat einer, setzen ein (Effekt), letzter bleibt; fade 0 = ohne Fade | O10: 9 Begriffe, 5, 1, 0.33, 0.25 |
 | `orbit_zoom_max_per_frame` | Deckel der Zoomrate (Maßstab pro Bild) | O9: 1.5 |
 | `orbit_sparks`, `_ratio` | Matrjoschka aus diesen Sternen statt S33-Infinite-Zoom, Größe der nächsten Puppe | O9: 19 Sterne, 0.26 |
 | `orbit_close_at_beats`, `_beats` | Finale: Abschluss (Zoom kippt in den Grund) | 9, 1 |
+| `orbit_dive_target_ease` | Weg der Mitte ins Ziel: Tempo v0 (1 − u^p)², größer = kürzer, kommt ohne Ruck an | O10: 3 |
+| `orbit_sparks_spin_deg`, `_dim`, `_colors` | Puppe j: um j x spin gedreht, Helligkeit x dim^j, Colorway colors[j−1] (`BW` = Schwarz-Weiß) | O10: 8, 0.85, 10 Stationen + BW |
+| `orbit_words_effect` | sparkle (a) / ripple (b) / zoom (Begriff zoomt mit) | O10: sparkle |
+| `orbit_words_flash_frac` | sparkle: frischer Pixel leuchtet so lange (Anteil der Wachstumszeit) | 0.25 |
+| `orbit_words_ring_reach`, `_ring_width` | ripple: Ring läuft bis so viele halbe Wortbreiten, Breite | 1.6, 0.06 |
+| `orbit_words_zoom_from_px`, `_cap_frac`, `_gap_frac` | zoom: Puppe beim Einsatz (Radius px), Versalhöhe und Abstand unter der Mitte x Puppenradius | O10c: 40, 0.2, 0.35 |
 
 
 ## Stand vor O6/O7 (Übergabe O4/O5 erledigt 1.10. abends, Details oben)

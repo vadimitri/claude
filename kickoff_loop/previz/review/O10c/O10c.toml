@@ -1,0 +1,88 @@
+# O10c = O10 als Version "Begriff zoomt mit" (Vadim 2.10.): kein Pixel-Effekt, jeder Begriff haengt an einer Puppe, waechst
+# mit ihr und fliegt nach unten aus dem Bild, der naechste folgt; der letzte waechst aus der Mitte und bleibt.
+# O10 = O9 + Vadims Urteil 2.10. zu O9 (Uebergabe O10): Begriffe mittig, jede Puppe eine eigene Colorway (dunkler bis
+# Schwarz), Endbild blankes Schwarz mit heller Schrift, Pixel-Effekt statt Kristall (Versionen a/b, Tempo), Kerning P-A
+# (styles.KERN), Kippen je Zeile ueberall, Loop/Zoom ruhiger, Weg zur Bildmitte mit Ease-out, Puppen leicht gedreht.
+# Versionen: O10a.toml (= diese, sparkle), O10b (ripple), O10c (Begriff zoomt mit), Tempo-Bogen words.png.
+# O9 = O8 + Vadims Urteil 2.10. (Uebergabe O9): JOIN US geht mit dem QR, Begriffe pro Beat kristallisieren an der
+# QR-Stelle, Zoom durch alle Sparks (Matrjoschka aus verschiedenen Sternen, Rate gedeckelt), Gluehen bleibt, KICK-OFF/Datum
+# kippen je Zeile. Video 6 Takte (17.6 s) statt 5, damit 10 Begriffe + Schluss passen.
+# O8 = Vadims O7/test.toml + Finale (Vadim 2.10.: "Matrjoschka soll sich nicht drehen, langsamer werden, gerade bleiben";
+# kein neuer Titel, kein QR auf einer Karte, kein laufender Verlauf ("nur Linien, die sich hochziehen"); Titel + Untertitel
+# bleiben und gluehen, damit man sieht, wie stark wir reinzoomen; nur der QR loest sich nach vorn in Pixel auf, dann
+# NEW SEMESTER, NEW PROJECTS; das Abdimmen in den Grund schliesst das Video ab). Zeiten in Beats ab dem Karussell-Ende.
+
+[ending]
+carousel_bars = 2
+runout_bars = 0
+runout_hold_beats = 0.0
+length_bars = 6.0          # 17.6 s (O8: 5 = 14.7 s; fuer 8 Begriffe je 1 Beat + NEW SEMESTER)
+card_on = false            # keine Endkarte: der Plakatsatz bleibt
+orbit_path = "dive"
+orbit_frame = 1
+orbit_loops = 1.0
+orbit_loop_speedup = 1.3         # O10 (Vadim: "letzter Loop beschleunigt zu stark"; O9 1.6)
+orbit_dive_lead_frames = 7
+orbit_dive_core_shrink = 20.0
+orbit_throw_speedup = 8.0
+orbit_dive_drift_pow = 0.5
+orbit_dive_target = [0.5, 0.5]    # Vadims test.toml: mittig
+orbit_dive_target_ease = 3.0      # O10: Weg dorthin, Tempo v0 (1 - u^p)^2: kommt ohne Ruck an; groesser = kuerzer (3: 1.56 x
+                                  # Abstand/Tempo, O9-Hermite 2 x und bremste bis zum Stillstand voll = "sieht komisch aus")
+orbit_dive_shutter_frac = 0.0     # O9: Sterne wechseln, keine Ringe, die flackern (Zoomrate gedeckelt)
+orbit_spin_speedup = 1            # ohne Finale: Drehung legt nicht zu
+orbit_cycle_beats = 1.73         # Farbe steht ab hier (Endfarbe), die Sterne wechseln in der Matrjoschka
+orbit_type_morph = false          # kein Morph in eine Karte
+orbit_type_out_at_beats = 99.0    # Satz zerfaellt nie (steht bis zum Schluss)
+orbit_type_out_beats = 1.0
+orbit_flow_at_beats = 1.0
+orbit_flow_in_beats = 1.0
+orbit_flow_steps = 1.0
+orbit_flow_per_beat = 0.0         # Verlauf laeuft nicht (Vadim: "funktioniert nicht, nur Linien von unten nach oben")
+# Finale
+orbit_zoom_max_per_frame = 1.3    # O10: Deckel tiefer (O9 1.5, Vadim: "Zoom zu schnell und zu lange schnell"); Bahn-Check clean
+orbit_zoom_peak_beats = 2.5       # O10: Zoom haelt das Tempo nur bis hier (O9 4) ...
+orbit_zoom_decay = 0.9            # O10c: Zoom muss weiterlaufen, damit die Begriffe rausfliegen (O10 0.7: ROBOTICS stand bis
+                                  # zum Schluss); ~24 Puppen statt ~12, O9 ~30
+orbit_sparks = ["S48d", "S23", "S54c", "S47", "S50", "S14", "S24", "S31", "S19d", "S31e", "S18d", "S31g", "S58b",
+                "S48e", "S26", "S60d", "S59b", "S56", "S57b"]   # Puppen nach S33: alle Sterne aus [styles].cycle, je einmal
+orbit_sparks_ratio = 0.26         # naechste Puppe so gross (= Kern der S33: 0.64^3, dort setzt Puppe 1 ein)
+orbit_sparks_spin_deg = 8.0       # O10: jede Puppe so viel weiter gedreht als die aeussere ("ein bisschen Spin")
+orbit_sparks_dim = 0.92           # O10c: mehr Puppen, langsamer abdimmen (0.92^24 = 0.13)
+                                  # machten das Bild nicht dunkler (Sterne malen in den hohen Stufen)
+# O10: Colorway je Puppe 1, 2, ... (die letzte gilt fuer alle tieferen). Vadim 2.10.: "jede neue Puppe eine andere Colorway,
+# alle aus der Farbreise, Tendenz immer dunkler, bis alles bei Schwarz landet". Ab der Endfarbe ~P23/P13 (Grund 0.100) die
+# dunkleren Stationen nach mittlerer Grundhelligkeit (Stufen 0-2, linear): 0.056 0.052 0.048 0.045 0.039 0.031 0.026 0.018
+# 0.005, dann BW (Schwarz-Weiss: Farbe weg, Grund #000, Schrift hell). Papier-Stationen waeren heller (0.49-0.75).
+orbit_sparks_colors = ["P15/P19", "P17/P10", "~P22/P20", "~P16/~P24", "P13/P9", "P18", "P20/P25", "P11/P18", "P9", "BW"]
+orbit_spin_stop_beats = 2.0       # Drehung laeuft ab dem Wurf in ~2 Beats linear aus (stetig) ...
+orbit_spin_rest_deg = 0.0         # ... und steht gerade (0 Grad + Vielfache von 60)
+orbit_glow_frames = 2.0           # Zoom-Gluehen: Schweif = Zoom in 2 Bildern (O9: haelt den Hoechstwert bis zum Abschluss) ...
+orbit_glow_max_scale = 1.6        # ... hoechstens x1.6 um die Zoom-Mitte (sonst fuellt der Schweif die Seite)
+orbit_dissolve = ["qr", "cta"]    # O9: JOIN US geht mit dem QR (Vadim 2.10.)
+orbit_dissolve_at_beats = 3.0     # QR zerfaellt ab hier (Stern steht schon gerade) ...
+orbit_dissolve_beats = 1.5        # ... in so vielen Beats ...
+orbit_dissolve_scale = 6.0        # ... die naechsten Splitter wachsen bis x6 (fliegen auf die Kamera)
+# Begriffe an der QR-Stelle (Vadim 2.10.: "Robotics, Drones, Autonomous Robots, Robotfights, Sensorik, Elektronik und so
+# weiter"; 3D PRINTING, SOLDERING = Vorschlag aus den Spark-Workshops, weitere: PCB DESIGN, FIRMWARE). Je Begriff eine
+# Liste Zeilen, der letzte bleibt stehen. 8 Begriffe passen in 6 Takte (Beat 5-12), NEW SEMESTER ab Beat 13.
+orbit_words = [["ROBOTICS"], ["DRONES"], ["AUTONOMOUS", "ROBOTS"], ["ROBOT FIGHTS"], ["SENSORS"], ["ELECTRONICS"],
+               ["3D PRINTING"], ["SOLDERING"], ["NEW SEMESTER,", "NEW PROJECTS"]]
+orbit_words_at_beats = 5.0        # erster Begriff auf dem Beat nach dem QR-Zerfall (3 + 1.5) ...
+orbit_words_beats = 1.0           # ... je Beat einer, ersetzt den vorigen
+orbit_words_grow_beats = 0.33     # Pixel setzen in 1/3 Beat (8 Bilder) ein, als Difference wie SPARK ...
+orbit_words_fade_beats = 0.25     # ... dann 1/4 Beat Fade in die Tintenstufe (0 = Pixel landen direkt in der Tinte)
+orbit_words_effect = "zoom"       # O10: sparkle (a) | ripple (b) | zoom (Begriff zoomt mit seiner Puppe, kein Pixel-Effekt)
+orbit_words_flash_frac = 0.25     # sparkle: frisch gesetzter Pixel leuchtet so lange (Anteil der Wachstumszeit) in der hellsten Stufe
+orbit_words_ring_reach = 1.6      # ripple: Ring laeuft bis 1.6 halbe Wortbreiten von der Mitte (Wort ganz drin ab ~1.05) ...
+orbit_words_ring_width = 0.06     # ... Ringbreite in halben Wortbreiten (Nachlaeufer im Abstand 2.5 Breiten)
+orbit_words_zoom_from_px = 40.0   # zoom: Begriff haengt an der Puppe, die bei seinem Einsatz so klein ist (Radius px) ...
+orbit_words_zoom_cap_frac = 0.2   # ... Versalhoehe = 0.2 x Puppenradius ...
+orbit_words_zoom_gap_frac = 0.35  # ... Oberkante 0.35 x Puppenradius unter der Mitte: jeder ~1 Beat im Bild, dann unten raus
+orbit_close_at_beats = 13.5       # Abschluss: Zoom kippt im Korn in den Grund, waehrend NEW SEMESTER einsetzt ...
+orbit_close_beats = 1.0           # ... in 1 Beat, dann steht der Satz allein (1.5 Beats bis Beat 16)
+
+[endcard]
+end_mode = "orbit"
+burst_on = false
+impact_on = false

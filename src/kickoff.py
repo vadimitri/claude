@@ -22,7 +22,7 @@ from itertools import product
 from multiprocessing import Pool
 
 import numpy as np
-from scipy.ndimage import binary_dilation, gaussian_filter, label
+from scipy.ndimage import binary_dilation, gaussian_filter
 
 import styles as S
 from styles import AX, BASE, CODENAME, KOMP, lila, line_mask, up, width_per_cap
@@ -111,10 +111,11 @@ def type_layers(c):
         base = np.where(np.isnan(v), base, v)
     bright = c.star_m | (base > 0.5)              # Wertraum (0 = Grund, 1 = Tinte), gilt auch fuer Papier-Paletten
 
-    def flip_glyphs(mk, v):                       # kleine Schrift kippt pro Buchstabe (Mehrheit), nicht pro Pixel: in Strahlen lesbar
-        lab, n = label(mk)
-        lit = np.bincount(lab.ravel(), bright.ravel(), n + 1) / np.maximum(np.bincount(lab.ravel(), minlength=n + 1), 1)
-        return np.where(lit[lab] > 0.5, c.lvl(0), v)
+    def flip_lines(masks, v):                     # kleine Schrift kippt je Zeile als Ganzes (Mehrheit ihrer Pixel auf Hellem),
+        out = v                                   # nicht pro Pixel/Buchstabe (Vadim 2.10.: nie gemischte Farben in einer Zeile)
+        for m in masks:
+            out = np.where(m, c.lvl(0), out) if bright[m].mean() > 0.5 else out
+        return out
 
     def fill(bases, capL):                        # geditherter Verlauf in den Buchstaben wie Maker Night
         rel = np.zeros(shape, np.float32)
@@ -125,9 +126,8 @@ def type_layers(c):
 
     for name, lines, bases, capL in (("title", L["title"], L["tb"], L["cap"]), ("date", L["sub"], L["sb"], L["capd"]),
                                      ("cta", (COPY["cta"],), [L["jb"]], L["capj"])):
-        mk = np.zeros(shape, bool)
-        for s, b in zip(lines, bases):
-            mk |= line_mask(s, "clash", capL, b, x, px, shape)
+        masks = [line_mask(s, "clash", capL, b, x, px, shape) for s, b in zip(lines, bases)]
+        mk = np.logical_or.reduce(masks)
         if name == "cta":                         # CTA kippt nie, steht immer auf hartem Etikettstreifen in Grundfarbe
             pad = max(2, round(0.25 * capL / px))
             ys, xs = np.nonzero(mk)                                       # mittig ueber der QR-Platte
@@ -138,13 +138,13 @@ def type_layers(c):
             c.add("cta", box, c.lvl(0))
             c.add(name, mk, fill(bases, capL))
         else:
-            c.add(name, mk, flip(fill(bases, capL)) if name == "title" else flip_glyphs(mk, fill(bases, capL)))
+            c.add(name, mk, flip(fill(bases, capL)) if name == "title" else flip_lines(masks, fill(bases, capL)))
         _EXTRA[name] = mk                         # Masken fuer legible()
 
     small = lambda s, b, xx, right=False: line_mask(s, "departure", L["sc"], b, xx, px, shape, right)   # noqa: E731
     i = next(i for i, (_, v, _) in enumerate(PAL) if v == c.st["P"])
-    mk = small(f"{i + 1:02d}/{len(PAL)} {FRAG[c.st['P']]}", L["meta"], x) | small(PAL[i][2], L["meta"], W - x, True)
-    c.add("meta", mk, flip_glyphs(mk, c.ink))
+    meta = [small(f"{i + 1:02d}/{len(PAL)} {FRAG[c.st['P']]}", L["meta"], x), small(PAL[i][2], L["meta"], W - x, True)]
+    c.add("meta", meta[0] | meta[1], flip_lines(meta, c.ink))
     _EXTRA["type"] = np.maximum.reduce([a for _, a, *_ in c.layers[n0:]]) > 0
 
 

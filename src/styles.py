@@ -101,9 +101,9 @@ FONTSPEC = {
 }
 # Kernpaare fuer Clash (Versalhoehen, negativ = enger), leer = Werte des Fonts. Vadim 2.10.: "zwischen P und A mehr
 # Platz, das A soll richtig zentriert sein, P naeher ran". Befund (Versalhoehe 200 px, engster waagerechter Abstand):
-# S-P 13, P-A 44, A-R 6, R-K 9 px; P-A -0.15 → 14 px. Vergleich previz/variants/kern.png, Vadim entscheidet (wirkt auf
-# alle Plakate und den Druck), bis dahin leer.
-KERN = {}
+# S-P 13, P-A 44, A-R 6, R-K 9 px; P-A -0.15 → 14 px. Vergleich previz/variants/kern.png; Vadim 2.10. zu O9: (a), die
+# Wortbreite steht mittig (wirkt auf alle Plakate und den Druck).
+KERN = {"PA": -0.15}
 F_LO, F_HI = 0.7, 0.98          # Titel-Fuellung: unten Lavendel, oben fast Weissglut
 
 
@@ -115,7 +115,11 @@ def font(name, size, var=None):
 
 
 def hexpal(p):
-    return np.array([[int(c[i:i + 2], 16) for i in (1, 3, 5)] for c in PALS[p]], np.float32)
+    return hexpal_list(PALS[p])
+
+
+def hexpal_list(hexes):
+    return np.array([[int(c[i:i + 2], 16) for i in (1, 3, 5)] for c in hexes], np.float32)
 
 
 # ---------------------------------------------------------------- Dither: Wertfeld (logisch) -> Palettenindex (voll)
@@ -209,15 +213,19 @@ class Ctx:
         self.W, self.H, self.u = SIZES[fmt]
         self.px = st["R"] * self.u
         self.gw, self.gh = self.W // self.px, self.H // self.px
-        self.pal = hexpal(st["P"])
-        self.N = len(self.pal) - 1
+        self.set_pal(hexpal(st["P"]))
         yy, xx = np.mgrid[0:self.gh, 0:self.gw].astype(np.float32)
         self.yy, self.xx = yy, xx
         self.cy, self.cx = (yy + 0.5) * self.px, (xx + 0.5) * self.px   # Zellmitten in Displaypixeln
         self.layers = []                                                  # (name, alpha voll, v logisch, flach, eigenes D)
-        lum = self.pal @ np.array([0.2126, 0.7152, 0.0722], np.float32)
-        self.lo, self.hi = int(lum.argmin()), int(lum.argmax())           # QR: dunkelste Module auf hellster Platte
+        self.pals = self.pal_map = None                                   # Palette je Zelle fuer die Stern-Ebene (render)
         self.L = st.get("layout", layout)(self)                            # Kampagne kann eigenen Satz mitbringen
+
+    def set_pal(self, pal):
+        """Palette des Bildes (ein spark_fn darf sie tauschen, bevor der Satz laeuft: kickoff_loop_digital.zoom_sparks)."""
+        self.pal, self.N = pal, len(pal) - 1
+        lum = pal @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+        self.lo, self.hi = int(lum.argmin()), int(lum.argmax())           # QR: dunkelste Module auf hellster Platte
 
     def lvl(self, k):
         """Exakte Palettenstufe (rendert flaechig, ohne Korn)."""
@@ -478,7 +486,10 @@ def render(st, fmt="16x9", layers=True):
     full = None                                   # c.pal[idx] ist fuer alle Ebenen ohne eigenes D gleich: einmal rechnen
     for name, a, _, flat, own in c.layers:
         a = a[::p, ::p] if cells else a
-        if flat is not None:
+        if c.pals is not None and name == "spark":   # Palette je Zelle (Puppen in eigener Colorway)
+            ix = flat if flat is not None else dither(V, c.N, own, q, sd, sh) if own else idx
+            col = c.pals[up(c.pal_map, q), ix]
+        elif flat is not None:
             col = c.pal[flat]
         elif own:
             col = c.pal[dither(V, c.N, own, q, sd, sh)]
