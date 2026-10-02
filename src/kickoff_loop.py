@@ -1164,8 +1164,10 @@ BACK_WIDTH_FRAC = 0.8                                           # laengste Zeile
 
 
 def _print_job(args):
+    """Druckbild mit Druckmarken (kickoff_loop_marks, [marks]); der QR wird am markierten Bild geprueft."""
+    import kickoff_loop_marks as M
     cfg, i = args
-    img = frame(cfg, i, PRINT)
+    img = M.print_image(cfg, frame(cfg, i, PRINT), i, PRINT_CELL_PX)
     return img, K.check_qr(img, PRINT_CELL_PX)
 
 

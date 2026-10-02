@@ -495,7 +495,8 @@ bei sheet/preview/end die einzige im Ordner.
 | `uv run src/kickoff_loop.py preview [review/X/X.toml]` | ohne Argument neue Version `previz/vNNN/`, mit Variante in ihren Ordner (Video, Bögen, Report, Config-Kopie). `--master`: x264 statt Hardware-Encoder (Endabnahme) | nichts/nur Ende geändert ~9 / ~11 s, Stern geändert ~21 s, kalt ~30 s |
 | `uv run src/kickoff_loop.py preview review/X/X.toml --draft` | Entwurf: Digitalteil auf Zweiern, kein Zoom-Check → `*_draft.mp4/.png`, `report_draft.txt` (Kopfzeile DRAFT); teilt das Foto-Segment mit der Endversion | Ende geändert ~9 s |
 | `uv run src/kickoff_loop_end.py test review/Z4/Z4.toml` | Selbsttest Ausstiege (Auslauf bremst/landet, Kamera stetig, warp), Gegenprobe linear | ~5 s |
-| `uv run src/kickoff_loop.py frames` / `variants` / `boil` / `print` / `resolve` | Frames rendern / QR-Varianten / Boil-Test / Druck-PDFs / Resolve-Bausteine | |
+| `uv run src/kickoff_loop.py frames` / `variants` / `boil` / `print` / `resolve` | Frames rendern / QR-Varianten / Boil-Test / Druck-PDFs (mit Druckmarken) / Resolve-Bausteine | |
+| `uv run src/kickoff_loop_marks.py align <fotos>` / `test` | Campus-Fotos → `photos/aligned/NN.png` / Selbsttest Druckmarken → `previz/marks/` | ~2 s je Foto / ~160 s |
 | `uv run src/kickoff_loop_music.py` | Musik + Raster → `ref/audio/mashup_*.wav/.json` | ~5 s |
 
 Frames sind nach Inhalt gecacht (`_cache/`): Schlüssel = ganzes Stil-Dict + Hash nur der Quelltexte, die das Bild
@@ -509,6 +510,39 @@ sich nur das Ende (oder `--draft`), fallen Platten, Kamera und Encoder der Foto-
 bleiben (~70 MB je Stück). **Encoder**: alle Vorschauen VideoToolbox q65 (`PREVIEW_ENCODER`, Vadim 3.10.: Tempo vor
 Qualität), `--master` = x264 `fast` crf 16 (`MASTER_ENCODER`). Digitalteil kommt in Zeitfolge aus dem Pool
 (`DigitalFrames`), der Encoder wartet nicht mehr auf den ganzen Teil. QR-Prüfung bricht ab, sobald das Ergebnis steht.
+
+## Druckmarken (2.10., `src/kickoff_loop_marks.py`, `[marks]` in `loop.toml`)
+
+Vadim: „unsichtbare Marken auf Plakaten und Frames, damit du sie später leichter anordnen kannst, fürs Auge nicht groß
+sichtbar". Nur im Druck (`print` → `_print_job` → `marks.print_image`), nie im Video: Vorschau-Renders und Cache
+bleiben bitgleich (65 Renders alt/neu verglichen), Video-Code unberührt.
+
+- **Verfahren:** Chips à 2 × 2 Zellen, je ±, in 2×2-Blöcken ausgeglichen. Jede Palettenfarbe wird im Chip + / − um einen
+  Hub verschoben, symmetrisch im linearen Licht (aus Abstand mischt das Auge die Basis zurück). Hub je Farbe: Richtung
+  mit dem meisten Kamerasignal (Blau minus Gelb), begrenzt auf `amp_ok` nach dem Augenfilter (S-CIELAB, 1 m), auf dem
+  Ausdruck UND am Bildschirm. Am Gamut-Rand (Fast-Schwarz, B = 255) schiebt die Basis bis `tone_ok` nach innen.
+  Halb Sync (alle Frames gleich → Lage), halb Code (Seed = Frame-Nummer → Nummer). QR + Ruhezone + Glühen bleiben frei.
+- **Erkennen:** QR lesen → affin aus 3 Ecken → ECC an der QR-Platte (Perspektive) → Marke vom Plakat trennen (Zelle minus
+  gleichfarbige Nachbarn) → Sync in 35 Feldern → Homographie (RANSAC, 2×) → Nummer (z gegen 64 Codes). Bei < 30 Feldern
+  zusätzlich ECC am Render der erkannten Nummer (`polish`, nur übernommen, wenn es passt).
+- **Befund Selbsttest** (64 Frames, simuliert: ±20° Perspektive, Plakat 0.28–0.40 der Höhe in 12 MP, Unschärfe σ bis
+  2.5 px + Verwacklung bis 4 px, Rauschen, WB ±15 %, Farbrausch-Filter, JPEG q80, Ausdruck mit Schwarz 3 %/Papier 88 %):
+  Nummer 64/64 (z min 19, Gate 8, Zufall max 4.3) · Eckfehler max 0.26 %, Mittel 0.09 % der Plakatbreite (Gate 0.5 %;
+  nur Marken max 0.80 % bei Frame 40, deshalb `polish`) · Sichtbarkeit aus 1 m max 0.0105 (Ausdruck) / 0.0120
+  (Bildschirm) ΔE OK, Mittel 0.003, JND 0.02 · aus 30 cm max 0.015 · QR 64/64 · align-Korrelation min 0.95 ·
+  Gegenproben: ohne Marken 8/8 abgelehnt, falsche Nummer 8/8 erkannt. Bericht `previz/marks/report.txt`,
+  Vergleich `previz/marks/compare.png` (Frame 1/21/45: ohne | mit | 400 % ohne | mit | Differenz ×10).
+- **Befunde unterwegs:** Fixe Blau-Gelb-Achse trägt nichts auf Farben mit B = 255 (Frame 57) → Richtung je Farbe.
+  Gegenläufige Richtungen löschen sich im Dither aus → eine Kamera-Achse. Gauß-Hochpass: z 17–48, bilateral
+  (gleichfarbige Nachbarn): 64–90. Marken im QR-Glühen → `check_qr` fiel bei Frame 1/6 durch. Fast-Schwarz trägt im
+  Druck praktisch nichts (0.1 DN im Foto) → dunkle Frames leben von Titel/Stern. QR-Hochrechnung affin 6–28 % daneben,
+  mit ECC 0.2–3 %. Vadim 2.10.: „Fotos nicht pixelgenau ohne Blur" → Unschärfe σ 2.5 + Verwacklung in die Simulation.
+- **Befehle:** `uv run src/kickoff_loop.py print` (Druck-PDFs mit Marken) · `uv run src/kickoff_loop_marks.py align
+  photos/raw/*.jpg` → `photos/aligned/NN.png` (mehrere Fotos je Nummer: das mit dem stärksten Code) ·
+  `uv run src/kickoff_loop_marks.py test [N..]` (~160 s für alle).
+- **Offen (Vadim):** Druck nur mit den Dateien aus `print` (nicht neu exportieren/skalieren lassen, A4 = dieselbe Datei
+  verkleinert ist ok). `loop.toml` nach dem Druck ändern → Nummer + Lage bleiben (Marken), nur `polish` greift nicht.
+  Druckermodell (Schwarz 3 %, Tonwertzunahme) ist angenommen: ein Probedruck + Handyfoto + `align` bestätigt es.
 
 ## Ordner und Code
 

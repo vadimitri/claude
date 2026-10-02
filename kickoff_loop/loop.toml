@@ -206,6 +206,19 @@ loudness_lufs = -14        # Vorschau/Reel: als feste Verstaerkung (kein Regler,
 jitter_px = 0              # Versatz des Plakats von Foto zu Foto nach dem Entzerren (Pixel im Endbild)
 jitter_rot_deg = 0.0      # Restdrehung von Foto zu Foto
 
+[marks]
+# Druckmarken: unsichtbares Muster im Druck (nur `print`, nie im Video), traegt Frame-Nummer + Lage, damit
+# `uv run src/kickoff_loop_marks.py align <fotos>` Campus-Fotos ohne Raten entzerrt. Verfahren + Befund: CLAUDE.md
+# "Druckmarken", Selbsttest: `uv run src/kickoff_loop_marks.py test`.
+enabled = true             # false: print druckt ohne Marken
+chip_cells = 2             # Musterquadrat in Zellen (2 = 2 mm auf A3, im Foto ~6 px; 1 Zelle loest die Kamera nicht auf)
+amp_ok = 0.003             # Sichtbarkeits-Budget des Musters je Farbe: Wechsel +/- nach dem Augenfilter aus view_m (deltaE OK, JND 0.02)
+tone_ok = 0.004            # erlaubte gleichmaessige Tonverschiebung einer Palettenfarbe (Platz fuer den Hub am Gamut-Rand, deltaE OK)
+view_m = 1.0               # Betrachtungsabstand fuer das Budget (A3 an der Wand)
+patch_chips = 48           # Messfeld fuer die Lage (48 Chips = 96 Zellen, halb ueberlappend 5 x 7 = 35 Felder). Kleiner
+                           # (24) reichte auf dunklen Frames nicht: Fast-Schwarz traegt im Druck kaum Hub
+search_cells = 10          # Suchradius um die grobe Lage aus dem QR (Hochrechnung QR → Plakatecke)
+
 [checks]
 # Gates: Verstoesse stehen im report.txt der Version, die Vorschau wird trotzdem gebaut.
 flash_gate = false         # Blitz-Check (WCAG 2.3.1) messen und berichten. Vadim 2.10.: "soll weg, ist voellig okay, wenn
