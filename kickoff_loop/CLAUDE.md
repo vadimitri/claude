@@ -93,7 +93,51 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
   Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
 - **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
-## Finale O8 (2.10., wartet auf Vadims Urteil)
+## Übergabe O9 (2.10. spät, Vadims Urteil zu O8, in neuer Session bauen)
+
+Start: diese Liste, dann `previz/review/O8/O8.toml` nach `O9/O9.toml` kopieren und dort ändern. Code: `finale`,
+`finale_layers`, `_fly`, `spin_stop` (`kickoff_loop_end.py`), Dimmer in `KD.zoom_type`. Vorschau `preview … --draft`.
+
+1. **JOIN US geht mit dem QR**: `orbit_dissolve = ["qr", "cta"]` (eine Zeile, Code kann das schon).
+2. **Begriffe pro Beat** nach dem QR-Zerfall, an der freien QR-Stelle, je Beat einer ersetzt den vorigen (Vorschlag:
+   am Ende bleibt NEW SEMESTER, NEW PROJECTS stehen; Vadim bestätigen lassen). Liste (Vadim: „Robotics, Drones, Autonomous
+   Robots, Robotfights, Sensorik, Elektronik und so weiter“), Englisch wie JOIN US/NEW SEMESTER:
+   `ROBOTICS, DRONES, AUTONOMOUS ROBOTS, ROBOT FIGHTS, SENSORS, ELECTRONICS`; **Vorschlag dazu** (Spark macht Zumo-
+   Challenges, Workshops, Maker Night): `3D PRINTING, PCB DESIGN, FIRMWARE, SOLDERING`. Altes W1 hatte deutsch
+   `HARDWARE, ROBOTER, LÖTEN, 3D-DRUCK, CODE, WORKSHOPS, PROJEKTE` (archiv/geparkt/W1) – Mechanik dort: `words_*`.
+   Takt: Beat = 0.7352 s, Karussell-Ende 5.88 s = Beat 0, Video endet Beat 12. Starke Drum-Schläge (igor_beats.json
+   `hits_s`) bei Beat 4.0 / 5.5 / 7.5 / 11.2. Zwischen QR-Zerfall (fertig Beat 4.5) und Abschluss (Beat 9) passen nur
+   **5 Begriffe**; für 8–10: `length_bars` 6 (17.6 s), Abschluss nach hinten. Vadim fragen oder 6 nehmen und sagen.
+3. **Kristallisieren statt Fade** (Vadim: „Pixel für Pixel, natürlich, nicht wie Fade-In, relativ kurz, weil pro Beat“):
+   Zellen setzen in Wachstumsreihenfolge ein (Abstand zu wenigen Keimzellen im Buchstaben + Rauschen, wie Kristalle),
+   in ~1/3 Beat (6 Bilder bei 24 fps), **zuerst als Difference** (Negativ des Untergrunds wie SPARK, `KL.title_value`
+   bzw. früher `card_diff`), danach ein **kurzer Fade** (~1/4 Beat, das will er hier ausdrücklich) in die normale
+   Tintenstufe. Bausteine: `reveal` (bayer/noise/blocks), `bayer`, `KL.title_value`, `KL.flip_word`. Selbsttest am Bild:
+   Anteil gesetzter Zellen wächst monoton und zusammenhängend (Zahl der Inseln sinkt), am Ende = Maske; Gegenprobe Bayer.
+4. **Zoom „scheiße“**: „Spark kommt schnell, Zoom langsamer, dann direkt unscharf“. Befund O8: am Wechsel Bildtempo
+   **x0.70** (Gate erlaubt 0.67), ab Beat ~2.5 mehr als 1 Puppe pro Bild → Ringe werden radialer Verlauf (= „unscharf“).
+   Wunsch: **weiter zwischen den Sparks wechseln**, nicht nur S33: alle Sparks werden immer größer, Momentum bleibt.
+   Vorschlag: Matrjoschka aus allen Sparks (jede Puppe ein anderer Stil aus `[styles].cycle`, Kamera fliegt durch),
+   Zoomrate gedeckelt unter ~0.5 Puppe/Bild (dann keine Unschärfe nötig), Tempo am Wechsel ≥ x1.0. „Langsamer werden
+   können wir auch, wenn die Sparks wechseln.“ Heute stoppt der Wechsel bei `orbit_cycle_beats` 1.73.
+5. **Glühen bleibt** (Vadim: „soll nicht weggehen, hört auf, wird langsamer“): heute hängt es an der Zoomrate und
+   klingt nach dem Gipfel ab. Neu: einmal erreicht, steht es bis zum Abschluss.
+6. **Kein Kippen pro Buchstabe** bei KICK-OFF/Datum (heute `flip_glyphs`, im Zoom wechseln sie hell/dunkel). Im Ende
+   `flip_word` je Zeile. Offen: auch auf allen 64 Plakaten? Vadim sagte 1.10. „niemals unterschiedliche
+   Buchstabenfarben“ (bisher nur JOIN US). Vorschlag: systemweit, Lesbarkeits-Gate prüfen, Vadim fragen.
+7. **Kerning P–A in SPARK** (Vadim: „zwischen P und A mehr Platz, das A soll richtig zentriert sein, P näher ran“).
+   Befund (Clash, Versalhöhe 200 px, kleinster/mittlerer waagerechter Abstand zeilenweise): S–P 13/32, **P–A 44/85**,
+   A–R 6/49, R–K 9/28. P–A ist 3–7x so weit wie die anderen (A schiebt sich unter den offenen Bauch des P).
+   Vorschlag: Kern-Paar P–A ≈ −0.15 Versalhöhe (engster Abstand ~13 wie S–P) in `S.line_mask`/Clash-Satz, dann
+   zentrieren: Varianten (a) Kasten mittig, (b) Achse des A auf Bildmitte. Beide im Bogen zeigen. Wirkt auf alle Plakate
+   und Druck (Cache kalt, Lesbarkeit neu messen).
+8. Version: `O9` mit allem oben, `preview --draft`, dann voll. Danach O8 → `archiv/review/alt/`.
+
+Parallel offen: **Druckmarken** (Agent `marker`, eigener Worktree unter `.claude/worktrees/agent-*`, Datei
+`src/kickoff_loop_marks.py`): Ergebnis prüfen, mergen. **Steganografie/Schnitzeljagd**: in der Session 2.10. nicht
+gebaut, ein Sicherheitsfilter hat den Auftrag blockiert. Vadim entscheidet, wie es weitergeht.
+
+## Finale O8 (2.10., Urteil siehe Übergabe O9 oben)
 
 Vadim zum Ende: „Matrjoschka soll sich nicht drehen, langsamer werden, gerade bleiben; kein neuer Titel, QR brauchen wir
 nicht; Titel glüht, damit man sieht, wie stark wir reinzoomen; Gradient funktioniert nicht (nur Linien nach oben); nur der
