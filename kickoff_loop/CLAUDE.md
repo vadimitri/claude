@@ -93,6 +93,30 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
   Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
 - **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
+## Übergabe O10 (2.10. abends, Vadims Urteil zu O9, in neuer Session bauen)
+
+Start: `previz/review/O9/O9.toml` → `O10/O10.toml`. Mehrere Versionen gewünscht, wo unten „Versionen“ steht.
+1. **Begriffe mittig und zentral** im Bild (waagerecht und senkrecht), nicht mehr an der QR-Stelle.
+2. **Colorway je Zoom-Puppe**: jede neue Puppe eine andere Colorway (alle aus der Farbreise), Tendenz immer dunkler,
+   bis die Schrift ganz hell ist und alles bei **Schwarz** landet. Vadim: das Glühen ist in den Farben nicht gut,
+   „vielleicht ändert sich das mit dem Untergang ins Dunkle“ → danach neu ansehen.
+3. **Endbild: blankes Schwarz**, kein Stern, kein Korn, nur helle Schrift (Farbe komplett weg).
+4. **Pixel-Effekt statt Kristall**: Referenz `pack/gif/color_red*` (die Ripples, Farbe egal). Vadim findet beide Deutungen
+   gut → **Versionen**: (a) zufällige Pixel im Wort leuchten einzeln nacheinander auf, (b) Funken im Feld um das Wort,
+   außen verlöschen sie, im Wort bleiben sie (Ripple wie in der Referenz).
+5. **Tempo des Einblendens**: **Versionen** (schneller / langsamer / ohne Fade), Vadim wählt.
+6. **Kerning (a)**: `styles.KERN = {"PA": -0.15}`, Wortbreite mittig (wirkt auf alle Plakate + Druck, Cache kalt,
+   Lesbarkeit neu messen).
+7. **Kippen je Zeile überall**, wo heute pro Buchstabe gekippt wird (`flip_glyphs` → je Zeile `flip_word`, auch auf den
+   64 Plakaten und in `kickoff.py`). Pixelgenaues Kippen (SPARK, `title_value`) bleibt.
+8. **Tempo**: letzter Loop beschleunigt zu stark (`orbit_loop_speedup` 1.6 runter), Zoom zu schnell und zu lange schnell →
+   Deckel tiefer und früher abbremsen (`orbit_zoom_peak_beats` vor 4). Bahn-Check muss clean bleiben.
+9. **Mitte rechts → Bildmitte** ist zu sichtbar und hat kein Ease-out („sieht komisch aus“): Hermite fällt linear auf 0;
+   weicher auslaufen und/oder kürzer.
+10. **Ein bisschen Spin**: jede neue Puppe leicht gedreht (Versatz je Puppe), damit die Drehung nicht abrupt aufhört.
+11. **Weitere Version „Begriff zoomt mit“**: kein Pixel-Effekt, jeder Begriff kommt aus der Tiefe, sitzt in seiner Puppe und
+    wächst mit ihr, fliegt nach **unten** aus dem Bild (nicht in die Wortmarke SPARK), der nächste folgt.
+
 ## Finale O9 (2.10. abends, gebaut aus der Übergabe O9, wartet auf Vadims Urteil)
 
 `previz/review/O9/` (`preview.mp4`, `orbit.png`, Report), `O9.toml` = O8 + Vadims Urteil zu O8. O8 → `archiv/review/alt/O8/`
