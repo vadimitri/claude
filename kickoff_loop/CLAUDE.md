@@ -93,9 +93,40 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
   Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
 - **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
-## Finale O10 (2.10. abends, gebaut aus der Übergabe O10 unten, wartet auf Vadims Urteil)
+## Finale O11 (2.10. abends, Vadims Urteil zu O10, wartet auf sein Urteil)
 
-`previz/review/O10/` (sparkle = Version a), `O10b/` (ripple = b), `O10c/` (Begriff zoomt mit), je `preview.mp4`,
+Vadim zu O10: „wenn, dann O10a“; kein Abdunkeln je Puppe; Colorways dürfen loopen; Glühen lesbar und ohne harten
+Farbwechsel; Disconnect Loop → Zoom bei ~7 s „geht absolut gar nicht“; Rotation hört plötzlich auf; Zoom erst zu schnell,
+dann zu langsam; Spark sitzt nach dem Schleudern auf einmal fest in der Mitte („kleine Vortex-Runde“); Text zu wenig, zu
+langsam, Pixel-out fehlt; NEW SEMESTER weg. Rückfragen geklärt: Puppen farbig, nur der Abschluss auf Schwarz; Schluss =
+Plakatsatz; Gag-Folge DESIGN, THINKING, DESIGN THINKING, JAZZ, HACKATHONS; Takt „beides probieren“.
+`previz/review/O11a/` (erst 3 Begriffe je Beat, dann 18 je ½ Beat) und `O11b/` (21 je ½ Beat), Video 7 Takte (20.6 s).
+O10, O10b, O10c → `archiv/review/alt/`. `preview` rendert bei Ende-Varianten kein `loop.mp4` mehr (hängt nicht vom Ende ab).
+- **Disconnect** (Befund am Video 6.4–7.6 s: die Kamera tauchte schon 7 Bahnframes vor F1 in den Loop-Stern ein, dessen
+  Plakate weiterwechselten, ein Bild ganz ohne Stern, dann harter Schnitt auf S33 in anderer Colorway): die Matrjoschka
+  beginnt jetzt beim Eintauchen mit genau diesem Stern und dieser Colorway (Puppe 0 = `first`), Farbe/Stern stehen ab dort.
+- **Farbe**: Puppe j läuft in der Farbreise weiter (Plakat + j, zyklisch über alle 64), `orbit_sparks_colors`/`_dim`/`BW`
+  gelöscht. Schrift + Glühen bleiben in der Colorway des Eintauch-Plakats (kein harter Wechsel). Abschluss kippt auf echtes
+  #000 (`c.layer_pal`), die Schrift wird dort zur hellsten Stufe (die feste Colorway kann Papier sein: dunkle Tinte).
+- **Lesbarkeit**: das Glühen malt jetzt UNTER dem Satz (`glow_layer`), SPARK/KICK-OFF/Datum kippen dagegen, 2 Zellen Rand
+  frei. Dazu rechnen Kippen/Difference/Glühen die Puppen über ihre echte Helligkeit in die Stufen der festen Colorway um
+  (`KD.luma_to_base`; vorher galt eine dunkle Puppe als hell: dunkelblaue Schrift auf dunkelblauer Puppe). Gemessen
+  (Beat 3/5.2/6.5/8.2/12.2): vorher 0.64/0.55/0.49/0.50/0.89, jetzt 0.75/0.80/0.65/0.44/0.66. Rest: eine Zeile über
+  unruhigem Stern (gelb-blaues Karo) kippt als Ganzes und bleibt halb schwach. Report: Zeile „Finale über den Zoom“.
+- **Drehung** läuft mit Tempo (1 − u)² aus (vorher linear: am Ende volle Bremsung), 3 Beats. Selbsttest misst den Ruck am
+  Ende; Gegenprobe linearer Auslauf schlägt an.
+- **Zoom** gleichmäßiger: Deckel x1.2/Bild, Gipfel Beat 2.5, danach x0.88/Beat (Rate fällt bis Beat 17 auf 1/6, O10 auf
+  1/260), ~18 Puppen. Bahn-Check clean.
+- **Vortex** (`orbit_dive_vortex_deg` 360): der Weg in die Mitte dreht eine Runde um die Bildmitte, Drehsinn der Bahn,
+  Winkel smootherstep (mit 3u² − 2u³ sprang das Tempo am Wechsel auf x2.2), Ankunft-Ease 2. Tempo am Wechsel x1.12.
+- **Begriffe**: nur noch sparkle (ripple/zoom gelöscht). `orbit_words_slots` = [[Anzahl, Beats]], je Slot Anteile
+  `in`/`fade`/`out` (0.35/0.2/0.3), jeder pixelt am Ende in neuer Zufallsfolge aus (leuchtet kurz auf, weg). 21 Begriffe
+  (Vadims Liste + LASER CUTTING, CNC MILLING, PROTOTYPING, WORKSHOPS als Vorschlag). Selbsttest: ein/aus monoton, ganz/leer,
+  mittig; Gegenprobe neuer Zufall je Bild.
+
+## Finale O10 (2.10. abends, Urteil umgesetzt in O11 oben, archiviert)
+
+`archiv/review/alt/O10/` (sparkle = Version a), `O10b/` (ripple = b), `O10c/` (Begriff zoomt mit), je `preview.mp4`,
 `orbit.png`, Report. Tempo-Vergleich: `O10/tempo.mp4` (Bildmitte, a/b x schnell/mittel/langsam/ohne Fade, mit Musik; Einmal-Skript, nicht im Repo).
 O9 → `archiv/review/alt/O9/` (lädt nicht mehr: neue Pflichtschlüssel). Selbsttest `kl end` grün für alle drei.
 1. **Begriffe mittig** (`finale_words`, `word_layer`): Block waagerecht und senkrecht auf der Bildmitte, Größe wie
@@ -261,16 +292,14 @@ QR löst sich nach vorn in Pixel auf, dann NEW SEMESTER, NEW PROJECTS; das Abdim
 | `orbit_spin_stop_beats`, `_rest_deg` | Finale: Drehung läuft in ~so vielen Beats aus, steht auf rest + n·60° | 2, 0 |
 | `orbit_glow_frames`, `_max_scale` | Finale: Länge des Zoom-Glühens (Zoom in so vielen Bildern), Deckel | 0.25, 1.6 |
 | `orbit_dissolve`, `_at_beats`, `_beats`, `_scale` | Finale: welche Satzteile nach vorn zerfallen, wann, wie lange, bis zu welchem Maßstab | ["qr"], 3, 1.5, 6 |
-| `orbit_words`, `_at_beats`, `_beats`, `_grow_beats`, `_fade_beats` | Finale: Begriffe mittig, je Beat einer, setzen ein (Effekt), letzter bleibt; fade 0 = ohne Fade | O10: 9 Begriffe, 5, 1, 0.33, 0.25 |
+| `orbit_words`, `_at_beats` | Finale: Begriffe mittig, ab diesem Beat (Takt: `orbit_words_slots`) | O11: 21 Begriffe, 5 |
 | `orbit_zoom_max_per_frame` | Deckel der Zoomrate (Maßstab pro Bild) | O9: 1.5 |
 | `orbit_sparks`, `_ratio` | Matrjoschka aus diesen Sternen statt S33-Infinite-Zoom, Größe der nächsten Puppe | O9: 19 Sterne, 0.26 |
 | `orbit_close_at_beats`, `_beats` | Finale: Abschluss (Zoom kippt in den Grund) | 9, 1 |
-| `orbit_dive_target_ease` | Weg der Mitte ins Ziel: Tempo v0 (1 − u^p)², größer = kürzer, kommt ohne Ruck an | O10: 3 |
-| `orbit_sparks_spin_deg`, `_dim`, `_colors` | Puppe j: um j x spin gedreht, Helligkeit x dim^j, Colorway colors[j−1] (`BW` = Schwarz-Weiß) | O10: 8, 0.85, 10 Stationen + BW |
-| `orbit_words_effect` | sparkle (a) / ripple (b) / zoom (Begriff zoomt mit) | O10: sparkle |
-| `orbit_words_flash_frac` | sparkle: frischer Pixel leuchtet so lange (Anteil der Wachstumszeit) | 0.25 |
-| `orbit_words_ring_reach`, `_ring_width` | ripple: Ring läuft bis so viele halbe Wortbreiten, Breite | 1.6, 0.06 |
-| `orbit_words_zoom_from_px`, `_cap_frac`, `_gap_frac` | zoom: Puppe beim Einsatz (Radius px), Versalhöhe und Abstand unter der Mitte x Puppenradius | O10c: 40, 0.2, 0.35 |
+| `orbit_dive_target_ease`, `orbit_dive_vortex_deg` | Weg der Mitte ins Ziel: Tempo v0 (1 − u^p)², größer = kürzer; Vortex-Runde in Grad um das Ziel | O11: 2, 360 |
+| `orbit_sparks_spin_deg` | Puppe j um j x spin gedreht (Colorway: Farbreise ab dem Eintauch-Plakat, automatisch) | 8 |
+| `orbit_words_slots` | [[Anzahl, Beats je Begriff], ...], Anzahlen = Begriffe | O11a [[3, 1], [18, 0.5]], O11b [[21, 0.5]] |
+| `orbit_words_in_frac`, `_fade_frac`, `_out_frac`, `_flash_frac` | Anteile des Slots: einpixeln, Difference → Tinte (0 = direkt Tinte), auspixeln; Aufleuchten je Pixel | 0.35, 0.2, 0.3, 0.25 |
 
 
 ## Stand vor O6/O7 (Übergabe O4/O5 erledigt 1.10. abends, Details oben)

@@ -271,18 +271,19 @@ def zoom_spark(c):
 
 def zoom_sparks(c):
     """O9 (Vadim 2.10. zu O8: "weiter zwischen den Sparks wechseln, alle Sparks werden immer groesser, Momentum bleibt"):
-    Matrjoschka aus verschiedenen Sternen. Puppe j hat Radius R x ratio^j um dieselbe Mitte, Puppe 0 ist die S33 des
-    Plakats, Puppe j >= 1 der Stern codes[(j - 1) mod n]. Von aussen nach innen gemalt, jede auf ihre Silhouette
+    Matrjoschka aus verschiedenen Sternen. Puppe j hat Radius R x ratio^j um dieselbe Mitte, Puppe 0 ist der Stern des
+    Plakats, in das die Kamera eintaucht (first; O11, Vadim 2.10.: "Disconnect vom Loop und dem Zoom bei Sekunde 7, geht
+    absolut gar nicht": O10 schnitt dort vom Loop-Stern hart auf S33 in anderer Colorway), Puppe j >= 1 der Stern
+    codes[(j - 1) mod n]. Von aussen nach innen gemalt, jede auf ihre Silhouette
     beschnitten (Labor-Sterne malen bildfuellend, ihr eigener Grund bleibt so im Stern). Gemalt wird ab der groessten Puppe,
     die das Bild noch ganz deckt, bis zur kleinsten mit SPARK_MIN_CELLS Zellen Radius: neue Puppen wachsen aus dem Punkt.
     Ohne Bewegungsunschaerfe (die Sterne sind nicht selbstaehnlich, kein Stroboskop; die Zoomrate ist gedeckelt).
     Zweitlicht der Labor-Sterne (kickoff._EXTRA["extra"]) faellt im Zoom weg.
     O10 (Vadim 2.10. zu O9): Puppe j ist um j x spin Grad weitergedreht ("damit die Drehung nicht abrupt aufhoert"), und
-    jede Puppe j >= 1 hat ihre eigene Colorway pals[j - 1] (die letzte gilt fuer alle tieferen; Puppe 0 = Plakat). Die
-    Stern-Ebene bekommt dafuer eine Palette je Zelle (c.pals, c.pal_map, styles.render); alles andere (Schrift, Gluehen,
-    Abdimmen) steht in der Colorway der Puppe, die gerade das ganze Bild deckt (c.pal), so wechselt die Schrift genau dann,
-    wenn diese Puppe den Grund bildet. Puppe j ist auf dim^j ihrer Werte abgedimmt (0 = Grund): die Colorways allein
-    machten das Bild nicht dunkler, die Sterne malen in den hohen Stufen (Befund O10, Bogen beat 8-13 hellgrau)."""
+    jede Puppe j >= 1 hat ihre eigene Colorway pals[(j - 1) mod n] (O11: die Farbreise laeuft weiter; Puppe 0 = Plakat).
+    Die Stern-Ebene bekommt dafuer eine Palette je Zelle (c.pals, c.pal_map, styles.render). Schrift und Gluehen bleiben
+    in der Colorway des Plakats (O11, Vadim: "die Gluehfarbe aendert sich hart bei Farbwechsel": O10 nahm die Colorway der
+    Puppe, die gerade das Bild deckt)."""
     import copy
     import kickoff as K
     import kickoff_loop as KL
@@ -298,25 +299,45 @@ def zoom_sparks(c):
     pj = np.zeros(d.shape, np.int16)                                      # Puppe je Zelle (Palette)
     for j in range(j0, j1 + 1):
         sub = copy.copy(c)
-        code = "matrjoschka" if j == 0 else KL.S_CODES[sp["codes"][(j - 1) % len(sp["codes"])]]
+        code = KL.S_CODES[sp["first"] if j == 0 else sp["codes"][(j - 1) % len(sp["codes"])]]
         rj = rot + j * sp["spin"]
         sub.st = dict(c.st, S=code, rot=rj)
         sub.L, sub.layers = dict(c.L, star=(cx, cy, R * sp["ratio"] ** j, rj)), []
         K.spark(sub)
-        f = sp["dim"] ** j                                                # O10: tiefer = dunkler ("Untergang ins Dunkle")
-        v = sub.layers[-1][2] * f
+        v = sub.layers[-1][2]
         clip = styles.star_d(c, cx, cy, R * sp["ratio"] ** j, rj)[0] < 1 if sp["spin"] else d < sp["ratio"] ** j
         V = np.where(clip & ~np.isnan(v), v, np.where(clip, np.nan, V))
-        lit = np.where(clip, sub.star_m & (v > 0.5) if f < 1 else sub.star_m, lit)   # abgedimmt ist kein Licht mehr
+        lit = np.where(clip, sub.star_m, lit)
         pj = np.where(clip, j, pj)
     K._EXTRA["extra"] = []
     c.star_m = lit
     if sp["pals"]:
-        pal = lambda j: c.pal if j == 0 else styles.hexpal_list(sp["pals"][min(j, len(sp["pals"])) - 1])  # noqa: E731
+        pal = lambda j: c.pal if j == 0 else styles.hexpal_list(sp["pals"][(j - 1) % len(sp["pals"])])  # noqa: E731
         c.pals = np.stack([pal(j) for j in range(j0, j1 + 1)])
         c.pal_map = np.clip(pj - j0, 0, j1 - j0)
-        c.set_pal(c.pals[0])
+        c.spark_eff = luma_to_base(c, np.nan_to_num(V), c.pals, c.pal_map)  # Schrift/Gluehen sehen die Helligkeit
+        c.spark_eff = np.where(pj == 0, np.nan_to_num(V), c.spark_eff)      # (KL.under), Puppe 0 hat ihre Palette
+        c.star_m = np.where(pj == 0, lit, c.spark_eff > 0.5)
     c.add("spark", ~np.isnan(V), np.nan_to_num(V))
+
+
+LUMA_GRID = 61   # luma_to_base: Werte der Grundpalette, unter denen der hellegleiche gesucht wird (1/60 Schritt, < 1/2 Stufe)
+
+
+def luma_to_base(c, v, pals, pmap):
+    """Wert v (0..1) in der Palette pals[pmap] je Zelle -> Wert in c.pal mit derselben Helligkeit (LUMA, zwischen den
+    Stufen linear wie das Korn mischt). O11: die Puppen malen in eigenen Colorways, die Schrift in der des Plakats; ihr
+    Kippen (flip_word), die Difference von SPARK und das Gluehen rechnen in Stufen. Ohne Umrechnung galt eine dunkle Puppe
+    der Schrift als hell (Befund Beat 5.2: dunkelblaue Schrift auf dunkelblauer Puppe, Lesbarkeit 0.55)."""
+    import kickoff_loop as KL
+    N = c.N
+    x = np.clip(v, 0, 1) * N
+    k = np.minimum(np.floor(x).astype(int), N - 1)
+    lp = pals @ KL.LUMA                                                   # Helligkeit je Puppe und Stufe
+    lum = lp[pmap, k] + (x - k) * (lp[pmap, k + 1] - lp[pmap, k])
+    g = np.linspace(0, 1, LUMA_GRID)
+    lb = np.interp(g * N, np.arange(N + 1), c.pal @ KL.LUMA)
+    return g[np.abs(lb[None, None] - lum[..., None]).argmin(-1)].astype(np.float32)
 
 
 def bayer_cells(c):
@@ -334,10 +355,14 @@ def zoom_type(c):
     n0 = len(c.layers)
     morph = zm.get("morph") or {}
     fin = zm.get("finale")
-    if fin and fin["close"] > 0:                                          # Abschluss: Zoom kippt unter der Schrift in den Grund
+    if fin and fin["glow"] > 0:                                           # Zoom-Gluehen unter dem Satz (O11)
+        import kickoff_loop_end as KE
+        KE.glow_layer(c, fin)
+    if fin and fin["close"] > 0:                                          # Abschluss: Zoom + Gluehen kippen unter der Schrift
+        c.layer_pal["dim"] = np.zeros_like(c.pal)                         # in Schwarz (O11, Vadim: "Schluss schwarz"; #000)
         c.add("dim", thr < fin["close"], c.lvl(0))
         c.star_m = c.star_m & (thr >= fin["close"])                       # abgedimmt ist Grund: Schrift kippt dort nicht
-        n0 = len(c.layers)
+    n0 = len(c.layers)
     if zm["type_out"] < 1:
         KL.type_layers(c)
         for j in range(n0, len(c.layers)):
@@ -347,6 +372,13 @@ def zoom_type(c):
     if fin:
         import kickoff_loop_end as KE
         KE.finale_layers(c, fin, n0)
+        if fin["close"] > 0:                                              # auf Schwarz steht die Schrift in der hellsten Stufe
+            hi = c.lvl(int((c.pal @ KL.LUMA).argmax()))                   # (O11: Papier-Colorways haben dunkle Tinte)
+            dim = thr < fin["close"]
+            for j in range(n0, len(c.layers)):
+                name, a, v, flat, D = c.layers[j]
+                if name in ("title", "date", "new"):
+                    c.layers[j] = (name, a, np.where(dim & ~np.isnan(v), hi, v), None, D)
     if zm["info"] and zm["info_in"] > 0:
         cap = zm["info_cap_cells"] * c.px
         lead = round(zm["info_lead_frac"] * zm["info_cap_cells"]) * c.px

@@ -267,17 +267,9 @@ RAINBOW_GREY_CHROMA = 0.03   # OKLab-Buntheit, unter der eine Stufe keinen verla
 RAINBOW_SAMPLES = 36         # Stuetzstellen, an denen ein Farbton-Weg auf das Lila-Band geprueft wird (10° Abstand)
 
 
-BW = "BW"   # Pseudo-Station Schwarz-Weiss (Vadim 2.10. zu O9: am Ende "Farbe komplett weg", blankes Schwarz, helle Schrift)
-
-
 def station_ok(p):
     """Station aus Kick-off-Colorways: "P11", Negativ "~P11", Split "Grund/Licht" (kein Lila, P_CODES)."""
     return len(p.split("/")) <= 2 and all(q.removeprefix("~") in P_CODES for q in p.split("/"))
-
-
-def station_hex(p, steps, split_level=None):
-    """Hex-Liste einer Station (oder BW) wie palette_hex, fuer Paletten ausserhalb der Farbreise (Puppen im Finale)."""
-    return ["#%02X%02X%02X" % tuple(int(v) for v in c) for c in station(p, steps, split_level)]
 
 
 def is_paper(p):
@@ -293,10 +285,7 @@ def station(p, steps, split_level=None):
     Split-Tone "P11/P18" (Vadim 1.10.: "interdimensional"): Stufen unter split_level aus P11 (Grund, Schatten), ab
     split_level aus P18 (Licht, Tinte). Das Korn zwischen den beiden Haelften mischt die Welten im Bild.
     Negativ "~P11" (Vadim 2.10.: "extremer"): Stufen umgedreht, aus einer dunklen Colorway wird Papier (heller Grund,
-    dunkle Tinte), aus Papier eine dunkle. Geht auch als Haelfte eines Splits: "~P11/P23", "P20/~P22".
-    BW: Grauleiter #000 .. #FFF."""
-    if p == BW:
-        return np.repeat(np.round(np.linspace(0, 255, steps))[:, None], 3, 1)
+    dunkle Tinte), aus Papier eine dunkle. Geht auch als Haelfte eines Splits: "~P11/P23", "P20/~P22"."""
     if "/" in p:
         ground, light = p.split("/")
         return np.concatenate([station(ground, steps)[:split_level], station(light, steps)[split_level:]])
@@ -542,10 +531,12 @@ def line_gradient(c, base, cap, steps, phase=0.0):
 
 
 def under(c):
-    """Was bisher unter jeder Zelle liegt (Grund + alle Ebenen), Wertraum 0..1."""
+    """Was bisher unter jeder Zelle liegt (Grund + alle Ebenen), Wertraum 0..1. Malt der Stern in eigenen Paletten
+    (Matrjoschka im Finale), zaehlt seine Helligkeit in der Palette des Bildes (c.spark_eff, KD.luma_to_base)."""
     base = S.background(c)
-    for _, _, lv, _, _ in c.layers:
-        base = np.where(np.isnan(lv), base, lv)
+    eff = getattr(c, "spark_eff", None)
+    for name, _, lv, _, _ in c.layers:
+        base = np.where(np.isnan(lv), base, eff if name == "spark" and eff is not None else lv)
     return base
 
 

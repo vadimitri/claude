@@ -1147,11 +1147,13 @@ def preview(cfg, posters, qr_ok, legib):
     bar_s = 16 * cfg["music"]["grid"]["sixteenth_s"]
 
     # 1. Plakat-Loop allein im schnellsten Karusselltempo, mit Ton (man soll den Neustart sehen). Laeuft nebenher
-    # (ffmpeg ist ein eigener Prozess), statt die Vorschau ~3 s aufzuhalten.
+    # (ffmpeg ist ein eigener Prozess), statt die Vorschau ~3 s aufzuhalten. Nicht bei Varianten des Endes ([ending]):
+    # der Plakat-Loop haengt nicht vom Ende ab (Vadim 2.10.: "loop.mp4 muss doch nicht mehr gerendert werden"), 29 MB je Ordner.
     import threading
     top_fps = max(per for per, _ in cfg["video"]["cadence"]) / bar_s
     loop_job = threading.Thread(target=loop_video, args=(cfg, posters, os.path.join(out, draft_name(cfg, "loop.mp4"))))
-    loop_job.start()
+    if "ending" not in cfg:
+        loop_job.start()
 
     # 2. Das Video: Platten → Kamera → Digitalteil, Musik
     fly = round(cfg["endcard"]["burst_beats"] * beat_s(cfg) * tfps)
@@ -1192,7 +1194,8 @@ def preview(cfg, posters, qr_ok, legib):
     concat_video([photo.path, part], wav, os.path.join(out, draft_name(cfg, "preview.mp4")))
     os.remove(part)
     os.remove(wav)                                             # steckt im Video
-    loop_job.join()
+    if loop_job.is_alive():
+        loop_job.join()
 
     # 3. Pruefungen, Kontaktbogen, Report
     flash = flash_check(np.array(lum), cfg, np.array(chroma)) if gate else None
@@ -1219,8 +1222,15 @@ def preview(cfg, posters, qr_ok, legib):
         if "orbit_close_at_beats" in e and mode == "orbit":
             qr, leg, black = KE.finale_check(digital_style(cfg, (len(digital) - 1) / tfps), np.asarray(digital[-1]))
             ending.append(f"Finale: QR im Schlussbild {'NOCH LESBAR' if qr else 'weg'}, Lesbarkeit SPARK + KICK-OFF/Datum "
-                          f"+ {' '.join(e['orbit_words'][-1])} {leg:.2f} {tier(leg)}, Grund #000 {black:.1%} "
+                          f"{leg:.2f} {tier(leg)}, Grund #000 {black:.1%} "
                           f"{'ok' if black > 0.999 else '(NICHT schwarz)'}")
+            step = round(KE.beat(cfg) * tfps / 2)                         # O11: Lesbarkeit ueber das Finale, je 1/2 Beat
+            ks = range(len(digital) - 1, -1, -step)                       # (das Gluehen ueberstrahlte die Schrift)
+            legs = [(k, KL.legibility(digital_style(cfg, k / tfps), np.asarray(digital[k]), "9x16")) for k in ks]
+            worst = min(legs, key=lambda x: x[1])
+            ending.append(f"Finale ueber den Zoom (je 1/2 Beat, {len(legs)} Bilder): Lesbarkeit SPARK + KICK-OFF/Datum "
+                          f"Mittel {np.mean([x for _, x in legs]):.2f}, min {worst[1]:.2f} bei {worst[0] / tfps:.2f} s "
+                          f"im Digitalteil, {sum(x >= K.TIER[1] for _, x in legs)}/{len(legs)} mindestens Stufe B")
         if e["card_on"]:
             qr, leg = KE.card_check(digital_style(cfg, (len(digital) - 1) / tfps), np.asarray(digital[-1]))
             run = 0.0                                          # wie lange vor Schluss der QR schon lesbar ist (1/4 s)
@@ -1259,8 +1269,8 @@ def preview(cfg, posters, qr_ok, legib):
                 f"Karussell endet auf F{end_index(cfg) + 1}, Bogen zoom.png",
                 "Zoom-Check: aus (Draft)" if draft else zoom_check(cfg, tl, digital, last_img)]
                if cfg["endcard"].get("end_mode") == "zoom" else []),
-             f"Ton: preview.mp4 {cfg['music']['file']}, loop.mp4 {cfg['music']['loop_file']} "
-             f"({cfg['music']['loop_passes']} Durchgaenge, {loop_fps(cfg):.2f} Plakate/s)",
+             f"Ton: preview.mp4 {cfg['music']['file']}" + ("" if "ending" in cfg else
+             f", loop.mp4 {cfg['music']['loop_file']} ({cfg['music']['loop_passes']} Durchgaenge, {loop_fps(cfg):.2f} Plakate/s)"),
              "", "Frame  Aushang  Farbe               S     Radius Grund  Lesbarkeit"]
     lines += [f"{i + 1:02d}     {'ja' if KL.is_key(cfg, i) else '  '}       {KL.station_label(cfg, i):<19} "
               f"{KL.style_code(cfg, i):<5} {KL.star_at(cfg, i)[2]:.2f}   {g:.2f}   {x:.2f} {tier(x)}"

@@ -213,19 +213,17 @@ class Ctx:
         self.W, self.H, self.u = SIZES[fmt]
         self.px = st["R"] * self.u
         self.gw, self.gh = self.W // self.px, self.H // self.px
-        self.set_pal(hexpal(st["P"]))
+        self.pal = hexpal(st["P"])
+        self.N = len(self.pal) - 1
+        lum = self.pal @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+        self.lo, self.hi = int(lum.argmin()), int(lum.argmax())           # QR: dunkelste Module auf hellster Platte
         yy, xx = np.mgrid[0:self.gh, 0:self.gw].astype(np.float32)
         self.yy, self.xx = yy, xx
         self.cy, self.cx = (yy + 0.5) * self.px, (xx + 0.5) * self.px   # Zellmitten in Displaypixeln
         self.layers = []                                                  # (name, alpha voll, v logisch, flach, eigenes D)
         self.pals = self.pal_map = None                                   # Palette je Zelle fuer die Stern-Ebene (render)
+        self.layer_pal = {}                                               # Ebene -> eigene Palette (render), z. B. Schwarz
         self.L = st.get("layout", layout)(self)                            # Kampagne kann eigenen Satz mitbringen
-
-    def set_pal(self, pal):
-        """Palette des Bildes (ein spark_fn darf sie tauschen, bevor der Satz laeuft: kickoff_loop_digital.zoom_sparks)."""
-        self.pal, self.N = pal, len(pal) - 1
-        lum = pal @ np.array([0.2126, 0.7152, 0.0722], np.float32)
-        self.lo, self.hi = int(lum.argmin()), int(lum.argmax())           # QR: dunkelste Module auf hellster Platte
 
     def lvl(self, k):
         """Exakte Palettenstufe (rendert flaechig, ohne Korn)."""
@@ -489,6 +487,8 @@ def render(st, fmt="16x9", layers=True):
         if c.pals is not None and name == "spark":   # Palette je Zelle (Puppen in eigener Colorway)
             ix = flat if flat is not None else dither(V, c.N, own, q, sd, sh) if own else idx
             col = c.pals[up(c.pal_map, q), ix]
+        elif name in c.layer_pal:                    # eigene Palette fuer diese Ebene
+            col = c.layer_pal[name][flat if flat is not None else dither(V, c.N, own, q, sd, sh) if own else idx]
         elif flat is not None:
             col = c.pal[flat]
         elif own:
