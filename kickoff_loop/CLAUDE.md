@@ -93,14 +93,44 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
   Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
 - **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
-## Finale O11 (2.10. abends, Vadims Urteil zu O10, wartet auf sein Urteil)
+## Finale O12 (2.10. abends, Vadims Urteil zu O11) · **Vadim: „sieht scheiße aus“ → neue Session**
+
+**Stand der Übergabe:** O12 nur als Stills gesehen (Bogen: blaues Schraffur-Wallpaper, kleine Sterne + Begriff in der
+Mitte, Schluss auf Schwarz), Vadim verwirft die Richtung schon daran. Vorschau-Render abgebrochen: `O12a/digital.ts`
+(Digitalteil fertig kodiert) + `music.wav` liegen noch, O12b ist leer, kein `preview.mp4`, kein Report. Code-Stand O12
+ist committet (Wallpaper-Sättigung, `stop_sparks`, Matrjoschka gelöscht). Zuletzt gut bewertete Teile, die bleiben sollten:
+Übergang Loop → Eintauchen ohne Schnitt (O11), Drehung ohne Ruck, Glühen unter dem Satz + Helligkeit über Paletten,
+Begriffe mittig mit Ein-/Auspixeln, Gag-Folge, Schluss auf Schwarz. In der neuen Session zuerst klären, was an O12
+„scheiße“ ist (Wallpaper? kleine Sterne? Takt?), bevor gebaut wird. O11 ist per Git wiederherstellbar (Commit 27530e4).
+
+
+Vadim zu O11: Vortex „zu stark, sieht weird aus“ → subtiler/smoother; **Zoom-Idee parken**: am Ende des Vortex wird der
+Stern riesig und bildet einen neuen Hintergrund, in der Mitte dann ein kleiner Stern, ein Stil je Begriff (Stop-Motion
+wie der Loop, Spider-Verse-Look), wächst etwas, aber kein Zoom; dazu je Stern ein Begriff. Rückfragen geklärt:
+Hintergrund steht; Takt „3/4 oder 1 Beat überall, 1/2 zu schnell“; Wachsen stufig auf Zweiern; Begriffe „beides“.
+`previz/review/O12a/` (1 Beat je Stern + Begriff, Begriff hart mit dem Stern, 9 Takte) und `O12b/` (¾ Beat, Begriff pixelt
+ein/aus, 7.5 Takte). O11a/b → `archiv/review/alt/` (laden nicht mehr: Matrjoschka-Schlüssel gelöscht).
+- **Hintergrund-Stern** (`orbit_wall_r_frac` 4): der Zoom in den Eintauch-Stern sättigt weich, ln R → ln(4 x Bildbreite)
+  (Tempo am Anfang wie vorher, kommt ohne Ruck zur Ruhe, steht ab Beat ~4). **Befund:** ohne Sättigung war der Stern bei
+  Beat 2.5 schon 13 904 px groß und der Schraffur-Stern S54c renderte ein Bild > 3 min (die Matrjoschka malte Puppen
+  außerhalb des Bildes nie). Bahn-Check zählt dort „langsamer“ nicht (das Ausrollen ist gewollt), nur den Übergang:
+  Knick 3.3°, Tempo x0.93, Rate x0.78.
+- **Kleine Sterne** (`stop_sparks`): je Begriffs-Slot `orbit_sparks[k]` in der Bildmitte, Colorway Plakat + 1 + k aus der
+  Farbreise (Palette je Zelle wie O11), gerade, Radius `orbit_stop_r_frac` 0.22 x Bildbreite, wächst über den Slot um
+  `orbit_stop_grow_frac` 15 %, nur alle 2 Bilder ein Schritt (`STOP_ON`). Matrjoschka-Kette, `orbit_sparks_ratio`,
+  `_spin_deg` und der Sterne-pro-Bild-Check gelöscht.
+- **Vortex** 120° statt 360°, Ankunft-Ease 1.5 (länger, weicher).
+- **Begriffe**: `orbit_words_in_frac`/`_out_frac` = 0 heißt hart mit dem Stern (O12a); Selbsttest prüft dort ganz ab dem
+  ersten bis zum letzten Bild + mittig.
+
+## Finale O11 (2.10. abends, Urteil umgesetzt in O12 oben, archiviert)
 
 Vadim zu O10: „wenn, dann O10a“; kein Abdunkeln je Puppe; Colorways dürfen loopen; Glühen lesbar und ohne harten
 Farbwechsel; Disconnect Loop → Zoom bei ~7 s „geht absolut gar nicht“; Rotation hört plötzlich auf; Zoom erst zu schnell,
 dann zu langsam; Spark sitzt nach dem Schleudern auf einmal fest in der Mitte („kleine Vortex-Runde“); Text zu wenig, zu
 langsam, Pixel-out fehlt; NEW SEMESTER weg. Rückfragen geklärt: Puppen farbig, nur der Abschluss auf Schwarz; Schluss =
 Plakatsatz; Gag-Folge DESIGN, THINKING, DESIGN THINKING, JAZZ, HACKATHONS; Takt „beides probieren“.
-`previz/review/O11a/` (erst 3 Begriffe je Beat, dann 18 je ½ Beat) und `O11b/` (21 je ½ Beat), Video 7 Takte (20.6 s).
+`archiv/review/alt/O11a/` (erst 3 Begriffe je Beat, dann 18 je ½ Beat) und `O11b/` (21 je ½ Beat), Video 7 Takte.
 O10, O10b, O10c → `archiv/review/alt/`. `preview` rendert bei Ende-Varianten kein `loop.mp4` mehr (hängt nicht vom Ende ab).
 - **Disconnect** (Befund am Video 6.4–7.6 s: die Kamera tauchte schon 7 Bahnframes vor F1 in den Loop-Stern ein, dessen
   Plakate weiterwechselten, ein Bild ganz ohne Stern, dann harter Schnitt auf S33 in anderer Colorway): die Matrjoschka
@@ -294,10 +324,11 @@ QR löst sich nach vorn in Pixel auf, dann NEW SEMESTER, NEW PROJECTS; das Abdim
 | `orbit_dissolve`, `_at_beats`, `_beats`, `_scale` | Finale: welche Satzteile nach vorn zerfallen, wann, wie lange, bis zu welchem Maßstab | ["qr"], 3, 1.5, 6 |
 | `orbit_words`, `_at_beats` | Finale: Begriffe mittig, ab diesem Beat (Takt: `orbit_words_slots`) | O11: 21 Begriffe, 5 |
 | `orbit_zoom_max_per_frame` | Deckel der Zoomrate (Maßstab pro Bild) | O9: 1.5 |
-| `orbit_sparks`, `_ratio` | Matrjoschka aus diesen Sternen statt S33-Infinite-Zoom, Größe der nächsten Puppe | O9: 19 Sterne, 0.26 |
+| `orbit_sparks` | O12: Stile der kleinen Sterne je Begriff (zyklisch) | 19 Sterne |
 | `orbit_close_at_beats`, `_beats` | Finale: Abschluss (Zoom kippt in den Grund) | 9, 1 |
 | `orbit_dive_target_ease`, `orbit_dive_vortex_deg` | Weg der Mitte ins Ziel: Tempo v0 (1 − u^p)², größer = kürzer; Vortex-Runde in Grad um das Ziel | O11: 2, 360 |
-| `orbit_sparks_spin_deg` | Puppe j um j x spin gedreht (Colorway: Farbreise ab dem Eintauch-Plakat, automatisch) | 8 |
+| `orbit_wall_r_frac` | O12: Zoom sättigt weich, Eintauch-Stern endet bei so viel x Bildbreite (Hintergrund) | 4 |
+| `orbit_stop_r_frac`, `_grow_frac` | O12: kleiner Stern je Begriff in der Mitte, Radius x Bildbreite, Wachstum über den Slot (auf Zweiern) | 0.22, 0.15 |
 | `orbit_words_slots` | [[Anzahl, Beats je Begriff], ...], Anzahlen = Begriffe | O11a [[3, 1], [18, 0.5]], O11b [[21, 0.5]] |
 | `orbit_words_in_frac`, `_fade_frac`, `_out_frac`, `_flash_frac` | Anteile des Slots: einpixeln, Difference → Tinte (0 = direkt Tinte), auspixeln; Aufleuchten je Pixel | 0.35, 0.2, 0.3, 0.25 |
 

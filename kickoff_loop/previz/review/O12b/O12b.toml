@@ -1,0 +1,87 @@
+# O12b = O12a mit 3/4 Beat je Stern + Begriff, Begriff pixelt ein und aus.
+# O12a = O11a + Vadims Urteil 2.10. zu O11: Vortex subtiler; Zoom-Idee geparkt: der Stern, in den die Kamera taucht,
+# waechst auf und steht ab orbit_wall_at_beats als Hintergrund, in der Mitte je Begriff ein kleiner Stern (eigener Stil +
+# Colorway aus der Farbreise), waechst stufig auf Zweiern, kein Zoom. Takt 1 Beat je Stern + Begriff, Begriff hart mit dem
+# Stern. O12b: 3/4 Beat, Begriff pixelt ein und aus.
+# O11a = O10a + Vadims Urteil 2.10. zu O10: sparkle bleibt, kein Abdunkeln je Puppe, die Puppen laufen farbig in der
+# Farbreise weiter, nur der Abschluss kippt auf Schwarz; Schrift + Gluehen in fester Colorway (kein harter Wechsel),
+# Gluehen haelt Abstand zur Schrift; Matrjoschka beginnt mit dem Stern, in den die Kamera taucht (kein Schnitt auf S33);
+# Drehung laeuft ohne Ruck aus; Zoom gleichmaessiger; Vortex-Runde in die Mitte; mehr Begriffe, schneller (erst 1 je
+# Beat, dann 2), jeder pixelt ein und aus; NEW SEMESTER weg, Schluss = Plakatsatz. O11b: gleich, konstant 2 je Beat.
+# O10 = O9 + Vadims Urteil 2.10. zu O9 (Uebergabe O10): Begriffe mittig, jede Puppe eine eigene Colorway (dunkler bis
+# Schwarz), Endbild blankes Schwarz mit heller Schrift, Pixel-Effekt statt Kristall (Versionen a/b, Tempo), Kerning P-A
+# (styles.KERN), Kippen je Zeile ueberall, Loop/Zoom ruhiger, Weg zur Bildmitte mit Ease-out, Puppen leicht gedreht.
+# Versionen: O10a.toml (= diese, sparkle), O10b (ripple), O10c (Begriff zoomt mit), Tempo-Bogen words.png.
+# O9 = O8 + Vadims Urteil 2.10. (Uebergabe O9): JOIN US geht mit dem QR, Begriffe pro Beat kristallisieren an der
+# QR-Stelle, Zoom durch alle Sparks (Matrjoschka aus verschiedenen Sternen, Rate gedeckelt), Gluehen bleibt, KICK-OFF/Datum
+# kippen je Zeile. Video 6 Takte (17.6 s) statt 5, damit 10 Begriffe + Schluss passen.
+# O8 = Vadims O7/test.toml + Finale (Vadim 2.10.: "Matrjoschka soll sich nicht drehen, langsamer werden, gerade bleiben";
+# kein neuer Titel, kein QR auf einer Karte, kein laufender Verlauf ("nur Linien, die sich hochziehen"); Titel + Untertitel
+# bleiben und gluehen, damit man sieht, wie stark wir reinzoomen; nur der QR loest sich nach vorn in Pixel auf, dann
+# NEW SEMESTER, NEW PROJECTS; das Abdimmen in den Grund schliesst das Video ab). Zeiten in Beats ab dem Karussell-Ende.
+
+[ending]
+carousel_bars = 2
+runout_bars = 0
+runout_hold_beats = 0.0
+length_bars = 7.5          # 22.1 s: 21 Begriffe je 3/4 Beat (Beat 5-20.75) + Abschluss + 1 Beat Plakatsatz
+card_on = false            # keine Endkarte: der Plakatsatz bleibt
+orbit_path = "dive"
+orbit_frame = 1
+orbit_loops = 1.0
+orbit_loop_speedup = 1.3         # O10 (Vadim: "letzter Loop beschleunigt zu stark"; O9 1.6)
+orbit_dive_lead_frames = 7
+orbit_dive_core_shrink = 20.0
+orbit_throw_speedup = 8.0
+orbit_dive_drift_pow = 0.5
+orbit_dive_target = [0.5, 0.5]    # Vadims test.toml: mittig
+orbit_dive_target_ease = 1.5      # Weg in die Mitte, Tempo v0 (1 - u^p)^2 (O11 2): laenger, weicher
+orbit_dive_vortex_deg = 120.0     # O12: Vortex subtiler (O11 360: "zu stark, sieht weird aus")
+orbit_dive_shutter_frac = 0.0     # O9: Sterne wechseln, keine Ringe, die flackern (Zoomrate gedeckelt)
+orbit_spin_speedup = 1            # ohne Finale: Drehung legt nicht zu
+orbit_cycle_beats = 1.73         # (Dive mit Matrjoschka: Farbe/Stern stehen ab dem Eintauchen, die Puppen laufen weiter)
+orbit_type_morph = false          # kein Morph in eine Karte
+orbit_type_out_at_beats = 99.0    # Satz zerfaellt nie (steht bis zum Schluss)
+orbit_type_out_beats = 1.0
+orbit_flow_at_beats = 1.0
+orbit_flow_in_beats = 1.0
+orbit_flow_steps = 1.0
+orbit_flow_per_beat = 0.0         # Verlauf laeuft nicht (Vadim: "funktioniert nicht, nur Linien von unten nach oben")
+# Finale
+orbit_zoom_max_per_frame = 1.2    # O11: Deckel x1.2 pro Bild (O10 1.3, O9 1.5) ...
+orbit_zoom_peak_beats = 2.5       # ... bis hier ...
+orbit_zoom_decay = 0.88           # ... dann x0.88 pro Beat (O10 0.7: "erst zu schnell, dann zu langsam"); Rate faellt bis
+                                  # Beat 17 auf 1/6 statt 1/260, ~18 Puppen. Bahn-Check clean
+orbit_sparks = ["S48d", "S23", "S54c", "S47", "S50", "S14", "S24", "S31", "S19d", "S31e", "S18d", "S31g", "S58b",
+                "S48e", "S26", "S60d", "S59b", "S56", "S57b"]   # Puppen nach S33: alle Sterne aus [styles].cycle, je einmal
+orbit_wall_r_frac = 4.0           # O12: Zoom saettigt weich, der Stern endet bei 4 x Bildbreite und steht als Hintergrund
+orbit_stop_r_frac = 0.22          # ... kleiner Stern je Begriff in der Mitte, Radius 0.22 x Bildbreite ...
+orbit_stop_grow_frac = 0.15       # ... waechst ueber seinen Slot um 15 %, auf Zweiern
+orbit_spin_stop_beats = 3.0       # Drehung laeuft ab dem Wurf in ~3 Beats aus, Tempo (1 - u)^2: ohne Ruck (O10 2, linear) ...
+orbit_spin_rest_deg = 0.0         # ... und steht gerade (0 Grad + Vielfache von 60)
+orbit_glow_frames = 2.0           # Zoom-Gluehen: Schweif = Zoom in 2 Bildern (O9: haelt den Hoechstwert bis zum Abschluss) ...
+orbit_glow_max_scale = 1.6        # ... hoechstens x1.6 um die Zoom-Mitte (sonst fuellt der Schweif die Seite)
+orbit_dissolve = ["qr", "cta"]    # O9: JOIN US geht mit dem QR (Vadim 2.10.)
+orbit_dissolve_at_beats = 3.0     # QR zerfaellt ab hier (Stern steht schon gerade) ...
+orbit_dissolve_beats = 1.5        # ... in so vielen Beats ...
+orbit_dissolve_scale = 6.0        # ... die naechsten Splitter wachsen bis x6 (fliegen auf die Kamera)
+# Begriffe an der QR-Stelle (Vadim 2.10.: "Robotics, Drones, Autonomous Robots, Robotfights, Sensorik, Elektronik und so
+# weiter"; 3D PRINTING, SOLDERING = Vorschlag aus den Spark-Workshops, weitere: PCB DESIGN, FIRMWARE). Je Begriff eine
+# Liste Zeilen, der letzte bleibt stehen. 8 Begriffe passen in 6 Takte (Beat 5-12), NEW SEMESTER ab Beat 13.
+orbit_words = [["ROBOTICS"], ["DRONES"], ["AUTONOMOUS", "ROBOTS"], ["ROBOT FIGHTS"], ["SENSORS"], ["ELECTRONICS"],
+               ["3D PRINTING"], ["SOLDERING"], ["LASER CUTTING"], ["CNC MILLING"], ["PROTOTYPING"], ["WORKSHOPS"],
+               ["HARDWARE TOURS"], ["FACTORY VISITS"], ["PRODUCT DESIGN"], ["3D MODELLING"], ["DESIGN"], ["THINKING"],
+               ["DESIGN THINKING"], ["JAZZ"], ["HACKATHONS"]]   # O11: Vadims Liste + LASER CUTTING .. WORKSHOPS (Vorschlag)
+orbit_words_at_beats = 5.0        # erster Stern + Begriff
+orbit_words_slots = [[21, 0.75]]  # O12b: je Stern + Begriff 3/4 Beat (Vadim: "3/4 oder 1 Beat ueberall, 1/2 zu schnell")
+orbit_words_in_frac = 0.3         # O12b: Begriff pixelt ein ...
+orbit_words_fade_frac = 0.15      # ... dann in die Tinte ...
+orbit_words_out_frac = 0.25       # ... und pixelt am Ende des Slots aus
+orbit_words_flash_frac = 0.25     # jeder Pixel leuchtet beim Ein- und Auspixeln so lange (Anteil der Phase) in der hellsten Stufe
+orbit_close_at_beats = 21.0       # Abschluss: alles ausser dem Plakatsatz kippt im Korn auf Schwarz ...
+orbit_close_beats = 1.0           # ... in 1 Beat, dann 1 Beat Plakatsatz auf Schwarz (bis Beat 22)
+
+[endcard]
+end_mode = "orbit"
+burst_on = false
+impact_on = false

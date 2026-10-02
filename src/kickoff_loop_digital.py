@@ -209,7 +209,6 @@ AIR_VAL, AIR_NOISE = 0.16, 0.22   # ... Luft: Grundwert und Rauschanteil
 LOG_FLOOR = 1e-300    # nur gegen log(0). Vorher 1e-9: ab ~45 Puppen (Schwung-Zoom Z6/Z7) lag jedes Pixel darunter → flache Flaeche
 NOISE_SEED_OFFSET = 5  # ... Rauschen mit seed + 5 (gleiches Korn wie das Plakat)
 BLUR_STEP = 0.08      # Bewegungsunschaerfe: ein Unterbild je so viel Puppen im Verschluss (Ring-Abstand / 12)
-SPARK_MIN_CELLS = 2   # zoom_sparks: kleinste gemalte Puppe (Radius in Zellen; darunter liegt keine Zellmitte sicher im Stern)
 BLUR_MAX = 16        # ... hoechstens so viele Unterbilder (Renderzeit; darueber ist der Ring ohnehin ein Verlauf)
 
 
@@ -270,53 +269,38 @@ def zoom_spark(c):
 
 
 def zoom_sparks(c):
-    """O9 (Vadim 2.10. zu O8: "weiter zwischen den Sparks wechseln, alle Sparks werden immer groesser, Momentum bleibt"):
-    Matrjoschka aus verschiedenen Sternen. Puppe j hat Radius R x ratio^j um dieselbe Mitte, Puppe 0 ist der Stern des
-    Plakats, in das die Kamera eintaucht (first; O11, Vadim 2.10.: "Disconnect vom Loop und dem Zoom bei Sekunde 7, geht
-    absolut gar nicht": O10 schnitt dort vom Loop-Stern hart auf S33 in anderer Colorway), Puppe j >= 1 der Stern
-    codes[(j - 1) mod n]. Von aussen nach innen gemalt, jede auf ihre Silhouette
-    beschnitten (Labor-Sterne malen bildfuellend, ihr eigener Grund bleibt so im Stern). Gemalt wird ab der groessten Puppe,
-    die das Bild noch ganz deckt, bis zur kleinsten mit SPARK_MIN_CELLS Zellen Radius: neue Puppen wachsen aus dem Punkt.
-    Ohne Bewegungsunschaerfe (die Sterne sind nicht selbstaehnlich, kein Stroboskop; die Zoomrate ist gedeckelt).
-    Zweitlicht der Labor-Sterne (kickoff._EXTRA["extra"]) faellt im Zoom weg.
-    O10 (Vadim 2.10. zu O9): Puppe j ist um j x spin Grad weitergedreht ("damit die Drehung nicht abrupt aufhoert"), und
-    jede Puppe j >= 1 hat ihre eigene Colorway pals[(j - 1) mod n] (O11: die Farbreise laeuft weiter; Puppe 0 = Plakat).
-    Die Stern-Ebene bekommt dafuer eine Palette je Zelle (c.pals, c.pal_map, styles.render). Schrift und Gluehen bleiben
-    in der Colorway des Plakats (O11, Vadim: "die Gluehfarbe aendert sich hart bei Farbwechsel": O10 nahm die Colorway der
-    Puppe, die gerade das Bild deckt)."""
+    """Finale (O12, Vadim 2.10. zu O11: "Zoom-Idee parken; am Ende des Vortex ein Spark, der extrem gross ist und einen
+    neuen Hintergrund bildet, von dort ein kleiner Spark in der Mitte, ein Stil pro Bild bzw. etwas laenger, dazu ein
+    Wort; darf etwas groesser werden, aber kein Zoom, Spider-Verse-Look"). Sterne aus sp["dolls"] = [(Code, x, y, R px,
+    Drehung, Hex-Palette oder None)], von aussen nach innen, jeder auf seine Silhouette beschnitten: Stern 0 = der Stern,
+    in den die Kamera taucht (c.L["star"], Palette des Bildes), danach der kleine Stern des aktuellen Begriffs in eigener
+    Colorway (Palette je Zelle: c.pals, c.pal_map, styles.render). Schrift und Gluehen bleiben in der Colorway des Bildes und
+    sehen die Sterne ueber ihre Helligkeit (c.spark_eff, luma_to_base). Zweitlicht der Labor-Sterne faellt weg."""
     import copy
     import kickoff as K
     import kickoff_loop as KL
-    sp = c.st["loop"]["digital"]["zoom"]["sparks"]
-    cx, cy, R, rot = c.L["star"]
-    d, _ = styles.star_d(c, cx, cy, R, rot)
-    lr = math.log(sp["ratio"])
-    dmax = float(d.max())
-    j0 = max(0, math.ceil(math.log(dmax) / lr) - 1) if dmax < 1 else 0     # groesste Puppe, die das Bild deckt
-    j1 = math.floor(math.log(SPARK_MIN_CELLS * c.px / R) / lr)            # kleinste, die noch zu sehen ist
-    V = np.full(d.shape, np.nan, np.float32)
-    lit = np.zeros(d.shape, bool)
-    pj = np.zeros(d.shape, np.int16)                                      # Puppe je Zelle (Palette)
-    for j in range(j0, j1 + 1):
+    dolls = c.st["loop"]["digital"]["zoom"]["sparks"]["dolls"]
+    shape = (c.gh, c.gw)
+    V = np.full(shape, np.nan, np.float32)
+    lit = np.zeros(shape, bool)
+    pj = np.zeros(shape, np.int16)                                        # Stern je Zelle (Palette)
+    for j, (code, x, y, R, rot, _) in enumerate(dolls):
         sub = copy.copy(c)
-        code = KL.S_CODES[sp["first"] if j == 0 else sp["codes"][(j - 1) % len(sp["codes"])]]
-        rj = rot + j * sp["spin"]
-        sub.st = dict(c.st, S=code, rot=rj)
-        sub.L, sub.layers = dict(c.L, star=(cx, cy, R * sp["ratio"] ** j, rj)), []
+        sub.st = dict(c.st, S=KL.S_CODES[code], rot=rot)
+        sub.L, sub.layers = dict(c.L, star=(x, y, R, rot)), []
         K.spark(sub)
         v = sub.layers[-1][2]
-        clip = styles.star_d(c, cx, cy, R * sp["ratio"] ** j, rj)[0] < 1 if sp["spin"] else d < sp["ratio"] ** j
+        clip = styles.star_d(c, x, y, R, rot)[0] < 1
         V = np.where(clip & ~np.isnan(v), v, np.where(clip, np.nan, V))
         lit = np.where(clip, sub.star_m, lit)
         pj = np.where(clip, j, pj)
     K._EXTRA["extra"] = []
     c.star_m = lit
-    if sp["pals"]:
-        pal = lambda j: c.pal if j == 0 else styles.hexpal_list(sp["pals"][(j - 1) % len(sp["pals"])])  # noqa: E731
-        c.pals = np.stack([pal(j) for j in range(j0, j1 + 1)])
-        c.pal_map = np.clip(pj - j0, 0, j1 - j0)
-        c.spark_eff = luma_to_base(c, np.nan_to_num(V), c.pals, c.pal_map)  # Schrift/Gluehen sehen die Helligkeit
-        c.spark_eff = np.where(pj == 0, np.nan_to_num(V), c.spark_eff)      # (KL.under), Puppe 0 hat ihre Palette
+    if len(dolls) > 1:
+        c.pals = np.stack([c.pal] + [styles.hexpal_list(d[5]) for d in dolls[1:]])
+        c.pal_map = pj
+        eff = luma_to_base(c, np.nan_to_num(V), c.pals, c.pal_map)          # Schrift/Gluehen sehen die Helligkeit
+        c.spark_eff = np.where(pj == 0, np.nan_to_num(V), eff)
         c.star_m = np.where(pj == 0, lit, c.spark_eff > 0.5)
     c.add("spark", ~np.isnan(V), np.nan_to_num(V))
 
