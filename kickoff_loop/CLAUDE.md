@@ -139,7 +139,7 @@ gepusht), `src/kickoff_loop_marks.py` + `[marks]` in loop.toml + Abschnitt „Dr
 Glühen frei; nur `print`, Video bitgleich. Gegengeprüft 2.10.: `kickoff_loop.py test` grün, `kickoff_loop_marks.py test`
 ok (64/64 Nummern, Eckfehler max 0.26 % < 0.5 %, Sichtbarkeit bei 1 m max ΔE 0.012 < JND 0.02, QR 64/64,
 Gegenproben schlagen an). Annahme Druckermodell (3 % Schwarz, Punktzuwachs) → **ein Testdruck + Handyfoto + `align`**
-vor dem Großdruck. Merge: `git merge worktree-agent-a242633ca97527a0e` (berührt CLAUDE.md, loop.toml, kickoff_loop.py:
+vor dem Großdruck. Merge: `git merge worktree-agent-a242633ca97527a0e` (Probe-Merge 2.10. per `git merge-tree`: konfliktfrei).
 Konflikt nur in CLAUDE.md erwartet). **Steganografie/Schnitzeljagd**: in der Session 2.10. nicht
 gebaut, ein Sicherheitsfilter hat den Auftrag blockiert. Vadim entscheidet, wie es weitergeht.
 
