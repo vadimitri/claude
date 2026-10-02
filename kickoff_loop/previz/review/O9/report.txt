@@ -1,0 +1,80 @@
+Version O9 · 2026-10-02 16:56 · 158 s Renderzeit
+Loop: 64 Frames = 32 Aushaenge (1 3 5 7 9 11 13 15 17 19 21 23 25 27 29 31 33 35 37 39 41 43 45 47 49 51 53 55 57 59 61 63) + 32 Zwischenframes (nur Video), 3.92 s pro Umlauf im schnellsten Tempo
+Musik: ref/audio/igors_theme.mp3, Impact 6.25 s (Drop), 1.5 Durchgaenge
+Karussell: 2x48tel (Takte x Wechsel) bei 81.606 BPM, 96 Wechsel, startet auf Frame 1, endet auf Frame 32
+Video: 17.67 s (5.9 Zoom ab 0 s, 11.8 digital), 1080x1920 @ 24 fps, echte Fotos: 0/64 (Rest simuliert)
+Farbreise: W1 ~P23/P13 > ~P23/P13 > P17/P10 > ~P22/~P24 > ~P22/P20 > P20/P25 > ~P21/P6 > ~P21/P6 > P13/P9 > P20/P9 > P11/P18 > P15/P18 > P20/P17 > ~P16/~P24 > P15/P19 > ~P21/P10 > ~P14/P23 > ~P10/~P17 > P24/P22 > P24/P22 > P16/~P26 > ~P25/~P26 > ~P25/~P26 > ~P25/~P26 > ~P9/~P15 > ~P9/~P11 > ~P18/P16 > ~P14/P16 > ~P19/~P13 > ~P19/~P11 > ~P19/P21 > ~P10/P23 (1 Frames je Station) | W2 P25 > P18 > P9 > P6 > ~P23 > P25 > P18 > P9 > P6 > ~P23 > P25 > P18 > P9 > P6 > ~P23 > P25 > P23 > ~P25 > ~P18 > ~P9 > P23 > ~P25 > ~P18 > ~P9 > P23 > ~P25 > ~P18 > ~P9 > P18 > P9 > P6 > ~P23 (1 Frames je Station) (OKLab, keine Mischung lila: geprueft in load)
+QR lesbar: 64/64
+Lesbarkeit Titel+Datum: 3/64 in Stufe A (>= 0.95)  ! unter A: 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 30 31 32 33 34 35 36 37 38 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 62 63 64
+Zeitachse: IGOR ungeschnitten ab Songzeit 22.435 s, Karussell 2 Takte T16, Auslauf 0 Takte, Karussell-Ende 5.88 s (Takt 3.00), Ende 17.65 s
+Ende Bahn: digitaler Loop ab F1 auf dem Karussell-Ende 5.88 s (1.00 Umlaeufe, Tempo x1.6 pro Beat, 24 fps), dann Kamera taucht ab F26.00 bei 6.95 s ein (Zoomrate = Wachstum der Bahn, x8 pro Beat, hoechstens x1.5 pro Bild), Mitte laeuft mit dem Zoom aus, Matrjoschka aus 19 Sternen (je x0.26) ab F1 bei 7.15 s, Drehung x1 pro Beat. Farbe/Stern wechseln bis 7.15 s, Endfarbe Plakat 1 (W1 ~P23/P13)
+Bahn-Check ok: Knick 8.4 Grad (Grenze 10.0), Tempo x0.70, Rate x1.16 am Wechsel (x0.67-x1.5), ueber 35 Bilder 0x langsamer, 0x Umkehr, Stern Mitte im Bild
+Finale: QR im Schlussbild weg, Lesbarkeit SPARK + KICK-OFF/Datum + NEW SEMESTER, NEW PROJECTS 0.97 A
+Blitz-Check (WCAG 2.3.1, vereinfacht): aus ([checks].flash_gate = false, Vadim 2.10.)
+Ton: preview.mp4 ref/audio/igors_theme.mp3, loop.mp4 ref/audio/igors_theme.mp3 (4 Durchgaenge, 16.32 Plakate/s)
+
+Frame  Aushang  Farbe               S     Radius Grund  Lesbarkeit
+01     ja       W1 ~P23/P13         S33   1.76   0.06   0.67 C
+02              W1 ~P23/P13         S33   1.73   0.06   0.72 C
+03     ja       W1 P17/P10          S33   1.65   0.03   0.76 C
+04              W1 ~P22/~P24        S33   1.52   0.07   0.73 C
+05     ja       W1 ~P22/P20         S48d  1.35   0.07   0.95 B
+06              W1 P20/P25          S23   1.16   0.04   0.83 C
+07     ja       W1 ~P21/P6          S54c  0.97   0.05   0.95 B
+08              W1 ~P21/P6          S47   0.80   0.05   0.84 C
+09     ja       W1 P13/P9           S50   0.66   0.03   0.82 C
+10              W1 P20/P9           S14   0.54   0.04   0.86 C
+11     ja       W1 P11/P18          S24   0.45   0.01   0.60 C
+12              W1 P15/P18          S54c  0.38   0.16   0.90 B
+13     ja       W1 P20/P17          S31   0.33   0.04   0.83 C
+14              W1 ~P16/~P24        S19d  0.29   0.07   0.83 C
+15     ja       W1 P15/P19          S50   0.26   0.16   0.79 C
+16              W1 ~P21/P10         S54c  0.24   0.05   0.85 C
+17     ja       W1 ~P14/P23         S31e  0.23   0.96   0.86 C
+18              W1 ~P10/~P17        S18d  0.24   0.96   0.81 C
+19     ja       W1 P24/P22          S31g  0.26   0.92   0.86 C
+20              W1 P24/P22          S58b  0.29   0.92   0.85 C
+21     ja       W1 P16/~P26         S48e  0.33   0.89   0.84 C
+22              W1 ~P25/~P26        S26   0.38   0.93   0.87 C
+23     ja       W1 ~P25/~P26        S50   0.45   0.93   0.88 B
+24              W1 ~P25/~P26        S60d  0.54   0.93   0.86 C
+25     ja       W1 ~P9/~P15         S54c  0.66   1.00   0.85 C
+26              W1 ~P9/~P11         S14   0.80   1.00   0.83 C
+27     ja       W1 ~P18/P16         S24   0.97   0.95   0.63 C
+28              W1 ~P14/P16         S19d  1.16   0.96   0.78 C
+29     ja       W1 ~P19/~P13        S48e  1.35   0.98   0.95 A
+30              W1 ~P19/~P11        S54c  1.52   0.98   0.94 B
+31     ja       W1 ~P19/P21         S47   1.65   0.98   0.76 C
+32              W1 ~P10/P23         S23   1.73   0.96   0.78 C
+33     ja       W2 P25              S33   1.76   0.02   0.65 C
+34              W2 P18              S33   1.73   0.02   0.72 C
+35     ja       W2 P9               S33   1.65   0.02   0.72 C
+36              W2 P6               S33   1.52   0.00   0.74 C
+37     ja       W2 ~P23             S58b  1.35   0.06   0.92 B
+38              W2 P25              S23   1.16   0.02   0.81 C
+39     ja       W2 P18              S54c  0.97   0.02   0.95 A
+40              W2 P9               S47   0.80   0.02   0.83 C
+41     ja       W2 P6               S59b  0.66   0.00   0.75 C
+42              W2 ~P23             S14   0.54   0.06   0.86 C
+43     ja       W2 P25              S24   0.45   0.02   0.38 C
+44              W2 P18              S54c  0.38   0.02   0.89 B
+45     ja       W2 P9               S56   0.33   0.02   0.84 C
+46              W2 P6               S19d  0.29   0.00   0.83 C
+47     ja       W2 ~P23             S50   0.26   0.06   0.74 C
+48              W2 P25              S54c  0.24   0.02   0.85 C
+49     ja       W2 P23              S31e  0.23   0.98   0.86 C
+50              W2 ~P25             S18d  0.24   0.93   0.84 C
+51     ja       W2 ~P18             S31g  0.26   0.95   0.86 C
+52              W2 ~P9              S59b  0.29   1.00   0.83 C
+53     ja       W2 P23              S48e  0.33   0.98   0.84 C
+54              W2 ~P25             S26   0.38   0.93   0.91 B
+55     ja       W2 ~P18             S60d  0.45   0.95   0.84 C
+56              W2 ~P9              S57b  0.54   1.00   0.86 C
+57     ja       W2 P23              S54c  0.66   0.98   0.85 C
+58              W2 ~P25             S14   0.80   0.93   0.80 C
+59     ja       W2 ~P18             S24   0.97   0.95   0.64 C
+60              W2 ~P9              S19d  1.16   1.00   0.79 C
+61     ja       W2 P18              S48e  1.35   0.02   0.95 A
+62              W2 P9               S54c  1.52   0.02   0.94 B
+63     ja       W2 P6               S47   1.65   0.00   0.74 C
+64              W2 ~P23             S23   1.73   0.06   0.77 C

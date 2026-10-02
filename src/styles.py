@@ -99,6 +99,11 @@ FONTSPEC = {
     "clash": ("ClashDisplay-Variable.ttf", "Bold", None, None),
     "departure": ("DepartureMono-Regular.otf", None, 11, 8),
 }
+# Kernpaare fuer Clash (Versalhoehen, negativ = enger), leer = Werte des Fonts. Vadim 2.10.: "zwischen P und A mehr
+# Platz, das A soll richtig zentriert sein, P naeher ran". Befund (Versalhoehe 200 px, engster waagerechter Abstand):
+# S-P 13, P-A 44, A-R 6, R-K 9 px; P-A -0.15 → 14 px. Vergleich previz/variants/kern.png, Vadim entscheidet (wirkt auf
+# alle Plakate und den Druck), bis dahin leer.
+KERN = {}
 F_LO, F_HI = 0.7, 0.98          # Titel-Fuellung: unten Lavendel, oben fast Weissglut
 
 
@@ -158,8 +163,17 @@ def line_mask(s, T, cap_px, base, x, px, shape, right=False):
     if "–" in s and f.getmask("–").getbbox() is None:
         s = s.replace("–", "-")
     l, t, r, b = f.getbbox(s, anchor="ls")
-    im = Image.new("L", (r - l + 2, b - t + 2))
-    ImageDraw.Draw(im).text((1 - l, 1 - t), s, font=f, fill=255, anchor="ls")
+    cuts = [i for i in range(1, len(s)) if not native and s[i - 1:i + 1] in KERN]
+    if cuts:                                      # Kernpaare: Stuecke einzeln setzen, jedes um die Summe davor versetzt
+        cap_f = -f.getbbox("H", anchor="ls")[1]
+        kx = [round(sum(KERN[s[j - 1:j + 1]] for j in cuts if j <= i) * cap_f) for i in [0] + cuts]
+        im = Image.new("L", (r - l + 2 + max(0, kx[-1]), b - t + 2))
+        for (i0, i1), dx in zip(zip([0] + cuts, cuts + [len(s)]), kx):
+            ImageDraw.Draw(im).text((1 - l + f.getlength(s[:i0]) + dx, 1 - t), s[i0:i1], font=f, fill=255, anchor="ls")
+        im = im.crop((0, 0, r - l + 2 + kx[-1], im.height))
+    else:
+        im = Image.new("L", (r - l + 2, b - t + 2))
+        ImageDraw.Draw(im).text((1 - l, 1 - t), s, font=f, fill=255, anchor="ls")
     m = up(np.asarray(im) > 127, k)
     top, left = round(base / px) + (t - 1) * k, round(x / px) - (m.shape[1] - k if right else k)
     out = np.zeros(shape, bool)
@@ -174,7 +188,8 @@ def width_per_cap(s, T="clash"):
     """Breite einer Zeile in Versalhoehen (Vektorfont), um Titel auf ein Mass zu setzen."""
     f = font(FONTSPEC[T][0], 200, FONTSPEC[T][1])
     l, _, r, _ = f.getbbox(s.replace(" ", "  "), anchor="ls")
-    return (r - l) / -f.getbbox("H", anchor="ls")[1]
+    kern = sum(KERN.get(s[i - 1:i + 1], 0.0) for i in range(1, len(s))) if T == "clash" else 0.0
+    return (r - l) / -f.getbbox("H", anchor="ls")[1] + kern
 
 
 def down(a, px):

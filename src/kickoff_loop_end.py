@@ -69,12 +69,16 @@ ORBIT_PATH_KEYS = {"throw": ("orbit_throw_speedup",),
                             "orbit_dive_shutter_frac", "orbit_dive_drift_pow", "orbit_dive_target")}
 FINALE_KEYS = ("orbit_zoom_peak_beats", "orbit_zoom_decay", "orbit_spin_stop_beats", "orbit_spin_rest_deg", "orbit_glow_frames", "orbit_glow_max_scale",
                "orbit_dissolve", "orbit_dissolve_at_beats", "orbit_dissolve_beats", "orbit_dissolve_scale",
-               "orbit_new_lines", "orbit_new_at_beats", "orbit_new_in_beats", "orbit_close_at_beats", "orbit_close_beats")
+               "orbit_words", "orbit_words_at_beats", "orbit_words_beats", "orbit_words_grow_beats",
+               "orbit_words_fade_beats", "orbit_close_at_beats", "orbit_close_beats")
 STAR_SYM_DEG = 60.0  # der Stern hat 6 Zacken: alle 60 Grad steht er wieder gleich (gerade)
 GLOW_SAMPLES = 16    # Zoom-Gluehen: so viele vergroesserte Kopien der Schrift (darunter zerfaellt der Schweif in Stufen)
 FRAG_SEED = 43       # QR-Zerfall: fester Zufall je Splitter (Tiefe, Verzoegerung), gleiche Datei = gleiches Bild
 FRAG_DELAY = 0.5     # ... Splitter starten in der ersten Haelfte des Zerfalls, fliegen in der zweiten
 FRAG_DEPTH = (0.35, 1.0)   # ... Anteil am vollen Wachstum orbit_dissolve_scale je Splitter (Parallaxe: nahe fliegen schneller)
+CRYSTAL_SEED = 47          # Begriffe: fester Zufall je Begriff (Keim, Zellkosten), gleiche Datei = gleiches Bild
+CRYSTAL_COST = (0.3, 1.7)  # ... Zellkosten des Wachstums: Spannweite = wie stark die Front ausfranst (1, 1 = Kreisscheibe)
+CRYSTAL_DELAY = 0.35       # ... Buchstaben starten bis zu diesem Anteil der Wachstumszeit versetzt
 PHASE_EPS = 1e-6    # Bahn: so nah an einer ganzen Phase = ganze Phase (Float-Rest aus Tempo x Zeit, sonst nie bitgleich)
 TANGENT_H = 1e-3     # Schleuder: Schrittweite (Bahnframes) der zentralen Differenz fuer die Tangente beim Loslassen
 RELEASE_JUMP = 1.5   # Selbsttest Bahn: Schritt beim Bahnwechsel hoechstens 1.5 x der groessere Nachbarschritt (sonst Sprung)
@@ -82,6 +86,7 @@ ZOOM_SMOOTH_PX = 6.0  # Zoom am Bild: Glaettung vor der Messung (Bayer-Korn 4 Ze
 ZOOM_LP_R, ZOOM_LP_A = 512, 360   # ... log-polares Raster (Radius, Winkel; Winkel durch 6 teilbar)
 ZOOM_LP_INNER = 0.03              # ... innerster Radius als Bruchteil des aeussersten (darunter wenige Pixel je Ring)
 STROBE_MAX = 0.3                  # ... ab 1 Puppe pro Bild hoechstens so viel Ringkontrast wie ohne Unschaerfe
+SPARKS_PER_FRAME = 0.5           # O9: hoechstens eine neue Stern-Puppe je 2 Bilder
 RINGS_MIN = 0.5                   # ... unter 1/2 Puppe pro Bild mindestens so viel (die Matrjoschka bleibt erkennbar)
 KINK_DEG = 10.0      # Selbsttest Bahn: Richtung der Mitte am Wechsel dreht hoechstens so viel mehr/weniger als davor ("kein Knick")
 SLOW_EPS = 1e-6      # ... "nie langsamer": kleiner um mehr als Float-Rauschen
@@ -397,11 +402,22 @@ def check_orbit(cfg, beats_left):
         assert not miss, f"[ending] Finale (O8) braucht noch: {', '.join(miss)}"
         assert path == "dive" and not e["card_on"], "[ending] Finale: nur mit orbit_path = dive und card_on = false"
         assert e["orbit_spin_stop_beats"] > 0 and e["orbit_glow_frames"] >= 0 and e["orbit_glow_max_scale"] >= 1 \
-            and e["orbit_dissolve_beats"] > 0 and e["orbit_dissolve_scale"] >= 1 and e["orbit_new_in_beats"] > 0 \
+            and e["orbit_dissolve_beats"] > 0 and e["orbit_dissolve_scale"] >= 1 \
             and e["orbit_close_beats"] > 0 and 0 < e["orbit_zoom_decay"] <= 1, (
                                              "[ending] Finale: orbit_zoom_decay 0..1, orbit_spin_stop_beats > 0, orbit_glow_frames >= 0, "
                                              "orbit_glow_max_scale >= 1, orbit_dissolve_beats > 0, orbit_dissolve_scale >= 1, "
-                                             "orbit_new_in_beats > 0, orbit_close_beats > 0")
+                                             "orbit_close_beats > 0")
+        ws = e["orbit_words"]
+        assert ws and all(isinstance(w, list) and w and all(isinstance(x, str) for x in w) for w in ws) \
+            and e["orbit_words_beats"] > 0 and e["orbit_words_grow_beats"] > 0 and e["orbit_words_fade_beats"] > 0 \
+            and e["orbit_words_grow_beats"] + e["orbit_words_fade_beats"] <= e["orbit_words_beats"], (
+                "[ending] Finale: orbit_words = [[\"ZEILE\", ...], ...] (je Begriff eine Liste Zeilen, der letzte bleibt), "
+                "orbit_words_beats > 0, orbit_words_grow_beats + orbit_words_fade_beats <= orbit_words_beats")
+        sp = e.get("orbit_sparks", [])
+        bad = [x for x in sp if x not in KL.S_CODES]
+        assert not bad and 0 < e.get("orbit_sparks_ratio", 0.5) < 1 and e.get("orbit_zoom_max_per_frame", 2) > 1, (
+            f"[ending]: orbit_sparks = Stern-Codes aus [styles].cycle (unbekannt: {bad}), orbit_sparks_ratio 0..1, "
+            "orbit_zoom_max_per_frame > 1 (Massstab pro Bild)")
         bad = [x for x in e["orbit_dissolve"] if x not in ("qr", "cta", "title", "date")]
         assert not bad, f"[ending].orbit_dissolve: Teile des Plakatsatzes qr | cta | title | date, nicht {bad}"
         assert e["orbit_close_at_beats"] + e["orbit_close_beats"] <= beats_left, \
@@ -541,12 +557,8 @@ def orbit_star(cfg, dt, jump=0.0):
     tau = dt - t_s
     (x0, y0, R0), (vx, vy, vR) = orbit_kin(cfg, phi_s + jump, orbit_rate(cfg, t_s))
     if e["orbit_path"] == "dive":
-        g0 = vR / R0
-        tp = e.get("orbit_zoom_peak_beats", math.inf) * b - t_s            # Finale: bis hier zieht der Zoom an, danach
-        d_ = e.get("orbit_zoom_decay", 1.0)                                # faellt die Rate x orbit_zoom_decay pro Beat
-        rate = lambda t: g0 * k ** (min(t, tp) / b) * d_ ** (max(t - tp, 0) / b)   # noqa: E731  d ln R / dt
-        G = lambda t: g0 * _ramp(np.minimum(t, tp), b, k) + g0 * k ** (tp / b) * _ramp(np.maximum(t - tp, 0), b, d_) \
-            if tp < math.inf else g0 * _ramp(t, b, k)                     # noqa: E731  ln(R / R0)
+        rate, G = zoom_rate(cfg, vR / R0, t_s)
+        tp = e.get("orbit_zoom_peak_beats", math.inf) * b - t_s
         def drift(t):                                                      # Weg der Mitte / v0
             s = np.linspace(0.0, t, THROW_SAMPLES)
             f = np.exp(-e["orbit_dive_drift_pow"] * G(s))
@@ -563,7 +575,7 @@ def orbit_star(cfg, dt, jump=0.0):
         dolls = max(G(tau) - G(t_r - t_s), 0.0) / math.log(1 / KD.DOLL_RATIO)
         blur = 2 * e["orbit_dive_shutter_frac"] * rate(tau) / math.log(1 / KD.DOLL_RATIO) / cfg["video"]["timeline_fps"]
         return dict(star=(x, y, R0 * math.exp(G(tau)), rot), dolls=dolls,
-                    blur=blur if dt > t_r else 0.0, loop=dt <= t_r, rate=rate(tau))
+                    blur=blur if dt > t_r else 0.0, loop=dt <= t_r, rate=rate(tau), rate_hold=rate(min(tau, tp)))
     F = _ramp(tau, b, k)
     cx, cy, R = x0 + vx * F, y0 + vy * F, R0 + vR * F
     clear = KL.STAR_CLEAR * max(R, 0.0)
@@ -571,6 +583,32 @@ def orbit_star(cfg, dt, jump=0.0):
     if R < cell or out:
         return dict(star=None, ghost=(cx, cy, max(R, 0.0) if out else GONE_R_PX, rot), dolls=0.0, blur=0.0, loop=False)
     return dict(star=(cx, cy, R, rot), dolls=0.0, blur=0.0, loop=False)
+
+
+def zoom_rate(cfg, g0, t_s):
+    """dive: Zoomrate d ln R / dt und ihr Integral ln(R / R0), t s nach dem Eintauchen (beide fuer Skalare und Arrays).
+    Startet bei g0 (Wachstum der Bahn), zieht x orbit_throw_speedup pro Beat an, hoechstens orbit_zoom_max_per_frame
+    (ln-Massstab pro Videobild; O9, Vadim 2.10. zu O8: "Zoom langsamer, dann direkt unscharf": O8 stieg bis 40 S33-Puppen
+    pro Bild), ab orbit_zoom_peak_beats faellt sie x orbit_zoom_decay pro Beat. Geschlossen, stueckweise."""
+    e, b = cfg["ending"], beat(cfg)
+    k, d_ = e["orbit_throw_speedup"], e.get("orbit_zoom_decay", 1.0)
+    tp = e.get("orbit_zoom_peak_beats", math.inf) * b - t_s
+    cap = math.log(e.get("orbit_zoom_max_per_frame", math.inf)) * cfg["video"]["timeline_fps"]
+    tc = 0.0 if cap <= g0 else math.inf if k == 1 or cap == math.inf or g0 <= 0 else b * math.log(cap / g0) / math.log(k)
+    r_tp = min(g0 * k ** (tp / b), cap) if tp < math.inf else 0.0         # Rate am Gipfel
+
+    def rate(t):
+        return np.minimum(g0 * k ** (np.minimum(t, tp) / b), cap) * d_ ** (np.maximum(t - tp, 0) / b)
+
+    def G(t):
+        a = np.minimum(np.minimum(t, tp), tc)
+        out = g0 * _ramp(a, b, k) if tc > 0 else 0.0 * a
+        if tc < tp:                                                        # gedeckelt: gleichmaessig
+            out = out + cap * np.maximum(np.minimum(t, tp) - tc, 0)
+        if tp < math.inf:
+            out = out + r_tp * _ramp(np.maximum(t - tp, 0), b, d_)
+        return out
+    return (lambda t: float(rate(t)) if np.isscalar(t) else rate(t)), G
 
 
 def spin_stop(w0, rot0, T0, rest, tau):
@@ -619,7 +657,7 @@ def orbit_state(cfg, dt, jump=0.0):
     st = KL.poster_style(cfg, idx)
     star = os_["star"]
     if not os_["loop"] and e["orbit_path"] == "dive":                      # Infinite Zoom in die Matrjoschka
-        st.update(S=KL.S_CODES["S33"], spark_fn=KD.zoom_spark,
+        st.update(S=KL.S_CODES["S33"], spark_fn=KD.zoom_sparks if e.get("orbit_sparks") else KD.zoom_spark,
                   fx_behind_title="S33" in cfg["type"].get("effects_behind_title", []))
     if star is None:                          # weg: S2 (Labor-Stile messen am Stern, manche fuellen die Seite), unsichtbar
         star = os_.get("ghost") or (-3.0 * W, -3.0 * H, 1.0, 0.0)          # dort, wo er waere (Grund), sonst weit draussen
@@ -638,6 +676,8 @@ def orbit_state(cfg, dt, jump=0.0):
                                                    info_in=0.0, core_shrink=e.get("orbit_dive_core_shrink", 0.0),
                                                    blur=round(os_.get("blur", 0.0), 4), flow=flow, morph=morph,
                                                    finale=finale(cfg, dt, os_)))
+        if e.get("orbit_sparks"):                                          # O9: Matrjoschka aus allen Sternen
+            dg["zoom"]["sparks"] = dict(codes=list(e["orbit_sparks"]), ratio=e["orbit_sparks_ratio"])
         st["type_fn"] = KD.zoom_card_type
     st["rot"] = star[3]                                                    # Labor-Sterne drehen nach st["rot"]
     st["loop"] = {**st["loop"], "digital": dg}
@@ -656,19 +696,28 @@ def finale(cfg, dt, os_):
       glow      Zoom-Gluehen am Titelblock: ln-Massstab, um den die Kamera in orbit_glow_frames Bildern waechst
                 (gedeckelt bei orbit_glow_max_scale). Je staerker der Zoom, desto laenger der Schweif.
       dissolve  0..1, orbit_dissolve-Teile (QR) zerfallen nach vorn in Splitter
-      new       0..1, orbit_new_lines dithern an der QR-Stelle ein
+      word      Begriff an der QR-Stelle (O9, Vadim 2.10.: "pro Beat ein Begriff"): je orbit_words_beats einer aus
+                orbit_words, ersetzt den vorigen, der letzte bleibt stehen. grow 0..1 = Kristall waechst (Difference),
+                fade 0..1 = danach in die Tintenstufe. None vor dem ersten.
       close     0..1, Abschluss: alles ausser der Schrift kippt im Korn in den Grund (frueher card_dim_frac)
+    Gluehen haelt ab O9 den erreichten Hoechstwert (Vadim: "soll nicht weggehen, wird langsamer"), bis zum Abschluss.
     None ohne Finale-Schluessel."""
     e, b = cfg["ending"], beat(cfg)
     if "orbit_close_at_beats" not in e:
         return None
     close = _prog(dt, e["orbit_close_at_beats"], e["orbit_close_beats"], b)
-    span = os_.get("rate", 0.0) / cfg["video"]["timeline_fps"] * e["orbit_glow_frames"]
+    span = os_.get("rate_hold", 0.0) / cfg["video"]["timeline_fps"] * e["orbit_glow_frames"]
     glow = min(span, math.log(e["orbit_glow_max_scale"])) * (1 - close) if not os_["loop"] else 0.0
+    word, x = None, (dt / b - e["orbit_words_at_beats"]) / e["orbit_words_beats"]
+    if x >= 0:
+        j = min(int(x), len(e["orbit_words"]) - 1)
+        local = (x - j) * e["orbit_words_beats"]                           # Beats seit diesem Begriff
+        word = dict(lines=list(e["orbit_words"][j]), seed=j,
+                    grow=round(min(local / e["orbit_words_grow_beats"], 1.0), 3),
+                    fade=round(min(max(local - e["orbit_words_grow_beats"], 0) / e["orbit_words_fade_beats"], 1.0), 3))
     return dict(glow=round(glow, 4), close=round(close, 3), parts=list(e["orbit_dissolve"]),
                 dissolve=round(_prog(dt, e["orbit_dissolve_at_beats"], e["orbit_dissolve_beats"], b), 3),
-                scale=e["orbit_dissolve_scale"], lines=list(e["orbit_new_lines"]),
-                new=round(_prog(dt, e["orbit_new_at_beats"], e["orbit_new_in_beats"], b), 3))
+                scale=e["orbit_dissolve_scale"], word=word)
 
 
 def orbit_flow(cfg, dt):
@@ -753,7 +802,12 @@ def orbit_measure(cfg, jump=0.0):
     def flat(xs):                                                          # Zoom/Schrumpfen muss echt anziehen (ein
         return sum(1 for a, c in zip(xs, xs[1:]) if c <= a * (1 + SLOW_EPS))   # Zoom aus dem Stand bleibt sonst bei 0)
     spin_slow = 0 if e.get("orbit_spin_stop_beats") else falls(spins)     # Finale: Drehung laeuft gewollt aus
-    slow = flat(rates) + spin_slow + (falls(flow) if e["orbit_path"] == "dive" else falls(sizes))
+    cap = math.log(e.get("orbit_zoom_max_per_frame", math.inf))           # O9: am Deckel halten ist kein Bremsen
+    if cap < math.inf:                        # O9: Fluss nie unter dem am Wechsel (die Mitte landet, der Zoom haelt sein Tempo)
+        fslow = sum(1 for f in flow if f < flow[0] * (1 - SLOW_EPS))
+    else:
+        fslow = falls(flow) if e["orbit_path"] == "dive" else falls(sizes)
+    slow = flat([r for r in rates if r < cap * (1 - SLOW_EPS)]) + spin_slow + fslow
     turn = sum(1 for a, c in zip(after, after[1:])
                if math.hypot(*a[:2]) > MOVE_PX and math.hypot(*c[:2]) > MOVE_PX and a[0] * c[0] + a[1] * c[1] < 0)
     x, y = seq[-1][:2]
@@ -782,9 +836,12 @@ def orbit_report(cfg):
     m = orbit_measure(cfg)
     at, n = g["burst_s"], KL.count(cfg)
     land = orbit_poster(cfg, 1e9)
+    zoom = (f"Matrjoschka aus {len(e['orbit_sparks'])} Sternen (je x{e['orbit_sparks_ratio']:g})"
+            if e.get("orbit_sparks") else f"Infinite Zoom, Verschluss {e['orbit_dive_shutter_frac']:g}")
+    cap = (f", hoechstens x{e['orbit_zoom_max_per_frame']:g} pro Bild" if "orbit_zoom_max_per_frame" in e else "")
     what = (f"Kamera taucht ab F{phi_s % n + 1:.2f} bei {at + t_s:.2f} s ein (Zoomrate = Wachstum der Bahn, x"
-            f"{e['orbit_throw_speedup']:g} pro Beat), Mitte laeuft mit dem Zoom aus, Infinite Zoom ab F{phi_r % n + 1:.0f} "
-            f"bei {at + t_r:.2f} s, Verschluss {e['orbit_dive_shutter_frac']:g}"
+            f"{e['orbit_throw_speedup']:g} pro Beat{cap}), Mitte laeuft mit dem Zoom aus, {zoom} ab F{phi_r % n + 1:.0f} "
+            f"bei {at + t_r:.2f} s"
             if e["orbit_path"] == "dive" else
             f"Wurf in die Tiefe ab F{phi_r % n + 1:.0f} bei {at + t_r:.2f} s (gerade Linie zum Fluchtpunkt, Bildtempo x"
             f"{e['orbit_throw_speedup']:g} pro Beat)")
@@ -957,6 +1014,27 @@ def _fly(c, mask, val, u, scale, centre):
     return out_m, out_v
 
 
+def crystal_order(mk, seed):
+    """Reihenfolge 0..1, in der die Zellen eines Begriffs einsetzen (Vadim 2.10.: "Pixel fuer Pixel, natuerlich, wie
+    Kristalle, nicht wie Fade-In"). Je Buchstabe (8-zusammenhaengend) ein Keim an zufaelliger Stelle; von dort waechst er
+    entlang der kuerzesten Wege durch den Buchstaben mit zufaelligen Zellkosten (CRYSTAL_COST): die Front franst aus, bleibt
+    aber zusammenhaengend, weil jede Zelle nach ihrem Vorgaenger auf dem Weg kommt. Buchstaben starten versetzt
+    (CRYSTAL_DELAY) und sind bei 1 alle fertig. Ausserhalb der Maske inf."""
+    from scipy.ndimage import label
+    from skimage.graph import MCP_Geometric
+    rng = np.random.default_rng(CRYSTAL_SEED + seed)
+    lab, n = label(mk, np.ones((3, 3)))
+    cost = np.where(mk, rng.uniform(*CRYSTAL_COST, mk.shape), np.inf)
+    out = np.full(mk.shape, np.inf)
+    for g in range(1, n + 1):
+        ys, xs = np.nonzero(lab == g)
+        j = rng.integers(len(ys))
+        d, _ = MCP_Geometric(np.where(lab == g, cost, np.inf)).find_costs([(ys[j], xs[j])])
+        delay = rng.uniform(0, CRYSTAL_DELAY)
+        out[ys, xs] = np.minimum(delay + (1 - delay) * d[ys, xs] / max(d[ys, xs].max(), 1e-9), 1.0)   # Float-Rest
+    return out
+
+
 def finale_layers(c, f, n0):
     """Finale (orbit_state -> finale) auf den Plakatsatz ab Ebene n0: Teile in f["parts"] zerfallen nach vorn
     (_fly), die neuen Zeilen dithern an der QR-Stelle ein (linksbuendig an der Satzkante, Groesse und Zeilenabstand wie
@@ -978,19 +1056,24 @@ def finale_layers(c, f, n0):
                 v = np.where(np.isnan(ly[2]), v, ly[2])
             m, val = _fly(c, ~np.isnan(v), v, f["dissolve"], f["scale"], centre)
             c.add("qr", m, val)
-    if f["new"] > 0 and f["lines"]:
+    w = f["word"]
+    if w and w["grow"] > 0:
         cap = L["capd"]
         lead = L["sb"][1] - L["sb"][0] if len(L["sb"]) > 1 else 1.4 * cap
         mk = np.zeros((c.gh, c.gw), bool)
         v = np.zeros((c.gh, c.gw), np.float32)
         steps = c.st["loop"]["type"]["text_gradient_steps"]
-        for j, line in enumerate(f["lines"]):
-            base = L["qbot"] - (len(f["lines"]) - 1 - j) * lead
+        for j, line in enumerate(w["lines"]):
+            base = L["qbot"] - (len(w["lines"]) - 1 - j) * lead
             m = S.line_mask(line, "clash", cap, base, L["x0"], px, (c.gh, c.gw))
             v = np.where(m, KL.line_gradient(c, base, cap, steps), v)
             mk |= m
         K._EXTRA["new"] = mk
-        c.add("new", mk & (bayer(c) < f["new"]), KL.flip_word(c, mk, v))   # als Ganzes hell/dunkel wie JOIN US
+        ink = KL.flip_word(c, mk, v)                                       # als Ganzes hell/dunkel wie JOIN US
+        keep = getattr(c, "title_target", None), getattr(c, "title_fx", None)
+        diff = KL.title_value(c, v)                                        # Negativ des Untergrunds wie SPARK
+        c.title_target, c.title_fx = keep                                  # (Selbsttest Titel misst SPARK)
+        c.add("new", mk & (crystal_order(mk, w["seed"]) <= w["grow"]), diff + (ink - diff) * w["fade"])
     if f["glow"] > 0:
         text = np.zeros((c.gh, c.gw), bool)
         for name, _, lv, _, _ in c.layers[n0:]:
@@ -1125,7 +1208,11 @@ def orbit_selftest(cfg):
                  f"{'schlaegt an' if not orbit_clean(m2) else 'TEST BLIND'} ({m2['slow']}x langsamer, Rate x{m2['gjump']:.2f})")
     ok &= orbit_clean(m) and not orbit_clean(m2)
 
-    if cfg["ending"]["orbit_path"] == "dive":
+    if cfg["ending"].get("orbit_sparks"):
+        good, more = sparks_rate_check(cfg)
+        lines += more
+        ok &= good
+    elif cfg["ending"]["orbit_path"] == "dive":
         good, more = zoom_rate_check(cfg)
         lines += more
         ok &= good
@@ -1158,6 +1245,29 @@ def _ring_contrast(im, centre, rmax, per_doll):
     p = six[int(np.argmax(six.std(1)))]
     steps = per_doll * (ZOOM_LP_R - 1) / -math.log(ZOOM_LP_INNER)          # Raster-Schritte pro Puppe
     return float((p - gaussian_filter1d(p, steps)).std())
+
+
+def sparks_rate_check(cfg):
+    """O9, Matrjoschka aus Sternen: hoechstens SPARKS_PER_FRAME neue Puppen pro Videobild (sonst steht kein Stern lang
+    genug, um ihn zu sehen, und es wird "direkt unscharf" wie O8). Gemessen an der Bahn bis zum Gipfel (danach faellt
+    die Rate).
+    Gegenprobe: dieselbe Variante ohne orbit_zoom_max_per_frame (Zoom wie O8) schlaegt an."""
+    import copy
+    fps, b = cfg["video"]["timeline_fps"], beat(cfg)
+    t_s, _ = orbit_switch(cfg)
+
+    def most(c):
+        e = c["ending"]
+        end = min(e["orbit_close_at_beats"], e["orbit_zoom_peak_beats"]) * b                # schnellste Stelle: der Gipfel
+        R = [orbit_star(c, k / fps)["star"][2] for k in range(math.floor(t_s * fps), math.floor(end * fps) + 2)]
+        return max(np.diff(np.log(R))) / math.log(1 / e["orbit_sparks_ratio"])
+    old = copy.deepcopy(cfg)
+    old["ending"].pop("orbit_zoom_max_per_frame", None)
+    got, bad = most(cfg), most(old)
+    good = got <= SPARKS_PER_FRAME
+    return good and bad > SPARKS_PER_FRAME, [
+        f"Sterne pro Bild (Matrjoschka): hoechstens {got:.2f} (Grenze {SPARKS_PER_FRAME}): {'ok' if good else 'FEHLER'}; "
+        f"Gegenprobe ohne Deckel {bad:.3g}: {'schlaegt an' if bad > SPARKS_PER_FRAME else 'TEST BLIND'}"]
 
 
 def zoom_rate_check(cfg):
@@ -1239,7 +1349,32 @@ def selftest(cfg):
             sp, line = spin_selftest(cfg)
             lines.append(line)
             good &= sp
+        if "orbit_words" in cfg["ending"]:
+            cr, line = crystal_selftest(cfg)
+            lines.append(line)
+            good &= cr
     return ok and good, lines
+
+
+def crystal_selftest(cfg):
+    """Begriffe kristallisieren (crystal_order) am laengsten Begriff, Zellmaske wie im Bild: je Wachstumsstufe ist die
+    gesetzte Menge eine Obermenge der vorigen (monoton), hat nie mehr Inseln als der Begriff Buchstaben (zusammenhaengend,
+    kein Korn) und ist bei 1 die ganze Maske. Gegenprobe: Einblenden im Bayer-Korn (wie O8) zerfaellt in viele Inseln."""
+    from scipy.ndimage import label
+    word = max((ln for w in cfg["ending"]["orbit_words"] for ln in w), key=len)
+    mk = S.line_mask(word, "clash", 24, 40, 4, 1, (48, 24 * len(word) + 8))
+    n = label(mk, np.ones((3, 3)))[1]
+    o = crystal_order(mk, 0)
+    thr = S.tile(S.bayer(4), mk.shape)
+    us = np.linspace(0.05, 1, 20)
+    sets = [mk & (o <= u) for u in us]
+    isl = max(label(m, np.ones((3, 3)))[1] for m in sets)
+    mono = all((a <= b).all() for a, b in zip(sets, sets[1:]))
+    good = mono and isl <= n and (sets[-1] == mk).all()
+    bay = max(label(mk & (thr < u), np.ones((3, 3)))[1] for u in us[:-1])
+    return good and bay > n, (f"Begriffe kristallisieren ({word}, {n} Buchstaben): monoton {'ja' if mono else 'NEIN'}, "
+                              f"hoechstens {isl} Inseln, am Ende ganze Maske: {'ok' if good else 'FEHLER'}; "
+                              f"Gegenprobe Bayer {bay} Inseln: {'schlaegt an' if bay > n else 'TEST BLIND'}")
 
 
 def spin_selftest(cfg):

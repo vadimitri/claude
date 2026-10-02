@@ -688,7 +688,8 @@ def shafts(g, x0, y0, d, tt, n=200, gamma=0.75, core=0.6):
     emit = np.where(d < 1, 1.0, core * np.exp(-(d - 1) / 0.25))
     emit = np.where(tt, 0.0, emit)
     acc = radial(g, emit, x0, y0, n=n, reach=0.995, decay=1.0, order=1) / n
-    ref = np.percentile(acc[(d > 1.0) & (d < 1.3)], 90) + 1e-6
+    rim = (d > 1.0) & (d < 1.3)
+    ref = np.percentile(acc[rim] if rim.any() else acc, 90) + 1e-6   # Stern fuellt das Bild (Zoom im Ende): kein Rand
     return np.clip(acc / ref, 0, 1.2) ** gamma
 
 

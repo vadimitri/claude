@@ -659,12 +659,22 @@ def type_layers(c):
             continue
         mk = np.zeros(shape, bool)
         v = np.zeros(shape, np.float32)
-        for (s, b, cap), m in zip(lines, line_masks(c, lines, centered=name == "title")):
+        masks = line_masks(c, lines, centered=name == "title")
+        for (s, b, cap), m in zip(lines, masks):
             v = np.where(m, line_gradient(c, b, cap, steps, phase), v)
             mk |= m
-        # Titel kippt pro Pixel (XOR mit dem Stern), die kleineren Zeilen pro Buchstabe
+        # Titel kippt pro Pixel (XOR mit dem Stern), die kleineren Zeilen pro Buchstabe, im Ende je Zeile als Ganzes
+        # (Vadim 2.10. zu O8: "kein Kippen pro Buchstabe", im Zoom wechselten sie hell/dunkel)
         plain = lp["i"] % lp["n"] + 1 in lp["type"].get("title_plain_frames", [])     # dort ohne Differenz
-        c.add(name, mk, (v if plain else title_value(c, v)) if name == "title" else flip_glyphs(c, mk, v))
+        if name == "title":
+            val = v if plain else title_value(c, v)
+        elif (lp["digital"] or {}).get("zoom"):
+            val = v
+            for m in masks:
+                val = np.where(m, flip_word(c, m, v), val)
+        else:
+            val = flip_glyphs(c, mk, v)
+        c.add(name, mk, val)
         K._EXTRA[name] = mk
 
     K._EXTRA["type"] = (np.maximum.reduce([a for _, a, *_ in c.layers[n0:]]) > 0 if len(c.layers) > n0

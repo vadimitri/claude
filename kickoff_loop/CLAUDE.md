@@ -93,45 +93,42 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
   Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
 - **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
-## Übergabe O9 (2.10. spät, Vadims Urteil zu O8, in neuer Session bauen)
+## Finale O9 (2.10. abends, gebaut aus der Übergabe O9, wartet auf Vadims Urteil)
 
-Start: diese Liste, dann `previz/review/O8/O8.toml` nach `O9/O9.toml` kopieren und dort ändern. Code: `finale`,
-`finale_layers`, `_fly`, `spin_stop` (`kickoff_loop_end.py`), Dimmer in `KD.zoom_type`. Vorschau `preview … --draft`.
+`previz/review/O9/` (`preview.mp4`, `orbit.png`, Report), `O9.toml` = O8 + Vadims Urteil zu O8. O8 → `archiv/review/alt/O8/`
+(lädt mit dem neuen Code nicht mehr: `orbit_new_*` sind durch `orbit_words*` ersetzt). Video 6 Takte = 17.6 s.
+1. **JOIN US geht mit dem QR** (`orbit_dissolve = ["qr", "cta"]`).
+2. **Begriffe pro Beat** an der QR-Stelle, je Beat einer ersetzt den vorigen (harter Wechsel auf dem Beat), der letzte bleibt:
+   ROBOTICS, DRONES, AUTONOMOUS / ROBOTS, ROBOT FIGHTS, SENSORS, ELECTRONICS, 3D PRINTING, SOLDERING, dann
+   NEW SEMESTER, / NEW PROJECTS (ab Beat 13). Takt: 6 Takte reichen für 8 Begriffe ab Beat 5 (QR fertig 4.5); 11 hätten erst
+   bei Beat 14.5 geendet (Video endet 16). PCB DESIGN, FIRMWARE stehen nur im Kommentar. `orbit_words` = Liste von
+   Zeilen-Listen, `orbit_words_at_beats`/`_beats`/`_grow_beats`/`_fade_beats`.
+3. **Kristallisieren** (`crystal_order`): je Buchstabe ein Keim, Wachstum über kürzeste Wege durch den Buchstaben mit
+   zufälligen Zellkosten (skimage `MCP_Geometric`), Buchstaben versetzt. 1/3 Beat als Difference (`KL.title_value`),
+   dann 1/4 Beat Fade in die Tinte (`flip_word`). Selbsttest: monoton, höchstens so viele Inseln wie Buchstaben (12/12),
+   am Ende ganze Maske; Gegenprobe Bayer-Einblenden 1144 Inseln.
+4. **Zoom**: Befund O8 je Bild: die Rate stieg bis 40 S33-Puppen pro Bild (= „direkt unscharf“), die Seitenbewegung fiel
+   am Wechsel 86 → 39 px/Bild. Neu `orbit_zoom_max_per_frame` 1.5 (Deckel), Gipfel Beat 4, danach x0.75/Beat. Der Deckel
+   muss über dem Tempo der Bahn am Wechsel liegen (dort schon x1.26/Bild); x1.25 ließ den Bildfluss 231 → 142 fallen,
+   x1.5 hält ihn über dem Wert am Wechsel (242 → 306, Landen der Mitte 258). Bahn-Check: mit Deckel gilt „Fluss nie unter
+   dem am Wechsel“ statt streng monoton, am Deckel halten zählt nicht als Bremsen.
+   **Matrjoschka aus allen Sternen** (`orbit_sparks`, `KD.zoom_sparks`): Puppe j = Stern j mit Radius R x
+   `orbit_sparks_ratio`^j (0.26 = Kern der S33, dort setzt Puppe 1 auf F1 ein), Puppe 0 = S33, von außen nach innen gemalt,
+   jede auf ihre Silhouette beschnitten; neue Puppen wachsen ab 2 Zellen aus dem Punkt. 19 Sterne (alle aus dem Zyklus,
+   je einmal). Keine Bewegungsunschärfe (Verschluss 0). Gate „Sterne pro Bild ≤ 0.5“: 0.30, Gegenprobe ohne Deckel 38.
+   Zweitlicht der Labor-Sterne fällt im Zoom weg. S31e brach bildfüllend ab (`lab_spark.shafts` maß einen leeren Rand):
+   misst dann über alles, Plakate bitgleich (Tabelle O8 = O9).
+5. **Glühen bleibt**: hält den bis zum Gipfel erreichten Wert bis zum Abschluss (`rate_hold`), `orbit_glow_frames` 2.
+6. **Kein Kippen pro Buchstabe** im Ende: KICK-OFF und Datum kippen je Zeile als Ganzes (`KL.type_layers`, nur mit
+   `zoom`, Plakate unverändert). Befund am Bild: auf unruhigem Grund (Zoom-Puppen, Abdimmen) wird eine Zeile dadurch
+   zeitweise schwach; Schlussbild 0.97 A.
+7. **Kerning P–A**: `styles.KERN` (Kernpaare Clash in Versalhöhen, `line_mask` + `width_per_cap`), **leer = heute**.
+   Befund (Versalhöhe 200 px, engster Abstand): P–A −0.15 → 14 px (S–P 13). Titel wird dadurch 42 → 43 Zellen hoch.
+   Bogen `previz/variants/kern.png`: heute / (a) Kasten mittig / (b) Achse des A mittig. (b) bräuchte noch Code in
+   `KL.line_masks` (heute nur im Bogen). Wirkt auf alle Plakate und den Druck → Vadim wählt.
 
-1. **JOIN US geht mit dem QR**: `orbit_dissolve = ["qr", "cta"]` (eine Zeile, Code kann das schon).
-2. **Begriffe pro Beat** nach dem QR-Zerfall, an der freien QR-Stelle, je Beat einer ersetzt den vorigen (Vorschlag:
-   am Ende bleibt NEW SEMESTER, NEW PROJECTS stehen; Vadim bestätigen lassen). Liste (Vadim: „Robotics, Drones, Autonomous
-   Robots, Robotfights, Sensorik, Elektronik und so weiter“), Englisch wie JOIN US/NEW SEMESTER:
-   `ROBOTICS, DRONES, AUTONOMOUS ROBOTS, ROBOT FIGHTS, SENSORS, ELECTRONICS`; **Vorschlag dazu** (Spark macht Zumo-
-   Challenges, Workshops, Maker Night): `3D PRINTING, PCB DESIGN, FIRMWARE, SOLDERING`. Altes W1 hatte deutsch
-   `HARDWARE, ROBOTER, LÖTEN, 3D-DRUCK, CODE, WORKSHOPS, PROJEKTE` (archiv/geparkt/W1) – Mechanik dort: `words_*`.
-   Takt: Beat = 0.7352 s, Karussell-Ende 5.88 s = Beat 0, Video endet Beat 12. Starke Drum-Schläge (igor_beats.json
-   `hits_s`) bei Beat 4.0 / 5.5 / 7.5 / 11.2. Zwischen QR-Zerfall (fertig Beat 4.5) und Abschluss (Beat 9) passen nur
-   **5 Begriffe**; für 8–10: `length_bars` 6 (17.6 s), Abschluss nach hinten. Vadim fragen oder 6 nehmen und sagen.
-3. **Kristallisieren statt Fade** (Vadim: „Pixel für Pixel, natürlich, nicht wie Fade-In, relativ kurz, weil pro Beat“):
-   Zellen setzen in Wachstumsreihenfolge ein (Abstand zu wenigen Keimzellen im Buchstaben + Rauschen, wie Kristalle),
-   in ~1/3 Beat (6 Bilder bei 24 fps), **zuerst als Difference** (Negativ des Untergrunds wie SPARK, `KL.title_value`
-   bzw. früher `card_diff`), danach ein **kurzer Fade** (~1/4 Beat, das will er hier ausdrücklich) in die normale
-   Tintenstufe. Bausteine: `reveal` (bayer/noise/blocks), `bayer`, `KL.title_value`, `KL.flip_word`. Selbsttest am Bild:
-   Anteil gesetzter Zellen wächst monoton und zusammenhängend (Zahl der Inseln sinkt), am Ende = Maske; Gegenprobe Bayer.
-4. **Zoom „scheiße“**: „Spark kommt schnell, Zoom langsamer, dann direkt unscharf“. Befund O8: am Wechsel Bildtempo
-   **x0.70** (Gate erlaubt 0.67), ab Beat ~2.5 mehr als 1 Puppe pro Bild → Ringe werden radialer Verlauf (= „unscharf“).
-   Wunsch: **weiter zwischen den Sparks wechseln**, nicht nur S33: alle Sparks werden immer größer, Momentum bleibt.
-   Vorschlag: Matrjoschka aus allen Sparks (jede Puppe ein anderer Stil aus `[styles].cycle`, Kamera fliegt durch),
-   Zoomrate gedeckelt unter ~0.5 Puppe/Bild (dann keine Unschärfe nötig), Tempo am Wechsel ≥ x1.0. „Langsamer werden
-   können wir auch, wenn die Sparks wechseln.“ Heute stoppt der Wechsel bei `orbit_cycle_beats` 1.73.
-5. **Glühen bleibt** (Vadim: „soll nicht weggehen, hört auf, wird langsamer“): heute hängt es an der Zoomrate und
-   klingt nach dem Gipfel ab. Neu: einmal erreicht, steht es bis zum Abschluss.
-6. **Kein Kippen pro Buchstabe** bei KICK-OFF/Datum (heute `flip_glyphs`, im Zoom wechseln sie hell/dunkel). Im Ende
-   `flip_word` je Zeile. Offen: auch auf allen 64 Plakaten? Vadim sagte 1.10. „niemals unterschiedliche
-   Buchstabenfarben“ (bisher nur JOIN US). Vorschlag: systemweit, Lesbarkeits-Gate prüfen, Vadim fragen.
-7. **Kerning P–A in SPARK** (Vadim: „zwischen P und A mehr Platz, das A soll richtig zentriert sein, P näher ran“).
-   Befund (Clash, Versalhöhe 200 px, kleinster/mittlerer waagerechter Abstand zeilenweise): S–P 13/32, **P–A 44/85**,
-   A–R 6/49, R–K 9/28. P–A ist 3–7x so weit wie die anderen (A schiebt sich unter den offenen Bauch des P).
-   Vorschlag: Kern-Paar P–A ≈ −0.15 Versalhöhe (engster Abstand ~13 wie S–P) in `S.line_mask`/Clash-Satz, dann
-   zentrieren: Varianten (a) Kasten mittig, (b) Achse des A auf Bildmitte. Beide im Bogen zeigen. Wirkt auf alle Plakate
-   und Druck (Cache kalt, Lesbarkeit neu messen).
-8. Version: `O9` mit allem oben, `preview --draft`, dann voll. Danach O8 → `archiv/review/alt/`.
+**Fragen an Vadim:** Begriffe und Reihenfolge, 8 statt 10 ok? Kerning a / b / so lassen? Kippen je Zeile auch auf den
+64 Plakaten (heute pro Buchstabe)? Matrjoschka-Tempo (Deckel, Gipfel, Abklingen) und Puppenabstand 0.26?
 
 Parallel offen: **Druckmarken fertig, nicht gemergt**: Branch `worktree-agent-a242633ca97527a0e` (Commit 21b027b,
 gepusht), `src/kickoff_loop_marks.py` + `[marks]` in loop.toml + Abschnitt „Druckmarken“ in seiner CLAUDE.md. Verfahren:
@@ -143,7 +140,7 @@ vor dem Großdruck. Merge: `git merge worktree-agent-a242633ca97527a0e` (Probe-M
 **Steganografie/Schnitzeljagd**: in der Session 2.10. nicht
 gebaut, ein Sicherheitsfilter hat den Auftrag blockiert. Vadim entscheidet, wie es weitergeht.
 
-## Finale O8 (2.10., Urteil siehe Übergabe O9 oben)
+## Finale O8 (2.10., Urteil umgesetzt in O9 oben, archiviert)
 
 Vadim zum Ende: „Matrjoschka soll sich nicht drehen, langsamer werden, gerade bleiben; kein neuer Titel, QR brauchen wir
 nicht; Titel glüht, damit man sieht, wie stark wir reinzoomen; Gradient funktioniert nicht (nur Linien nach oben); nur der
@@ -193,7 +190,9 @@ QR löst sich nach vorn in Pixel auf, dann NEW SEMESTER, NEW PROJECTS; das Abdim
 | `orbit_spin_stop_beats`, `_rest_deg` | Finale: Drehung läuft in ~so vielen Beats aus, steht auf rest + n·60° | 2, 0 |
 | `orbit_glow_frames`, `_max_scale` | Finale: Länge des Zoom-Glühens (Zoom in so vielen Bildern), Deckel | 0.25, 1.6 |
 | `orbit_dissolve`, `_at_beats`, `_beats`, `_scale` | Finale: welche Satzteile nach vorn zerfallen, wann, wie lange, bis zu welchem Maßstab | ["qr"], 3, 1.5, 6 |
-| `orbit_new_lines`, `_at_beats`, `_in_beats` | Finale: neue Zeilen an der QR-Stelle | NEW SEMESTER, / NEW PROJECTS, 4, 1 |
+| `orbit_words`, `_at_beats`, `_beats`, `_grow_beats`, `_fade_beats` | Finale: Begriffe an der QR-Stelle, je Beat einer, kristallisieren, letzter bleibt | O9: 9 Begriffe, 5, 1, 0.33, 0.25 |
+| `orbit_zoom_max_per_frame` | Deckel der Zoomrate (Maßstab pro Bild) | O9: 1.5 |
+| `orbit_sparks`, `_ratio` | Matrjoschka aus diesen Sternen statt S33-Infinite-Zoom, Größe der nächsten Puppe | O9: 19 Sterne, 0.26 |
 | `orbit_close_at_beats`, `_beats` | Finale: Abschluss (Zoom kippt in den Grund) | 9, 1 |
 
 
