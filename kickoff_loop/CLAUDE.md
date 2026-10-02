@@ -93,6 +93,31 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
   Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
 - **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
+## Finale O8 (2.10., wartet auf Vadims Urteil)
+
+Vadim zum Ende: „Matrjoschka soll sich nicht drehen, langsamer werden, gerade bleiben; kein neuer Titel, QR brauchen wir
+nicht; Titel glüht, damit man sieht, wie stark wir reinzoomen; Gradient funktioniert nicht (nur Linien nach oben); nur der
+QR löst sich nach vorn in Pixel auf, dann NEW SEMESTER, NEW PROJECTS; das Abdimmen schließt das Video ab.“
+`previz/review/O8/O8.toml` = Vadims `O7/test.toml` (Ziel mittig, Blende 0.1) + Finale (`finale`/`finale_layers` in
+`kickoff_loop_end.py`, Dimmer in `KD.zoom_type`). `card_on = false`, Morph und Verlauf aus.
+- **Zoom** zieht bis `orbit_zoom_peak_beats` 3.5 an (x8/Beat, Bahn-Check misst bis 3.45: clean), danach Rate x0.25/Beat:
+  die Ringe werden wieder sichtbar und laufen langsam. Ohne Gipfel lief R über `float` (Überlauf nach ~7 Beats).
+- **Drehung** läuft linear aus (`spin_stop`, Tempo am Wurf stetig x1.02) und steht ab Beat ~3.5 gerade (Vielfaches von
+  60°). Bahn-Check zählt beim Finale die Drehung nicht mehr als „langsamer“ (gewollt).
+- **Zoom-Glühen**: SPARK + KICK-OFF/Datum 16-mal um die Zoom-Mitte vergrößert, in der hellsten Stufe, Länge = Zoom in
+  `orbit_glow_frames` Bildern (Deckel `orbit_glow_max_scale` 1.6), klingt mit dem Zoom und dem Abschluss ab.
+- **QR** zerfällt ab Beat 3 in 1.5 Beats: je Modul ein Splitter mit eigener Tiefe/Verzögerung, wächst bis x6 um die
+  Zoom-Mitte und kippt im Korn weg (`_fly`). `orbit_dissolve = ["qr", "cta"]` nähme JOIN US mit.
+- **NEW SEMESTER, / NEW PROJECTS** an der QR-Stelle (Größe/Zeilenabstand wie KICK-OFF/Datum, letzte Grundlinie auf der
+  QR-Unterkante), Beat 4–5, kippt als ganzes Wort (`flip_word`; pro Buchstabe gab gemischte Farben).
+- **Abschluss** Beat 9–10: alles außer Schrift kippt im Korn in Grundstufe 0, dann 2 Beats Satz allein.
+  Befund: `flip_glyphs` hielt den abgedimmten Stern noch für hell und ließ Buchstaben verschwinden → `c.star_m` wird mit
+  abgedimmt.
+- Report „Finale“: QR im Schlussbild weg, Lesbarkeit SPARK + Datum + neue Zeilen **0.97 A**. Selbsttest „Drehung läuft
+  aus“ (Gegenprobe alte Drehung schlägt an). **Stroboskop-Gate FEHLER 0.83 > 0.3** kommt aus Vadims Blende 0.1 (O7/test
+  genauso, O7 mit 0.5: 0.23 ok), nicht vom Finale. Vadim entscheidet.
+- KICK-OFF/Datum kippen weiter pro Buchstabe (Systemregel aus dem Loop); im Zoom wechseln sie dadurch hell/dunkel.
+
 **Stellschrauben Ende** (alle in `[ending]` der Varianten-TOML; Report-Zeile „Bahn-Check“ sagt, ob es noch clean ist):
 
 | Schlüssel | macht | O6 / O7 |
@@ -114,6 +139,12 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
 | `card_reveal` | bayer / blocks / noise | bayer |
 | `card_dim_frac` | Grund unter der Karte abdimmen (1 = Zoom geht ganz in den Grund) | 0 / 1 |
 | `card_*_frac`, `card_qr_*` | Layout der Karte (Titelbreite, Abstände, QR-Größe/-Lage) | |
+| `orbit_zoom_peak_beats`, `_decay` | Finale: Zoom zieht bis hier an, danach Rate x decay pro Beat | O8: 3.5, 0.25 |
+| `orbit_spin_stop_beats`, `_rest_deg` | Finale: Drehung läuft in ~so vielen Beats aus, steht auf rest + n·60° | 2, 0 |
+| `orbit_glow_frames`, `_max_scale` | Finale: Länge des Zoom-Glühens (Zoom in so vielen Bildern), Deckel | 0.25, 1.6 |
+| `orbit_dissolve`, `_at_beats`, `_beats`, `_scale` | Finale: welche Satzteile nach vorn zerfallen, wann, wie lange, bis zu welchem Maßstab | ["qr"], 3, 1.5, 6 |
+| `orbit_new_lines`, `_at_beats`, `_in_beats` | Finale: neue Zeilen an der QR-Stelle | NEW SEMESTER, / NEW PROJECTS, 4, 1 |
+| `orbit_close_at_beats`, `_beats` | Finale: Abschluss (Zoom kippt in den Grund) | 9, 1 |
 
 
 ## Stand vor O6/O7 (Übergabe O4/O5 erledigt 1.10. abends, Details oben)

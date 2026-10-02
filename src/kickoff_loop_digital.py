@@ -282,12 +282,20 @@ def zoom_type(c):
     thr = bayer_cells(c)
     n0 = len(c.layers)
     morph = zm.get("morph") or {}
+    fin = zm.get("finale")
+    if fin and fin["close"] > 0:                                          # Abschluss: Zoom kippt unter der Schrift in den Grund
+        c.add("dim", thr < fin["close"], c.lvl(0))
+        c.star_m = c.star_m & (thr >= fin["close"])                       # abgedimmt ist Grund: Schrift kippt dort nicht
+        n0 = len(c.layers)
     if zm["type_out"] < 1:
         KL.type_layers(c)
         for j in range(n0, len(c.layers)):
             name, a, v, flat, D = c.layers[j]
             keep = thr >= max(zm["type_out"], morph.get(name, 0.0))          # morph: je Element (kickoff_loop_end.MORPH)
             c.layers[j] = (name, a * styles.up(keep.astype(np.float32), c.px), np.where(keep, v, np.nan), flat, D)
+    if fin:
+        import kickoff_loop_end as KE
+        KE.finale_layers(c, fin, n0)
     if zm["info"] and zm["info_in"] > 0:
         cap = zm["info_cap_cells"] * c.px
         lead = round(zm["info_lead_frac"] * zm["info_cap_cells"]) * c.px

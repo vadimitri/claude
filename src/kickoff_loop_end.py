@@ -67,7 +67,15 @@ ORBIT_KEYS = ("orbit_path", "orbit_frame", "orbit_loops", "orbit_loop_speedup", 
 ORBIT_PATH_KEYS = {"throw": ("orbit_throw_speedup",),
                    "dive": ("orbit_throw_speedup", "orbit_dive_lead_frames", "orbit_dive_core_shrink",
                             "orbit_dive_shutter_frac", "orbit_dive_drift_pow", "orbit_dive_target")}
-PHASE_EPS = 1e-6     # Bahn: so nah an einer ganzen Phase = ganze Phase (Float-Rest aus Tempo x Zeit, sonst nie bitgleich)
+FINALE_KEYS = ("orbit_zoom_peak_beats", "orbit_zoom_decay", "orbit_spin_stop_beats", "orbit_spin_rest_deg", "orbit_glow_frames", "orbit_glow_max_scale",
+               "orbit_dissolve", "orbit_dissolve_at_beats", "orbit_dissolve_beats", "orbit_dissolve_scale",
+               "orbit_new_lines", "orbit_new_at_beats", "orbit_new_in_beats", "orbit_close_at_beats", "orbit_close_beats")
+STAR_SYM_DEG = 60.0  # der Stern hat 6 Zacken: alle 60 Grad steht er wieder gleich (gerade)
+GLOW_SAMPLES = 16    # Zoom-Gluehen: so viele vergroesserte Kopien der Schrift (darunter zerfaellt der Schweif in Stufen)
+FRAG_SEED = 43       # QR-Zerfall: fester Zufall je Splitter (Tiefe, Verzoegerung), gleiche Datei = gleiches Bild
+FRAG_DELAY = 0.5     # ... Splitter starten in der ersten Haelfte des Zerfalls, fliegen in der zweiten
+FRAG_DEPTH = (0.35, 1.0)   # ... Anteil am vollen Wachstum orbit_dissolve_scale je Splitter (Parallaxe: nahe fliegen schneller)
+PHASE_EPS = 1e-6    # Bahn: so nah an einer ganzen Phase = ganze Phase (Float-Rest aus Tempo x Zeit, sonst nie bitgleich)
 TANGENT_H = 1e-3     # Schleuder: Schrittweite (Bahnframes) der zentralen Differenz fuer die Tangente beim Loslassen
 RELEASE_JUMP = 1.5   # Selbsttest Bahn: Schritt beim Bahnwechsel hoechstens 1.5 x der groessere Nachbarschritt (sonst Sprung)
 ZOOM_SMOOTH_PX = 6.0  # Zoom am Bild: Glaettung vor der Messung (Bayer-Korn 4 Zellen, steht im Bild fest)
@@ -384,6 +392,20 @@ def check_orbit(cfg, beats_left):
     assert a >= 1, "[ending].orbit_loop_speedup >= 1 (Tempo des digitalen Loops x a pro Beat, 1 = T16 gleichmaessig)"
     assert e["orbit_flow_in_beats"] > 0 and e["orbit_flow_steps"] >= 0 and e["orbit_flow_per_beat"] >= 0, \
         "[ending]: orbit_flow_in_beats > 0, orbit_flow_steps >= 0, orbit_flow_per_beat >= 0"
+    if any(k in e for k in FINALE_KEYS):                                  # O8: Titel bleibt, QR zerfaellt, Abschluss
+        miss = [k for k in FINALE_KEYS if k not in e]
+        assert not miss, f"[ending] Finale (O8) braucht noch: {', '.join(miss)}"
+        assert path == "dive" and not e["card_on"], "[ending] Finale: nur mit orbit_path = dive und card_on = false"
+        assert e["orbit_spin_stop_beats"] > 0 and e["orbit_glow_frames"] >= 0 and e["orbit_glow_max_scale"] >= 1 \
+            and e["orbit_dissolve_beats"] > 0 and e["orbit_dissolve_scale"] >= 1 and e["orbit_new_in_beats"] > 0 \
+            and e["orbit_close_beats"] > 0 and 0 < e["orbit_zoom_decay"] <= 1, (
+                                             "[ending] Finale: orbit_zoom_decay 0..1, orbit_spin_stop_beats > 0, orbit_glow_frames >= 0, "
+                                             "orbit_glow_max_scale >= 1, orbit_dissolve_beats > 0, orbit_dissolve_scale >= 1, "
+                                             "orbit_new_in_beats > 0, orbit_close_beats > 0")
+        bad = [x for x in e["orbit_dissolve"] if x not in ("qr", "cta", "title", "date")]
+        assert not bad, f"[ending].orbit_dissolve: Teile des Plakatsatzes qr | cta | title | date, nicht {bad}"
+        assert e["orbit_close_at_beats"] + e["orbit_close_beats"] <= beats_left, \
+            f"[ending] Finale: Abschluss endet nach dem Video ({beats_left:g} Beats nach dem Karussell-Ende)"
     e.update(orbit_at_beats=_beats_to(steps / per_beat, a), _orbit_derived=True)   # Bahnwechsel auf orbit_frame
     assert e["orbit_at_beats"] < beats_left, f"[ending]: Bahnwechsel nach {e['orbit_at_beats']:g} Beats, Video endet vorher"
     assert e["orbit_spin_speedup"] >= 1 and e["orbit_type_out_beats"] > 0 and e["orbit_cycle_beats"] >= 0, \
@@ -508,7 +530,11 @@ def orbit_star(cfg, dt, jump=0.0):
         rot = orbit_px(cfg, orbit_phase(cfg, dt))[3]
     else:
         tau = dt - t_r
-        rot = orbit_px(cfg, phi_r + jump)[3] + w0 * (tau + 0.5 * (e["orbit_spin_speedup"] - 1) * tau * tau / b)
+        rot0 = orbit_px(cfg, phi_r + jump)[3]
+        if e.get("orbit_spin_stop_beats"):                                 # O8 (Vadim 2.10.: "nicht drehen, langsamer
+            rot = rot0 + spin_stop(w0, rot0, e["orbit_spin_stop_beats"] * b, e["orbit_spin_rest_deg"], tau)  # werden, gerade bleiben")
+        else:
+            rot = rot0 + w0 * (tau + 0.5 * (e["orbit_spin_speedup"] - 1) * tau * tau / b)
     if dt <= t_s:
         x, y, R, _ = orbit_px(cfg, orbit_phase(cfg, dt))
         return dict(star=(x, y, R, rot) if R > 0 else None, dolls=0.0, blur=0.0, loop=True)
@@ -516,7 +542,11 @@ def orbit_star(cfg, dt, jump=0.0):
     (x0, y0, R0), (vx, vy, vR) = orbit_kin(cfg, phi_s + jump, orbit_rate(cfg, t_s))
     if e["orbit_path"] == "dive":
         g0 = vR / R0
-        G = lambda t: g0 * _ramp(t, b, k)                                   # noqa: E731  ln(R / R0)
+        tp = e.get("orbit_zoom_peak_beats", math.inf) * b - t_s            # Finale: bis hier zieht der Zoom an, danach
+        d_ = e.get("orbit_zoom_decay", 1.0)                                # faellt die Rate x orbit_zoom_decay pro Beat
+        rate = lambda t: g0 * k ** (min(t, tp) / b) * d_ ** (max(t - tp, 0) / b)   # noqa: E731  d ln R / dt
+        G = lambda t: g0 * _ramp(np.minimum(t, tp), b, k) + g0 * k ** (tp / b) * _ramp(np.maximum(t - tp, 0), b, d_) \
+            if tp < math.inf else g0 * _ramp(t, b, k)                     # noqa: E731  ln(R / R0)
         def drift(t):                                                      # Weg der Mitte / v0
             s = np.linspace(0.0, t, THROW_SAMPLES)
             f = np.exp(-e["orbit_dive_drift_pow"] * G(s))
@@ -531,9 +561,9 @@ def orbit_star(cfg, dt, jump=0.0):
             x = x0 + h10 * T * vx + h01 * (tx - x0)                        # Umkehr, kein Ueberschiessen)
             y = y0 + h10 * T * vy + h01 * (ty - y0)
         dolls = max(G(tau) - G(t_r - t_s), 0.0) / math.log(1 / KD.DOLL_RATIO)
-        blur = 2 * e["orbit_dive_shutter_frac"] * g0 * k ** (tau / b) / math.log(1 / KD.DOLL_RATIO) / cfg["video"]["timeline_fps"]
+        blur = 2 * e["orbit_dive_shutter_frac"] * rate(tau) / math.log(1 / KD.DOLL_RATIO) / cfg["video"]["timeline_fps"]
         return dict(star=(x, y, R0 * math.exp(G(tau)), rot), dolls=dolls,
-                    blur=blur if dt > t_r else 0.0, loop=dt <= t_r)
+                    blur=blur if dt > t_r else 0.0, loop=dt <= t_r, rate=rate(tau))
     F = _ramp(tau, b, k)
     cx, cy, R = x0 + vx * F, y0 + vy * F, R0 + vR * F
     clear = KL.STAR_CLEAR * max(R, 0.0)
@@ -541,6 +571,21 @@ def orbit_star(cfg, dt, jump=0.0):
     if R < cell or out:
         return dict(star=None, ghost=(cx, cy, max(R, 0.0) if out else GONE_R_PX, rot), dolls=0.0, blur=0.0, loop=False)
     return dict(star=(cx, cy, R, rot), dolls=0.0, blur=0.0, loop=False)
+
+
+def spin_stop(w0, rot0, T0, rest, tau):
+    """Drehung tau s nach dem Wurf, wenn sie auslaeuft: Tempo faellt linear von w0 (Grad/s, stetig zur Bahn) auf 0 und
+    der Stern steht gerade (rest + Vielfache von STAR_SYM_DEG). Die Dauer T wird um T0 so gewaehlt, dass er genau dort
+    zur Ruhe kommt (Weg = w0 T / 2, auf die naechste gerade Lage in Drehrichtung gerundet)."""
+    if abs(w0) < 1e-9:
+        return 0.0
+    goal = rest + STAR_SYM_DEG * round((rot0 + w0 * T0 / 2 - rest) / STAR_SYM_DEG)
+    d = goal - rot0
+    if d * w0 <= 0:                                                        # nie rueckwaerts: naechste Lage voraus
+        d += math.copysign(STAR_SYM_DEG, w0)
+    T = 2 * d / w0
+    u = min(tau, T)
+    return w0 * (u - u * u / (2 * T))
 
 
 def orbit_poster(cfg, dt):
@@ -567,6 +612,8 @@ def orbit_state(cfg, dt, jump=0.0):
     t_star = dt                               # steht die Karte (erster Einsatz fertig), steht der Stern bzw. sein Grund:
     if e["card_on"]:                          # gleiche Bilder rendern nur einmal
         t_star = min(dt, (min(mv[1] for mv in e["card_moves"]) + e["card_in_beats"]) * b)
+    elif "orbit_close_at_beats" in e:         # Finale: nach dem Abschluss liegt alles im Grund
+        t_star = min(dt, (e["orbit_close_at_beats"] + e["orbit_close_beats"]) * b)
     os_ = orbit_star(cfg, t_star, jump)
     idx = orbit_poster(cfg, dt)
     st = KL.poster_style(cfg, idx)
@@ -589,12 +636,39 @@ def orbit_state(cfg, dt, jump=0.0):
     if not os_["loop"] or tout > 0 or card or flow:                        # sonst exakt das Plakat-Dict (bitgleich)
         dg.update(poster=idx, card=card, zoom=dict(dolls=round(os_["dolls"], 6), type_out=round(tout, 4), info=[],
                                                    info_in=0.0, core_shrink=e.get("orbit_dive_core_shrink", 0.0),
-                                                   blur=round(os_.get("blur", 0.0), 4), flow=flow, morph=morph))
+                                                   blur=round(os_.get("blur", 0.0), 4), flow=flow, morph=morph,
+                                                   finale=finale(cfg, dt, os_)))
         st["type_fn"] = KD.zoom_card_type
     st["rot"] = star[3]                                                    # Labor-Sterne drehen nach st["rot"]
     st["loop"] = {**st["loop"], "digital": dg}
     st["star"] = (star[0] / W, star[1] / H, star[2] / W)
     return st
+
+
+def _prog(dt, at, dur, b):
+    """Fortschritt 0..1 einer Phase, die at Beats nach dem Karussell-Ende beginnt und dur Beats dauert."""
+    return min(max((dt - at * b) / (dur * b), 0.0), 1.0)
+
+
+def finale(cfg, dt, os_):
+    """O8 (Vadim 2.10.): kein neuer Titel, keine Karte. Der Plakatsatz bleibt stehen, waehrend die Kamera in die
+    Matrjoschka taucht:
+      glow      Zoom-Gluehen am Titelblock: ln-Massstab, um den die Kamera in orbit_glow_frames Bildern waechst
+                (gedeckelt bei orbit_glow_max_scale). Je staerker der Zoom, desto laenger der Schweif.
+      dissolve  0..1, orbit_dissolve-Teile (QR) zerfallen nach vorn in Splitter
+      new       0..1, orbit_new_lines dithern an der QR-Stelle ein
+      close     0..1, Abschluss: alles ausser der Schrift kippt im Korn in den Grund (frueher card_dim_frac)
+    None ohne Finale-Schluessel."""
+    e, b = cfg["ending"], beat(cfg)
+    if "orbit_close_at_beats" not in e:
+        return None
+    close = _prog(dt, e["orbit_close_at_beats"], e["orbit_close_beats"], b)
+    span = os_.get("rate", 0.0) / cfg["video"]["timeline_fps"] * e["orbit_glow_frames"]
+    glow = min(span, math.log(e["orbit_glow_max_scale"])) * (1 - close) if not os_["loop"] else 0.0
+    return dict(glow=round(glow, 4), close=round(close, 3), parts=list(e["orbit_dissolve"]),
+                dissolve=round(_prog(dt, e["orbit_dissolve_at_beats"], e["orbit_dissolve_beats"], b), 3),
+                scale=e["orbit_dissolve_scale"], lines=list(e["orbit_new_lines"]),
+                new=round(_prog(dt, e["orbit_new_at_beats"], e["orbit_new_in_beats"], b), 3))
 
 
 def orbit_flow(cfg, dt):
@@ -678,7 +752,8 @@ def orbit_measure(cfg, jump=0.0):
 
     def flat(xs):                                                          # Zoom/Schrumpfen muss echt anziehen (ein
         return sum(1 for a, c in zip(xs, xs[1:]) if c <= a * (1 + SLOW_EPS))   # Zoom aus dem Stand bleibt sonst bei 0)
-    slow = flat(rates) + falls(spins) + (falls(flow) if e["orbit_path"] == "dive" else falls(sizes))
+    spin_slow = 0 if e.get("orbit_spin_stop_beats") else falls(spins)     # Finale: Drehung laeuft gewollt aus
+    slow = flat(rates) + spin_slow + (falls(flow) if e["orbit_path"] == "dive" else falls(sizes))
     turn = sum(1 for a, c in zip(after, after[1:])
                if math.hypot(*a[:2]) > MOVE_PX and math.hypot(*c[:2]) > MOVE_PX and a[0] * c[0] + a[1] * c[1] < 0)
     x, y = seq[-1][:2]
@@ -853,6 +928,97 @@ def card_layers(c, cs):
                                       (c.gh, c.gw)).astype(np.float32)
             c.add(name, m, KL.title_value(c, ink) if cs["diff"] else ink)   # diff: wie SPARK auf dem Plakat, Effekte
                                                                             # laufen invertiert durch (Difference-Ebene)
+
+
+def _fly(c, mask, val, u, scale, centre):
+    """Splitter fliegen nach vorn (Vadim 2.10.: "der QR-Code loest sich nach vorne auf, in Pixeln"): je QR-Modul ein
+    Splitter mit eigener Tiefe (FRAG_DEPTH) und Verzoegerung (FRAG_DELAY). Er waechst perspektivisch um centre (die
+    Zoom-Mitte, wie alles beim Eintauchen) bis scale^Tiefe und kippt dabei im Bayer-Korn weg. Nahe Splitter malen
+    zuletzt. Zellraster, ganze Zellen."""
+    import kickoff_loop as KL
+    B = KL.MODULE_CELLS
+    ys, xs = np.nonzero(mask)
+    rng = np.random.default_rng(FRAG_SEED)
+    nb = (c.gh // B + 1, c.gw // B + 1)
+    depth, delay = rng.uniform(*FRAG_DEPTH, nb), rng.uniform(0, FRAG_DELAY, nb)
+    w = np.clip((u - delay[ys // B, xs // B]) / (1 - FRAG_DELAY), 0, 1)
+    keep = bayer(c)[ys, xs] >= w
+    ys, xs, w = ys[keep], xs[keep], w[keep]
+    s = scale ** (w * depth[ys // B, xs // B])
+    out_m, out_v = np.zeros((c.gh, c.gw), bool), np.zeros((c.gh, c.gw), np.float32)
+    cy, cx = centre
+    for j in np.argsort(s, kind="stable"):
+        y0, x0 = cy + (ys[j] - cy) * s[j], cx + (xs[j] - cx) * s[j]
+        y1, x1 = int(round(y0 + s[j])), int(round(x0 + s[j]))
+        y0, x0 = max(int(round(y0)), 0), max(int(round(x0)), 0)
+        if y1 > y0 and x1 > x0:
+            out_m[y0:y1, x0:x1] = True
+            out_v[y0:y1, x0:x1] = val[ys[j], xs[j]]
+    return out_m, out_v
+
+
+def finale_layers(c, f, n0):
+    """Finale (orbit_state -> finale) auf den Plakatsatz ab Ebene n0: Teile in f["parts"] zerfallen nach vorn
+    (_fly), die neuen Zeilen dithern an der QR-Stelle ein (linksbuendig an der Satzkante, Groesse und Zeilenabstand wie
+    KICK-OFF/Datum, letzte Grundlinie auf der QR-Unterkante, Verlauf wie dort, kippt als Ganzes wie JOIN US), dann das
+    Zoom-Gluehen: die Schrift von SPARK und KICK-OFF/Datum, GLOW_SAMPLES-mal um die Zoom-Mitte vergroessert bis
+    exp(f["glow"]), Gewicht faellt nach aussen, in der hellsten Stufe ueber den Untergrund (wie qr_glow), nie ueber
+    Schrift."""
+    import kickoff_loop as KL
+    L, px = c.L, c.px
+    centre = (L["star"][1] / px - 0.5, L["star"][0] / px - 0.5)
+    lum = c.pal @ KL.LUMA
+    hi = c.lvl(int(lum.argmax()))
+    if f["dissolve"] > 0:
+        out = [ly for ly in c.layers[n0:] if ly[0] in f["parts"]]
+        c.layers[n0:] = [ly for ly in c.layers[n0:] if ly[0] not in f["parts"]]
+        if out and f["dissolve"] < 1:
+            v = np.full((c.gh, c.gw), np.nan, np.float32)
+            for ly in out:
+                v = np.where(np.isnan(ly[2]), v, ly[2])
+            m, val = _fly(c, ~np.isnan(v), v, f["dissolve"], f["scale"], centre)
+            c.add("qr", m, val)
+    if f["new"] > 0 and f["lines"]:
+        cap = L["capd"]
+        lead = L["sb"][1] - L["sb"][0] if len(L["sb"]) > 1 else 1.4 * cap
+        mk = np.zeros((c.gh, c.gw), bool)
+        v = np.zeros((c.gh, c.gw), np.float32)
+        steps = c.st["loop"]["type"]["text_gradient_steps"]
+        for j, line in enumerate(f["lines"]):
+            base = L["qbot"] - (len(f["lines"]) - 1 - j) * lead
+            m = S.line_mask(line, "clash", cap, base, L["x0"], px, (c.gh, c.gw))
+            v = np.where(m, KL.line_gradient(c, base, cap, steps), v)
+            mk |= m
+        K._EXTRA["new"] = mk
+        c.add("new", mk & (bayer(c) < f["new"]), KL.flip_word(c, mk, v))   # als Ganzes hell/dunkel wie JOIN US
+    if f["glow"] > 0:
+        text = np.zeros((c.gh, c.gw), bool)
+        for name, _, lv, _, _ in c.layers[n0:]:
+            if name in ("title", "date"):
+                text |= ~np.isnan(lv)
+        anytype = np.zeros_like(text)
+        for _, _, lv, _, _ in c.layers[n0:]:
+            anytype |= ~np.isnan(lv)
+        g = np.zeros((c.gh, c.gw), np.float32)
+        for j in range(1, GLOW_SAMPLES + 1):
+            sc = math.exp(f["glow"] * j / GLOW_SAMPLES)
+            sy = np.round(centre[0] + (c.yy - centre[0]) / sc).astype(int)
+            sx = np.round(centre[1] + (c.xx - centre[1]) / sc).astype(int)
+            ok = (sy >= 0) & (sy < c.gh) & (sx >= 0) & (sx < c.gw)
+            hit = np.zeros_like(text)
+            hit[ok] = text[sy[ok], sx[ok]]
+            g = np.maximum(g, hit * (1 - j / (GLOW_SAMPLES + 1)))
+        u = KL.under(c)
+        c.add("glow", (g > GLOW_MIN) & ~anytype, u + (hi - u) * g)
+
+
+def finale_check(st, img):
+    """Befund am letzten Bild des Finales: (QR noch lesbar?, Lesbarkeit SPARK und KICK-OFF/Datum + neue Zeilen). Die
+    Masken setzt das Rendern (K._EXTRA), deshalb wird das letzte Bild hier einmal im Prozess gerendert."""
+    S.render(st, "9x16", layers=False)
+    K._EXTRA["date"] = K._EXTRA["date"] | K._EXTRA.get("new", False)
+    px = S.BASE["R"] * S.SIZES["9x16"][2]
+    return K.check_qr(img, px), K.legible(img, px)
 
 
 def card_check(st, img):
@@ -1069,7 +1235,37 @@ def selftest(cfg):
         ob, more = orbit_selftest(cfg)
         lines += more
         good &= ob
+        if cfg["ending"].get("orbit_spin_stop_beats"):
+            sp, line = spin_selftest(cfg)
+            lines.append(line)
+            good &= sp
     return ok and good, lines
+
+
+def spin_selftest(cfg):
+    """Finale: die Drehung laeuft aus und steht gerade (Vadim 2.10.). Am Stern je Videobild ab dem Wurf: Tempo stetig
+    am Wurf (x0.67..1.5 des letzten Bahnschritts), nie rueckwaerts, faellt nur, am Ende 0 und Lage = rest + n x 60.
+    Gegenprobe: die alte Drehung (orbit_spin_speedup, ohne Auslauf) steht am Ende nicht."""
+    fps, b = cfg["video"]["timeline_fps"], beat(cfg)
+    t_r, _ = orbit_release(cfg)
+    end = (cfg["ending"]["orbit_close_at_beats"]) * b
+
+    def probe(c):
+        k0 = math.floor(t_r * fps)
+        rot = [orbit_star(c, k / fps)["star"][3] for k in range(k0 - 1, math.floor(end * fps))]
+        d = (np.diff(rot) + STAR_SYM_DEG / 2) % STAR_SYM_DEG - STAR_SYM_DEG / 2   # 6 Zacken: +-240 Grad am Wurf = gleiche Lage
+        rest = (rot[-1] - c["ending"].get("orbit_spin_rest_deg", 0.0) + 30) % STAR_SYM_DEG - 30
+        cont = abs(d[1]) / max(abs(d[0]), 1e-9)
+        ok = 1 / RELEASE_JUMP <= cont <= RELEASE_JUMP and (d[1:] * np.sign(d[0]) >= -1e-9).all() \
+            and (np.abs(d[2:]) <= np.abs(d[1:-1]) + 1e-9).all() and abs(d[-1]) < 1e-6 and abs(rest) < 1e-6
+        return ok, cont, rest, d[-1]
+    ok, cont, rest, last = probe(cfg)
+    old = json.loads(json.dumps(cfg))
+    del old["ending"]["orbit_spin_stop_beats"]
+    bites = not probe(old)[0]
+    return ok and bites, (f"Drehung laeuft aus (Finale): Tempo am Wurf x{cont:.2f}, am Ende {last:.4f} Grad/Bild, Lage "
+                          f"{rest:+.4f} Grad neben gerade: {'ok' if ok else 'FEHLER'}; Gegenprobe alte Drehung: "
+                          f"{'schlaegt an' if bites else 'TEST BLIND'}")
 
 
 if __name__ == "__main__":
