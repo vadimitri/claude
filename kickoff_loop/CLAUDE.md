@@ -93,6 +93,17 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
   Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
 - **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
+## Übergabe O13 (3.10., Vadims Urteil zu O12: „12er-Reihe veraltet, neue Version“) · **noch nicht gebaut**
+
+Start: `previz/review/O12a/O12a.toml` → `O13/O13.toml`. Vadim wörtlich zusammengefasst:
+1. **Weißraum um den QR blockiert die Effekte** → weg. Ebenso **blockiert der Titel dahinter die Sparks** → weg.
+   „Das Problem hatten wir schon dreimal, fix das endlich“: Selbsttest am fertigen Bild, der Effekte hinter QR/Titel misst.
+2. **QR verschwindet nicht verzögert** nach dem großen Spark, sondern **mit dem Momentum** des Sparks, der groß wird.
+3. **Begriffe früher** („wir warten da so blöd“).
+4. **Keine kleinen Sterne in der Mitte**: der große Spark fliegt rein, **bleibt groß** und **wechselt je Begriff** in einen
+   anderen Spark (kontinuierlich).
+5. **Rand um SPARK/KICK-OFF-Schriftzug weg**; das Halo (Glühen) bleibt.
+
 ## Finale O12 (2.10. abends, Vadims Urteil zu O11) · **Vadim: „sieht scheiße aus“ → neue Session**
 
 **Stand der Übergabe:** O12 nur als Stills gesehen (Bogen: blaues Schraffur-Wallpaper, kleine Sterne + Begriff in der
