@@ -599,7 +599,7 @@ def qr_glow(c, q):
     v = base + (hi - base) * g
     if q["glow_profile"] == "steps":
         v = np.round(v * c.N) / c.N
-    glow = (g > GLOW_MIN) & ~plate
+    glow = (g > GLOW_MIN) & ~plate & (not c.st.get("fx_behind_qr"))   # O13 Finale: kein heller Hof, der die Sterne deckt
 
     text = S.line_mask(K.COPY["cta"], "clash", q["label_cap_cells"] * px, top * px, left * px, px, (c.gh, c.gw))
     ys, xs = np.nonzero(text)

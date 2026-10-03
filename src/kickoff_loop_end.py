@@ -428,10 +428,10 @@ def check_orbit(cfg, beats_left):
             f"[ending]: Begriffe laufen bis Beat {end:g}, der Abschluss ist vorher fertig"
         sp = e["orbit_sparks"]
         bad = [x for x in sp if x not in KL.S_CODES]
-        assert sp and not bad and e["orbit_zoom_max_per_frame"] > 1 and e["orbit_stop_r_frac"] > 0 \
+        assert sp and not bad and e["orbit_zoom_max_per_frame"] > 1 and e["orbit_stop_r_frac"] >= 0 \
             and e["orbit_stop_grow_frac"] >= 0 and e["orbit_wall_r_frac"] > 1, (
             f"[ending]: orbit_sparks = Stern-Codes aus [styles].cycle (unbekannt: {bad}), orbit_zoom_max_per_frame > 1, "
-            "orbit_stop_r_frac > 0, orbit_stop_grow_frac >= 0, orbit_wall_r_frac > 1 (x Bildbreite)")
+            "orbit_stop_r_frac >= 0 (0 = grosser Stern wechselt je Begriff), orbit_stop_grow_frac >= 0, orbit_wall_r_frac > 1 (x Bildbreite)")
         bad = [x for x in e["orbit_dissolve"] if x not in ("qr", "cta", "title", "date")]
         assert not bad, f"[ending].orbit_dissolve: Teile des Plakatsatzes qr | cta | title | date, nicht {bad}"
         assert e["orbit_close_at_beats"] + e["orbit_close_beats"] <= beats_left, \
@@ -722,8 +722,15 @@ def orbit_state(cfg, dt, jump=0.0):
                                                    blur=round(os_.get("blur", 0.0), 4), flow=flow, morph=morph,
                                                    finale=finale(cfg, dt, os_)))
         if e.get("orbit_sparks"):                                          # O12: grosser Stern + kleiner Stern je Begriff
-            dg["zoom"]["sparks"] = dict(dolls=[(KL.style_code(cfg, idx), *[round(v, 3) for v in star], None)]
-                                        + stop_sparks(cfg, dt, idx))
+            big = (KL.style_code(cfg, idx), *[round(v, 3) for v in star], None)
+            slot = word_slot(cfg, dt)
+            if e["orbit_stop_r_frac"] == 0 and slot:                       # O13 (Vadim 3.10.: "der grosse Spark bleibt gross,
+                k = slot[0]                                                # jedes Wort ein anderer Spark"): Stil + Colorway
+                big = (e["orbit_sparks"][k % len(e["orbit_sparks"])], *big[1:5],   # der Farbreise wie O12 klein
+                       KL.palette_hex(cfg, (idx + 1 + k) % KL.posters(cfg)))
+            dg["zoom"]["sparks"] = dict(dolls=[big] + stop_sparks(cfg, dt, idx))
+        if e.get("orbit_fx_free") and not os_["loop"]:                     # O13 (Vadim 3.10.: "Weissraum um den QR und der
+            st.update(fx_behind_title=True, fx_behind_qr=True)             # Titel blockieren die Effekte, zum vierten Mal")
         st["type_fn"] = KD.zoom_card_type
     st["rot"] = star[3]                                                    # Labor-Sterne drehen nach st["rot"]
     st["loop"] = {**st["loop"], "digital": dg}
@@ -740,7 +747,7 @@ def stop_sparks(cfg, dt, idx):
     import kickoff_loop as KL
     e, b = cfg["ending"], beat(cfg)
     slot = word_slot(cfg, dt)
-    if slot is None:
+    if slot is None or e["orbit_stop_r_frac"] == 0:                       # 0 = O13: der grosse Stern wechselt statt dessen
         return []
     k, local, ln = slot
     fps = cfg["video"]["timeline_fps"]
@@ -791,7 +798,8 @@ def finale(cfg, dt, os_):
     glow = min(span, math.log(e["orbit_glow_max_scale"])) * (1 - close) if not os_["loop"] else 0.0
     return dict(glow=round(glow, 4), close=round(close, 3), parts=list(e["orbit_dissolve"]),
                 dissolve=round(_prog(dt, e["orbit_dissolve_at_beats"], e["orbit_dissolve_beats"], b), 3),
-                scale=e["orbit_dissolve_scale"], words=finale_words(cfg, dt), flash=e["orbit_words_flash_frac"])
+                scale=e["orbit_dissolve_scale"], words=finale_words(cfg, dt), flash=e["orbit_words_flash_frac"],
+                clear=e.get("orbit_glow_clear_cells", GLOW_CLEAR_CELLS))
 
 
 def finale_words(cfg, dt):
@@ -1206,7 +1214,9 @@ def glow_layer(c, f):
         hit[ok] = text[sy[ok], sx[ok]]
         g = np.maximum(g, hit * (1 - j / (GLOW_SAMPLES + 1)))
     u = KL.under(c)
-    c.add("glow", (g > GLOW_MIN) & ~binary_dilation(text, iterations=GLOW_CLEAR_CELLS), u + (hi - u) * g)
+    clear = f.get("clear", GLOW_CLEAR_CELLS)                              # O13: 0 = kein Rand (Vadim: "Halo ja, Rand nein")
+    keep = ~binary_dilation(text, iterations=clear) if clear > 0 else ~text   # (iterations 0 = bis nichts mehr waechst)
+    c.add("glow", (g > GLOW_MIN) & keep, u + (hi - u) * g)
 
 
 def finale_check(st, img):

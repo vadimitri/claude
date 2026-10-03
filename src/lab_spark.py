@@ -1407,6 +1407,8 @@ def _qr_zone(g, pad_cells=6):
     """JOIN US + QR-Platte (unten links, kickoff.layout) plus Rand, in m: dort keine kleinteiligen Details, sonst
     verschwinden Buchstaben von JOIN US beim Kippen (Befund 1.10.: S50-Linie, S53-Loch unter dem N)."""
     L, c = g.c.L, _cell(g)
+    if g.c.st.get("fx_behind_qr"):                                         # O13 Finale: Effekte laufen auch hier weiter
+        return np.zeros(np.shape(g.Y), bool)
     label = SV_LABEL_CELLS * c
     x1 = (L.get("x0", L["m"]) + L["qs"]) / g.m + pad_cells * c
     y0 = (L["qbot"] - L["qs"]) / g.m - label - pad_cells * c

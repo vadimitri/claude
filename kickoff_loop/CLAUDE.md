@@ -93,7 +93,7 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
   Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
 - **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
-## Übergabe O13 (3.10., Vadims Urteil zu O12: „12er-Reihe veraltet, neue Version“) · **noch nicht gebaut**
+## Finale O13 (3.10., Vadims Urteil zu O12: „12er-Reihe veraltet, neue Version“) · **gebaut, Render siehe unten**
 
 Start: `previz/review/O12a/O12a.toml` → `O13/O13.toml`. Vadim wörtlich zusammengefasst:
 1. **Weißraum um den QR blockiert die Effekte** → weg. Ebenso **blockiert der Titel dahinter die Sparks** → weg.
@@ -103,6 +103,16 @@ Start: `previz/review/O12a/O12a.toml` → `O13/O13.toml`. Vadim wörtlich zusamm
 4. **Keine kleinen Sterne in der Mitte**: der große Spark fliegt rein, **bleibt groß** und **wechselt je Begriff** in einen
    anderen Spark (kontinuierlich).
 5. **Rand um SPARK/KICK-OFF-Schriftzug weg**; das Halo (Glühen) bleibt.
+
+Umsetzung (`previz/review/O13/O13.toml`, je Punkt ein Schalter):
+1. `orbit_fx_free`: ab dem Eintauchen `fx_behind_title` + neues `fx_behind_qr` (`lab_spark._qr_zone` leer, `KL.qr_glow`
+   ohne hellen Hof). Die Ruhezone der QR-Platte selbst bleibt, bis der QR zerfällt.
+2. `orbit_dissolve_at_beats` 1.66 = gemessener Eintauch-Beat (`orbit_switch`), 1 Beat lang, Splitter x6 auf die Kamera.
+3. `orbit_words_at_beats` 3 (O12 5); Abschluss 24, Video 8.5 Takte.
+4. `orbit_stop_r_frac` 0 = keine kleinen Sterne; der große Stern übernimmt je Begriff `orbit_sparks[k]` + Colorway
+   idx+1+k. `orbit_wall_r_frac` 1.5 statt 4 (Befund: R 0.5 → 1.9 → 3.6 x Bildbreite bei Beat 1.5/2/3, bei 4 nur Tapete).
+5. `orbit_glow_clear_cells` 0 (vorher `GLOW_CLEAR_CELLS` frei um die Schrift).
+**Noch offen:** Selbsttest, der Effekte hinter Titel/QR am fertigen Bild misst (Punkt 1 „zum vierten Mal“).
 
 ## Finale O12 (2.10. abends, Vadims Urteil zu O11) · **Vadim: „sieht scheiße aus“ → neue Session**
 
