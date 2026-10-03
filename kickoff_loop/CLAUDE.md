@@ -93,7 +93,7 @@ Draft-Vorschauen: `previz/review/O6/`, `O7/` (`preview_draft.mp4`, `report_draft
   Check dort FEHLER, weil Drehung x3 über 30°/Bild läuft (6 Zacken: wirkt rückwärts).
 - **Offen für Vadim:** O6 vs O7; dann das gewählte `[ending]` + `[endcard]` nach `loop.toml`, `preview` ohne `--draft`.
 
-## Finale O13 (3.10., Vadims Urteil zu O12: „12er-Reihe veraltet, neue Version“) · **gebaut, Render siehe unten**
+## Finale O13 (3.10., Vadims Urteil zu O12: „12er-Reihe veraltet, neue Version“) · **gerendert, wartet auf Vadims Urteil**
 
 Start: `previz/review/O12a/O12a.toml` → `O13/O13.toml`. Vadim wörtlich zusammengefasst:
 1. **Weißraum um den QR blockiert die Effekte** → weg. Ebenso **blockiert der Titel dahinter die Sparks** → weg.
@@ -110,9 +110,13 @@ Umsetzung (`previz/review/O13/O13.toml`, je Punkt ein Schalter):
 2. `orbit_dissolve_at_beats` 1.66 = gemessener Eintauch-Beat (`orbit_switch`), 1 Beat lang, Splitter x6 auf die Kamera.
 3. `orbit_words_at_beats` 3 (O12 5); Abschluss 24, Video 8.5 Takte.
 4. `orbit_stop_r_frac` 0 = keine kleinen Sterne; der große Stern übernimmt je Begriff `orbit_sparks[k]` + Colorway
-   idx+1+k. `orbit_wall_r_frac` 1.5 statt 4 (Befund: R 0.5 → 1.9 → 3.6 x Bildbreite bei Beat 1.5/2/3, bei 4 nur Tapete).
+   idx+1+k. `orbit_wall_r_frac` 2 statt 4 (Befund: R 0.5 → 1.9 → 3.6 x Bildbreite bei Beat 1.5/2/3, bei 4 nur Tapete;
+   1.5 sättigte zu früh: Zoomrate am Wechsel x0.61, Bahn-Check FEHLER; 2: x0.70 ok).
 5. `orbit_glow_clear_cells` 0 (vorher `GLOW_CLEAR_CELLS` frei um die Schrift).
-**Noch offen:** Selbsttest, der Effekte hinter Titel/QR am fertigen Bild misst (Punkt 1 „zum vierten Mal“).
+Render `previz/review/O13/` (`preview.mp4`, `orbit.png`, `contact.png`, Report): QR 64/64, Bahn-Check ok, Schlussbild
+SPARK + KICK-OFF/Datum 0.97 A auf #000; über den Zoom Mittel 0.86, min 0.49 (8.58 s), 34/51 ≥ B. Am Bogen: Effekte laufen
+hinter SPARK, Stern wechselt je Begriff. Schwach: Begriffe auf unruhigen Sternen (ELECTRONICS, LASER CUTTING, HACKATHONS).
+**Noch offen:** Lesbarkeit der Begriffe auf dem großen Stern; Selbsttest, der Effekte hinter Titel/QR am fertigen Bild misst (Punkt 1 „zum vierten Mal“).
 
 ## Finale O12 (2.10. abends, Vadims Urteil zu O11) · **Vadim: „sieht scheiße aus“ → neue Session**
 

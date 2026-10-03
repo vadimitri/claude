@@ -59,7 +59,7 @@ orbit_zoom_decay = 0.88           # ... dann x0.88 pro Beat (O10 0.7: "erst zu s
                                   # Beat 17 auf 1/6 statt 1/260, ~18 Puppen. Bahn-Check clean
 orbit_sparks = ["S48d", "S23", "S54c", "S47", "S50", "S14", "S24", "S31", "S19d", "S31e", "S18d", "S31g", "S58b",
                 "S48e", "S26", "S60d", "S59b", "S56", "S57b"]   # Puppen nach S33: alle Sterne aus [styles].cycle, je einmal
-orbit_wall_r_frac = 1.5    # O13: bleibt als Stern lesbar (O12 4 = Tapete)
+orbit_wall_r_frac = 2.0    # O13: bleibt als Stern lesbar (O12 4 = Tapete; 1.5 bremste den Zoom am Wechsel auf x0.61, Bahn-Check FEHLER)
 # (O12)         # O12: Zoom saettigt weich, der Stern endet bei 4 x Bildbreite und steht als Hintergrund
 orbit_stop_r_frac = 0.0    # O13: keine kleinen Sterne, der grosse wechselt je Begriff
 # (O12)        # ... kleiner Stern je Begriff in der Mitte, Radius 0.22 x Bildbreite ...
