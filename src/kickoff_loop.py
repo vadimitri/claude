@@ -74,6 +74,7 @@ BEHIND_Z = 0.02    # Bahn: Abstand (Bahnradius = 1), ab dem der Stern hinter/neb
 FX_WIN_CELLS = 15   # Titel: Fenster fuer den lokalen Grund. Breiter als Strahlen/Schraffur (1-5 Zellen), schmaler als Schalen
 FX_DEAD = 0.04      # ... Abweichung darunter ist Korn/Rauschen des Grunds (Labor-Gruende schwanken ~0.02-0.04)
 FX_FULL = 0.25      # ... ab dieser Abweichung (gut 1 Palettenstufe bei 6 Stufen) kippt die Tinte ganz in den Grund
+HALO_CLASH_FRAC = 0.1   # Zeile im Gluehen-Block liegt zu mehr als 10 % auf gleich hellem Grund -> volles Gluehen
 GLOW_MIN = 0.02     # QR-Gluehen: darunter unsichtbar im 6-stufigen Bayer-Korn (1/5 Stufe Abstand, 16 Schwellen: ~0.01)
 
 P_CODES = {code: val for code, val, _ in K.PAL}         # "P17" → "signal" (nur Kick-off-Colorways, kein Lila)
@@ -137,7 +138,7 @@ def load(path=CONFIG, music=None):
     for num, d in cfg["type"].get("ink", {}).items():   # [type.ink]: Plakatnummer -> Stufe oder Akzent-Verlauf, nie Lila
         assert num.isdigit() and 1 <= int(num) <= posters(cfg), f"[type.ink]: Plakat {num} gibt es nicht"
         for sel, k in d.items():
-            assert np.isscalar(k) or (len(k) == 2 and not is_lilac(k)), \
+            assert k in ("hell", "dunkel") if isinstance(k, str) else np.isscalar(k) or (len(k) == 2 and not is_lilac(k)), \
                 f"[type.ink] {num} {sel!r}: Stufe 0..N oder [\"#unten\", \"#oben\"] ohne Lila, nicht {k}"
     gd = cfg.get("ground")
     if gd:
@@ -543,6 +544,20 @@ def glyph_mask(c, lines, masks, sel):
     raise KeyError(f"[type.ink]: {sel!r} steht in keiner Zeile {[s for s, *_ in lines]}")
 
 
+def halo_field(c, m, T, strength):
+    """Dichte 0..1 des Schatten-Gluehens um die Maske m (Zellen). Lichtabfall wie das QR-Gluehen ab halo_core_cells,
+    halo_shift_cells [y, x] schiebt es wie einen Schatten (Abfall zur einen Seite laenger), strength skaliert (schwaches
+    Gluehen fuer Zeilen, die es nicht brauchen). Baender in Zweierpotenzen = saubere Ordered-Dither-Muster (voll,
+    Schachbrett, 1/4, 1/8). Innenraeume (O, D, 0, 4): nur die erste Zelle als Kontur, die Mitte bleibt durchsichtig
+    (ganz gefuellt war "super scheisse", ganz frei liess das O wie eine Scheibe aussehen)."""
+    dy, dx = T["halo_shift_cells"]
+    d = distance_transform_edt(~np.roll(m, (dy, dx), (0, 1))) - 0.5
+    g = strength * np.exp(-GLOW_LIGHT_E * np.maximum(d - T["halo_core_cells"], 0) / T["halo_cells"])
+    g = np.where(g > GLOW_MIN, 2.0 ** -np.round(-np.log2(np.maximum(g, 1e-9))), 0)
+    holes = binary_fill_holes(m) & ~m
+    return np.where(holes & (distance_transform_edt(~m) > 1), 0, g)
+
+
 def rect(c, y0, x0, y1, x1, r=0):
     """Rechteck-Maske in Zellen, [y0, y1) x [x0, x1). r > 0: Ecken als Pixeltreppe (eine Zelle gehoert dazu, wenn ihre
     Mitte im Viertelkreis mit Radius r liegt). Nur ganze Zellen, keine Kantenglaettung."""
@@ -708,25 +723,43 @@ def type_layers(c):
             val = v
             for m in masks:
                 val = np.where(m, flip_word(c, m, v), val)
-            halo = [] if lp["digital"] else lp["type"].get("halo", {}).get(str(lp["i"] + 1), [])
-            if halo:                                  # Schatten-Gluehen: Zeile in Tinte (kein Kippen), um die Buchstaben
-                hm = np.logical_or.reduce([glyph_mask(c, lines, masks, sel) for sel in halo])  # faellt der Grund ab wie
-                val = np.where(hm, v, val)            # das QR-Gluehen (Lichtabfall), auf dunklem Grund unsichtbar
-                d = distance_transform_edt(~hm) - 0.5   # Bayer direkt zwischen Untergrund und Grundfarbe: ueber die
-                d = np.maximum(d - lp["type"]["halo_core_cells"], 0)   # Kern: dicht an der Schrift, dann Lichtabfall
-                g = np.exp(-GLOW_LIGHT_E * d / lp["type"]["halo_cells"])   # Zwischenstufen gab es einen farbigen Ring
-                g = np.where(g > GLOW_MIN, 2.0 ** -np.round(-np.log2(np.maximum(g, 1e-9))), 0)   # Vadim 6.10. "cleaner":
-                # Baender in Zweierpotenzen = saubere Ordered-Dither-Muster (voll, Schachbrett, 1/4, 1/8), nicht je Zelle neu
-                g = np.where(binary_fill_holes(hm), 0.0, g)   # Innenraeume (0, O, D) bleiben durchsichtig (Vadim 6.10.:
-                                                                    # dunkel gefuellt "super scheisse")
-                c.add("halo", (g > S.tile(S.bayer(4), shape)) & ~hm & ~title_mk, c.lvl(0))   # (Stahlblau, Orange)
+            key, T = str(lp["i"] + 1), lp["type"]
+            halo = [] if lp["digital"] else T.get("halo", {}).get(key, [])
+            strong = np.logical_or.reduce([glyph_mask(c, lines, masks, sel) for sel in halo]) if halo else None
+            if halo:                                  # Zeilen mit vollem Gluehen stehen in Tinte (Vadim 6.10. abgenommen)
+                val = np.where(np.logical_or.reduce([m for m in masks if (m & strong).any()]), v, val)
+            lum = c.pal @ LUMA
+            order = np.argsort(lum)
+            hexes = ["#%02X%02X%02X" % tuple(int(x) for x in c.pal[k]) for k in range(c.N + 1)]
+            mine = []                                 # Akzente dieser Zeilen (fuer die Helligkeit unten)
             if not lp["digital"]:                     # Vadim 6.10.: Farbe je Plakat und Zeile/Wort, immer mit Verlauf
-                for sel, k in lp["type"].get("ink", {}).get(str(lp["i"] + 1), {}).items():
+                for sel, k in T.get("ink", {}).get(key, {}).items():
                     g = glyph_mask(c, lines, masks, sel)
+                    if isinstance(k, str):            # "hell"/"dunkel": die zwei hellsten/dunkelsten Farben (Luminanz),
+                        k = [hexes[order[-2]], hexes[order[-1]]] if k == "hell" else [hexes[order[0]], hexes[order[1]]]
                     if np.isscalar(k):                # Palettenstufe: Verlauf endet auf Stufe k
                         val = np.where(g, np.clip(v - (c.N - k) / c.N, 0, 1), val)
                     else:                             # ["#unten", "#oben"]: eigene Farbe, gleicher Verlauf + Dither
-                        accent.append((g, k))
+                        mine.append((g, k))
+            accent += mine
+            if halo:                                  # Schatten-Gluehen, ganzer Block (Vadim 6.10.: alles oder nichts):
+                block = np.logical_or.reduce(masks)   # genannte Zeilen voll, die anderen schwach (halo_weak). Farbe je
+                                                      # Zeile gegen ihre Schrift: helle Schrift -> dunkles Gluehen
+                best, col = np.zeros(shape), np.zeros(shape, int)   # und umgekehrt, halo_step Stufen zur Mitte, damit es
+                lit = c.star_m | (under(c) > 0.5)     # auch auf dem Grund sichtbar ist (sonst "nur halb die Umrandung")
+                for m in masks:
+                    acc = [hx for g, hx in mine if (g & m).sum() > m.sum() / 2]
+                    tl = (S.hexpal_list(acc[-1]) @ LUMA).mean() if acc else \
+                        np.interp(val[m] * c.N, np.arange(c.N + 1), lum).mean()   # mittlere Helligkeit der Schrift
+                    dk, lt = order[T["halo_step"]], order[-1 - T["halo_step"]]     # Gluehen: die Seite mit mehr Abstand
+                    idx = dk if abs(tl - lum[dk]) >= abs(tl - lum[lt]) else lt    # (Median + Runden kippte bei Pink)
+                    clash = np.mean(lit[m] == (np.median(val[m]) > 0.5))   # Anteil auf gleich hellem Grund: dort braucht
+                    full = (m & strong).any() or clash > HALO_CLASH_FRAC   # die Zeile volles Gluehen (schwach blieb nur
+                    g = halo_field(c, m, T, 1.0 if full else T["halo_weak"])   # ein gepunkteter Umriss, hohle Buchstaben)
+                    best, col = np.where(g > best, g, best), np.where(g > best, idx, col)
+                on = (best > S.tile(S.bayer(4), shape)) & ~block & ~title_mk
+                for idx in np.unique(col[on]):
+                    c.add("halo", on & (col == idx), c.lvl(int(idx)))
         c.add(name, mk, val)
         K._EXTRA[name] = mk
         title_mk = mk if name == "title" else title_mk

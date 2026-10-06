@@ -134,9 +134,11 @@ effects_behind_title = ["S50", "S54c"]   # diese Sterne sparen den Titelblock ni
                            # liefen bisher nur bis zum Titel). Vadim 2.10.: "bei 15, 16, 07, 09, 25, 23 Effekte verborgen".
                            # Glitch (S48c/e/f) bleibt draussen (Vadim 1.10.: Glitch nie im Titelblock)
 title_plain_frames = [13]  # Ausnahme, Titel hier reine Tinte ohne Differenz (Vadim 2.10.: "bei Frame 13 nicht invertiert/dunkel")
-halo_cells = 4             # Schatten-Gluehen um Zeilen aus [type.halo]: Lichtabfall wie das QR-Gluehen, 2 % nach so
-                           # vielen Zellen. Grundfarbe faellt um die Buchstaben ab (auf dunklem Grund unsichtbar)
-halo_core_cells = 1        # davor dicht (ganz Grundfarbe), dann erst der Abfall
+halo_cells = 8             # Schatten-Gluehen: Lichtabfall wie das QR-Gluehen (2 % nach so vielen Zellen), in Zweierpotenz-
+halo_core_cells = 1        # Baendern: erste Zelle dicht, dann Schachbrett, 1/4, 1/8. Kern = so viele Zellen extra dicht
+halo_weak = 0.5            # Staerke fuer Zeilen im Block, die es nicht brauchen (Vadim 6.10.: Gleichmaessigkeit)
+halo_step = 1              # Gegenfarbe der Schrift, so viele Stufen zur Mitte: auch auf dem Grund sichtbar (0 = unsichtbar dort)
+halo_shift_cells = [1, 0]  # [y, x] wie ein Schatten: unten dicht, oben weicher (Vadim 6.10.: "Fade in eine Richtung")
 # Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert. Titelblock steht in jedem
 # Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
 
@@ -146,43 +148,50 @@ halo_core_cells = 1        # davor dicht (ganz Grundfarbe), dann erst der Abfall
 # ["#unten", "#oben"] = eigene Akzentfarbe, gleicher Verlauf und Dither (Vadim 6.10.: nie flach, nie einzelne Buchstaben).
 # Ueberschreibt das automatische Kippen (flip_word). Vadim 6.10. vom Kontaktbogen.
 2 = { "KICK-OFF" = 0, "14.10. / 17:00" = 0, "D-SCHOOL" = 0 }   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
-3 = { "14.10. / 17:00" = 0, "D-SCHOOL" = 0 }   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+3 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
 5 = { "KICK-OFF" = 2, "14.10. / 17:00" = 2, "D-SCHOOL" = 2 }     # Dunkelblau statt Schwarz
 9 = { "KICK-OFF" = ["#991B41", "#BB3F5C"], "14.10. / 17:00" = ["#991B41", "#BB3F5C"], "D-SCHOOL" = ["#991B41", "#BB3F5C"] }   # Karmin (Bogen ink_varianten 9A)
+12 = { "KICK-OFF" = "hell" }   # Vadim 6.10. Runde 2: hell
 15 = { "KICK-OFF" = ["#1A83DB", "#42A3FD"], "14.10. / 17:00" = ["#1A83DB", "#42A3FD"], "D-SCHOOL" = ["#1A83DB", "#42A3FD"] }   # Himmelblau (15B)
-33 = { "14.10. / 17:00" = 0, "D-SCHOOL" = 0 }   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+29 = { "14.10. / 17:00" = "hell" }   # Vadim 6.10. Runde 2: hell
+33 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
+34 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
+39 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
 41 = { "14.10. / 17:00" = 0 }   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+44 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
+64 = { "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
 
 [type.halo]
-# Plakatnummer -> Zeilen/Woerter mit Schatten-Gluehen (halo_cells). Die Zeile steht dann immer in Tinte (kein Kippen).
-3 = ["KICK-OFF"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+# Plakatnummer -> Zeilen mit vollem Schatten-Gluehen (stehen in Tinte). Die anderen Zeilen des Blocks behalten ihre
+# Farbe und bekommen schwaches Gluehen (halo_weak). Farbe des Gluehens = Gegenfarbe der Schrift.
+3 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Runde 2: ganzer Block hell + Gluehen
 6 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, ganzer Block (am Bild geprueft)
 7 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 8 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 10 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
-12 = ["14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+12 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Runde 2: ganzer Block hell + Gluehen
 16 = ["KICK-OFF"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 29 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 31 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 32 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
-33 = ["KICK-OFF"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
-34 = ["KICK-OFF", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+33 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Runde 2: ganzer Block hell + Gluehen
+34 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Runde 2: ganzer Block hell + Gluehen
 35 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, ganzer Block (am Bild geprueft)
 38 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
-39 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+39 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Runde 2: ganzer Block hell + Gluehen
 40 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 42 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
-44 = ["14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+44 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Runde 2: ganzer Block hell + Gluehen
 45 = ["14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 47 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
-48 = ["KICK-OFF"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+48 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Runde 2: ganzer Block hell + Gluehen
 51 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 52 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
-60 = ["14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+60 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Runde 2: ganzer Block hell + Gluehen
 61 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # 61C
 62 = ["KICK-OFF"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 63 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
-64 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+64 = ["14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Runde 2: D-SCHOOL dazu
 
 [qr]
 # JOIN US + QR gluehen ein (Vadim zu v005: keine harte Caption-Box, zurueck zum Gluehen von v003, aber sauber).

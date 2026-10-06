@@ -1,12 +1,12 @@
 loop.toml · 64 Plakate = 32 Aushaenge + 32 Fotoframes · 2 Welt(en) a 32 Frames · Bahn und Stile alle 32 Frames
 Welten: W1 ~P23/P13 > ~P23/P13 > P17/P10 > ~P22/~P24 > ~P22/P20 > P20/P25 > ~P21/P6 > ~P21/P6 > P13/P9 > P20/P9 > P11/P18 > P15/P18 > P20/P17 > ~P16/~P24 > P15/P19 > ~P21/P10 > ~P14/P23 > ~P10/~P17 > P24/P22 > P24/P22 > P16/~P26 > ~P25/~P26 > ~P25/~P26 > ~P25/~P26 > ~P9/~P15 > ~P9/~P11 > ~P18/P16 > ~P14/P16 > ~P19/~P13 > ~P19/~P11 > ~P19/P21 > ~P10/P23 (1 Frames je Station) | W2 P25 > P18 > P9 > P6 > ~P23 > P25 > P18 > P9 > P6 > ~P23 > P25 > P18 > P9 > P6 > ~P23 > P25 > P23 > ~P25 > ~P18 > ~P9 > P23 > ~P25 > ~P18 > ~P9 > P23 > ~P25 > ~P18 > ~P9 > P18 > P9 > P6 > ~P23 (1 Frames je Station)
 QR lesbar: 64/64
-Lesbarkeit Titel+Datum: min 0.38, 0/64 in Stufe A  ! unter A: 01 (0.66) 02 (0.71) 03 (0.74) 04 (0.73) 05 (0.94) 06 (0.80) 07 (0.81) 08 (0.85) 09 (0.82) 10 (0.86) 11 (0.57) 12 (0.84) 13 (0.83) 14 (0.81) 15 (0.80) 16 (0.85) 17 (0.83) 18 (0.82) 19 (0.85) 20 (0.84) 21 (0.84) 22 (0.85) 23 (0.82) 24 (0.85) 25 (0.85) 26 (0.83) 27 (0.62) 28 (0.81) 29 (0.84) 30 (0.92) 31 (0.74) 32 (0.76) 33 (0.64) 34 (0.71) 35 (0.71) 36 (0.74) 37 (0.92) 38 (0.78) 39 (0.82) 40 (0.84) 41 (0.76) 42 (0.85) 43 (0.38) 44 (0.84) 45 (0.82) 46 (0.76) 47 (0.76) 48 (0.85) 49 (0.82) 50 (0.84) 51 (0.85) 52 (0.82) 53 (0.84) 54 (0.91) 55 (0.82) 56 (0.83) 57 (0.85) 58 (0.80) 59 (0.62) 60 (0.82) 61 (0.84) 62 (0.89) 63 (0.71) 64 (0.75)
+Lesbarkeit Titel+Datum: min 0.38, 0/64 in Stufe A  ! unter A: 01 (0.66) 02 (0.71) 03 (0.74) 04 (0.73) 05 (0.94) 06 (0.80) 07 (0.87) 08 (0.85) 09 (0.82) 10 (0.86) 11 (0.57) 12 (0.89) 13 (0.83) 14 (0.81) 15 (0.80) 16 (0.85) 17 (0.83) 18 (0.82) 19 (0.85) 20 (0.84) 21 (0.84) 22 (0.85) 23 (0.82) 24 (0.85) 25 (0.85) 26 (0.83) 27 (0.62) 28 (0.81) 29 (0.86) 30 (0.92) 31 (0.74) 32 (0.77) 33 (0.64) 34 (0.71) 35 (0.71) 36 (0.74) 37 (0.92) 38 (0.78) 39 (0.93) 40 (0.84) 41 (0.76) 42 (0.85) 43 (0.38) 44 (0.89) 45 (0.83) 46 (0.76) 47 (0.76) 48 (0.85) 49 (0.82) 50 (0.84) 51 (0.85) 52 (0.82) 53 (0.84) 54 (0.91) 55 (0.82) 56 (0.83) 57 (0.85) 58 (0.80) 59 (0.62) 60 (0.82) 61 (0.91) 62 (0.90) 63 (0.71) 64 (0.75)
 Lesbarkeit JOIN US: min 0.92 (dunkel 0.92, Papier nan)
 Lila: ok (load prueft jedes Plakat, sonst gaebe es keinen Bogen)
 Blitz, Plakat bildfuellend, 16.32 Plakate/s, 2 Durchgaenge: aus ([checks].flash_gate = false, Vadim 2.10.)
 Loop-Video: 16.32 Plakate/s, 4 Durchgaenge = 15.69 s, Ton ref/audio/igors_theme.mp3
 Harte Weltwechsel (Helligkeit vorher → nachher, Flaeche mit Blitz-Sprung, Flaeche mit Rot-Uebergang):
-  W1 > W2  Plakat 32 > 33  0.38 → 0.30  Sprung  72 %  Rot   0 %
-  W2 > W1  Plakat 64 > 01  0.37 → 0.39  Sprung  70 %  Rot   0 %
+  W1 > W2  Plakat 32 > 33  0.38 → 0.31  Sprung  73 %  Rot   0 %
+  W2 > W1  Plakat 64 > 01  0.37 → 0.39  Sprung  71 %  Rot   0 %
   zum Vergleich, groesster Wechsel innerhalb einer Welt: Plakat 48 > 49  0.05 → 0.68  Sprung 93 %  Rot 0 %

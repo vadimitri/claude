@@ -11,13 +11,19 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
   .5 zur geraden Zahl, sonst sprang er 1 Zelle), linke Zeilen werden an der gemessenen Tinte auf `x0` geschoben.
 - **`[type.ink]`** Plakatnummer -> Zeile/Wort -> Palettenstufe k (Verlauf endet auf k) oder `["#unten", "#oben"]`
   (Akzent mit eigener Ebenenpalette, gleicher Verlauf + Bayer). Vadim: **nie flach, nie einzelne Buchstaben**.
-- **`[type.halo]`** Schatten-Gluehen: Zeile in Tinte, Grundfarbe faellt um die Buchstaben ab (`halo_core_cells` 1 dicht,
-  `halo_cells` 4), Bayer direkt Untergrund <-> Grund (ueber Zwischenstufen gab es einen farbigen 1-Zellen-Ring), Abfall in
-  Zweierpotenz-Baendern (sauber: voll, Schachbrett, 1/4, 1/8), **Innenraeume von O/D/0 durchsichtig** (gefuellt: "super
-  scheisse"). Standard fuer Zeilen halb auf hellem, halb auf dunklem Grund (Akzent-Mitteltoene wurden trueb, Kontrast <= 2.7).
+- **`[type.halo]`** Schatten-Gluehen, **ganzer Block oder nichts** (Vadim 6.10.): genannte Zeilen stehen in Tinte mit vollem
+  Gluehen, die anderen behalten ihre Farbe mit schwachem (`halo_weak` 0.5); eine Zeile, die zu > 10 % auf gleich hellem
+  Grund liegt, bekommt automatisch volles (`HALO_CLASH_FRAC`; schwach blieb dort nur ein gepunkteter Umriss = hohle
+  Buchstaben). Farbe je Zeile = die Seite mit mehr Helligkeitsabstand zur Schrift, `halo_step` 1 Stufe zur Mitte (sonst auf
+  dem Grund unsichtbar, „nur halb die Umrandung“). `halo_cells` 8, Kern 1, `halo_shift_cells` [1, 0] (unten dicht, oben
+  weicher, „Fade in eine Richtung“). Bayer direkt Untergrund <-> Gluehfarbe (ueber Zwischenstufen: farbiger Ring), Baender
+  in Zweierpotenzen. **Innenraeume (O, D, 0, 4): nur die erste Zelle als Kontur, Mitte durchsichtig** (ganz gefuellt:
+  „super scheisse“, ganz frei: O wirkt wie eine Scheibe). `[type.ink]` kennt `"hell"`/`"dunkel"` (zwei hellste/dunkelste
+  Farben nach Luminanz, als Verlauf; Tinte ist auf Papier-Paletten dunkel).
 - Gewaehlt: 5 Dunkelblau (Stufe 2), 9 Karmin-Akzent, 15 Himmelblau-Akzent, 61 Gluehen; Rest der Liste vom 6.10. per
   Messung (Kontrast des schlechtesten Buchstabens je Option auto/dunkel/hell/Gluehen, Wunschrichtung gewinnt bei >= 0.9x):
-  meist Gluehen, dunkel bei 2, 3/33 (Datum, Ort), 41. 6 und 35 am Bild auf Gluehen fuer den ganzen Block korrigiert.
+  meist Gluehen, dunkel bei 2 und 41. Runde 2 (Vadim): 3, 12, 33, 34, 39, 44, 48, 60 ganzer Block hell + Gluehen,
+  29/64 hell, 16/29/52 durch die Block-Regel gleichmaessig. 6 und 35 am Bild auf Gluehen fuer den ganzen Block.
   Vergleich `previz/review/INK/vorher_nachher.png`, ganze Plakate `INK/*.png`.
 - **`[loop].video_only = [1]`**: Aushang nur fuers Video (Druck als Fotoframe, Bogen „V“). Video-only laut Vadim auch 4,
   14, 46, 48 (sind ohnehin Fotoframes).
