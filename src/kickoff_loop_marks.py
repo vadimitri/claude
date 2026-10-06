@@ -6,7 +6,7 @@
 """Druckmarken des Kick-off-Loops: ein unsichtbares Muster im Druckbild, aus dem ein Handyfoto die Frame-Nummer und
 die Lage des Plakats (Homographie) zurueckgibt. Nur im Druck (kickoff_loop.print_files), nie im Video.
 
-  uv run src/kickoff_loop_marks.py align <foto...>   Nummer + Ecken erkennen → kickoff_loop/photos/aligned/NN.png
+  Fotos entzerren + Farbe: src/kickoff_loop_photos.py (nutzt detect/aligned von hier)
   uv run src/kickoff_loop_marks.py test [N..]        Selbsttest an simulierten Fotos des fertigen Druckbilds
                                                      → kickoff_loop/previz/marks/ (report.txt, compare.png)
 
@@ -25,7 +25,6 @@ Verfahren (Stellschrauben in loop.toml [marks], Befund in kickoff_loop/CLAUDE.md
            Entzerren, Marke vom Plakat trennen (je Zelle minus gleichfarbige Nachbarn), Sync in 35 Feldern suchen
            → Punktpaare → Homographie (RANSAC), zweimal, dann die Nummer.
 """
-import glob
 import io
 import os
 import sys
@@ -535,27 +534,6 @@ def aligned(photo, H, cfg):
                                borderMode=cv2.BORDER_REPLICATE)
 
 
-def align(paths, cfg):
-    """Fotos → photos/aligned/NN.png. Mehrere Fotos derselben Nummer: das mit dem staerksten Code gewinnt."""
-    import kickoff_loop_video as V
-    best, lines = {}, []
-    for p in paths:
-        r = detect(load_photo(p), cfg)
-        if "error" in r:
-            lines.append(f"{os.path.basename(p)}: {r['error']}")
-            continue
-        lines.append(f"{os.path.basename(p)}: Frame {r['n']:02d} (z {r['z']:.0f}, naechster {r['z2']:.1f}, "
-                     f"{r['fields']} Felder, Render {'passt' if r['polished'] else 'passt nicht: Lage aus den Marken'})")
-        if r["z"] > best.get(r["n"], (-1,))[0]:
-            best[r["n"]] = (r["z"], p, r["H"])
-    for n, (z, p, H) in sorted(best.items()):
-        out = V.aligned_photo(n - 1)
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        Image.fromarray(aligned(load_photo(p), H, cfg)).save(out)
-        lines.append(f"→ {out}  ({os.path.basename(p)})")
-    return "\n".join(lines)
-
-
 # ---------------------------------------------------------------- Simulation + Selbsttest
 
 def simulate(print_img, px, rng):
@@ -764,9 +742,7 @@ def main():
     cmd = args[0] if args else ""
     cfg = KL.load()
     check(cfg)
-    if cmd == "align" and len(args) > 1:
-        print(align([p for a in args[1:] for p in sorted(glob.glob(a)) or [a]], cfg))
-    elif cmd == "test":
+    if cmd == "test":
         rep, ok = selftest(cfg, [int(a) - 1 for a in args[1:]] or None)
         print(rep)
         sys.exit(0 if ok else 1)

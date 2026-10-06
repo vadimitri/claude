@@ -182,13 +182,12 @@ def aligned_photo(k):
 
 
 def photo_plate(cfg, poster, k):
-    """Echtes, entzerrtes Foto, falls vorhanden (kickoff_loop/photos/aligned/NN.png), sonst Simulation."""
+    """Echtes, entzerrtes Foto, falls vorhanden (kickoff_loop/photos/aligned/NN.png), sonst Simulation. Die Fotos sind
+    fertig gegradet (kickoff_loop_photos: Plakat wie digital, Wand auf surround_luma); grade() hier wuerde das Plakat
+    mit der Wand zusammen noch einmal heller/dunkler ziehen."""
     path = aligned_photo(k)
     if os.path.exists(path):
-        im = Image.open(path).convert("RGB")
-        ph, pw = poster.shape[:2]
-        x0, y0 = (im.width - pw) // 2, (im.height - ph) // 2
-        return grade(im, cfg, (x0, y0, x0 + pw, y0 + ph))
+        return Image.open(path).convert("RGB")
     return simulated_plate(cfg, poster, k)
 
 

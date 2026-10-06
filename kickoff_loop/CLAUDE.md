@@ -37,8 +37,28 @@ In dieser Reihenfolge:
    (x264). Lieferung: `*.mp4` (Master), `*_share.mp4`, ProRes für Resolve (`resolve`).
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
-5. Campus-Fotos (falls das Video echte Fotos zeigt): Probedruck + Handyfoto + `uv run src/kickoff_loop_marks.py align
-   photos/raw/*.jpg` bestätigt das Druckermodell, dann alle Aushänge fotografieren → `photos/aligned/NN.png`.
+5. **Campus-Fotos: läuft** (Abschnitt „Campus-Fotos“ unten): 29/64 als Foto im Video, Rest folgt nach dem Aufhängen 7.10.
+
+## Campus-Fotos (6.10., `src/kickoff_loop_photos.py`, `[photos]` in `loop.toml`) · **Vorschau F1, wartet auf Vadim**
+
+Vadim 6.10.: alles in A4 + A3 gedruckt, aufgehängt, mit der R8 fotografiert; Fotos in Reihenfolge, für die Vorschau
+skaliert, Farben wie digital, nichts (kaum) überbelichtet; fehlende Plakate bleiben Simulation.
+- **Neue Fotos:** SD-Karte → `photos/raw/` (`rsync -a --include='IMG_*.JPG' --exclude='*' /Volumes/Canon/DCIM/<ordner>/
+  kickoff_loop/photos/raw/`), dann `uv run src/kickoff_loop_photos.py` (~1 min, Erkennung je Foto gemerkt in
+  `photos/detect.json`), dann `preview review/F1/F1.toml --draft`. Ausgabe `photos/aligned/NN.png` (fertig gegradet,
+  `photo_plate` gradet echte Fotos nicht mehr nach), Bögen `photos/plates.png` (alle 64 wie im Video) und
+  `photos/colors.png` (Plakat im Foto | digital), `photos/report.txt`. Foto je Plakat erzwingen: `[photos].pick`.
+- **Erkennen:** Marken (`marks.detect`) für 141/170; ohne Treffer QR + Vergleich mit allen 64 Renders + ECC (`identify`):
+  +5 (u. a. 11 dunkelgold). Nicht zuordenbar: Litfaßsäule IMG_1024–1031 (gewölbt, keine Ebene; gelb mit blauem
+  Stern, 19 oder 20), 7 Nicht-Plakat-Fotos. `marks.align` gelöscht (schrieb ungegradete Platten an dieselbe Stelle).
+- **Farbe:** im Plakat linear `(foto^g) @ A + b` gegen den Render, robust gefittet am Inneren (ohne Druckrand-Welle):
+  dE OK Median roh 0.04–0.34 → fertig 0.012–0.05. **Befund:** die volle Matrix auf die Wand hochgerechnet kippt sie
+  (Holztür knallrot, Wand grün/magenta) → Wand bekommt nur die Grauachse der Matrix (Weißabgleich ≤ x1.25, Schwarzpunkt
+  ≤ 0.02, sonst kippte 35 bei einem fast rein roten Plakat), Lichter mit Schulter ab 0.7, dann auf `surround_luma`
+  abgedunkelt, aber nie unter x0.5 und nie heller. Übergang Plakat → Wand 12 Zellen (40 gab einen weißen Glühring).
+  Fast alle Wände landen bei x0.5 (Fotos heller als die Simulation mit 0.22).
+- **Offen:** Ausgefressen im Plakat 17 (6.5 %, Glas), 28 (4.3 %); Wand ausgefressen schon im JPG bei 47, 5, 57
+  (Fenster), rettbar nur über die CR3 (liegen auf der SD-Karte, nicht kopiert). Auswahl je Plakat Vadim (`pick`).
 
 Vadims Regeln aus der Plakat-Runde, gelten fürs Video weiter: nie flache Farben (immer Verlauf + Bayer), nie einzelne
 Buchstaben umfärben, Effekte werden nie von QR/Titel blockiert, kein Drop-Shadow, im Loop keine Zeilen, die sich einzeln
@@ -591,7 +611,8 @@ bei sheet/preview/end die einzige im Ordner.
 | `uv run src/kickoff_loop.py preview review/X/X.toml --draft` | Entwurf: Digitalteil auf Zweiern, kein Zoom-Check → `*_draft.mp4/.png`, `report_draft.txt` (Kopfzeile DRAFT); teilt das Foto-Segment mit der Endversion | Ende geändert ~9 s |
 | `uv run src/kickoff_loop_end.py test review/Z4/Z4.toml` | Selbsttest Ausstiege (Auslauf bremst/landet, Kamera stetig, warp), Gegenprobe linear | ~5 s |
 | `uv run src/kickoff_loop.py frames` / `variants` / `boil` / `print` / `resolve` | Frames rendern / QR-Varianten / Boil-Test / Druck-PDFs (mit Druckmarken) / Resolve-Bausteine | |
-| `uv run src/kickoff_loop_marks.py align <fotos>` / `test` | Campus-Fotos → `photos/aligned/NN.png` / Selbsttest Druckmarken → `previz/marks/` | ~2 s je Foto / ~160 s |
+| `uv run src/kickoff_loop_photos.py` / `test` | Campus-Fotos `photos/raw/` → `photos/aligned/NN.png` + Bögen + Report / Selbsttest Farbausgleich | ~1 min (neue Fotos ~4 s je Stück) / ~3 s |
+| `uv run src/kickoff_loop_marks.py test` | Selbsttest Druckmarken → `previz/marks/` | ~160 s |
 | `uv run src/kickoff_loop_music.py` | Musik + Raster → `ref/audio/mashup_*.wav/.json` | ~5 s |
 
 Frames sind nach Inhalt gecacht (`_cache/`): Schlüssel = ganzes Stil-Dict + Hash nur der Quelltexte, die das Bild
@@ -632,8 +653,7 @@ bleiben bitgleich (65 Renders alt/neu verglichen), Video-Code unberührt.
   (gleichfarbige Nachbarn): 64–90. Marken im QR-Glühen → `check_qr` fiel bei Frame 1/6 durch. Fast-Schwarz trägt im
   Druck praktisch nichts (0.1 DN im Foto) → dunkle Frames leben von Titel/Stern. QR-Hochrechnung affin 6–28 % daneben,
   mit ECC 0.2–3 %. Vadim 2.10.: „Fotos nicht pixelgenau ohne Blur" → Unschärfe σ 2.5 + Verwacklung in die Simulation.
-- **Befehle:** `uv run src/kickoff_loop.py print` (Druck-PDFs mit Marken) · `uv run src/kickoff_loop_marks.py align
-  photos/raw/*.jpg` → `photos/aligned/NN.png` (mehrere Fotos je Nummer: das mit dem stärksten Code) ·
+- **Befehle:** `uv run src/kickoff_loop.py print` (Druck-PDFs mit Marken) · Fotos: `uv run src/kickoff_loop_photos.py` ·
   `uv run src/kickoff_loop_marks.py test [N..]` (~160 s für alle).
 - **Offen (Vadim):** Druck nur mit den Dateien aus `print` (nicht neu exportieren/skalieren lassen, A4 = dieselbe Datei
   verkleinert ist ok). `loop.toml` nach dem Druck ändern → Nummer + Lage bleiben (Marken), nur `polish` greift nicht.
@@ -675,7 +695,7 @@ kein Lila (auch im Korn, `load` bricht ab) · Selbsttests schlagen nachweislich 
 - Auf F1–4/F29–32 liegt die ganze Seite im Stern: Effekte außerhalb sind dort unsichtbar (nur S58 trägt auf F1).
 
 - **Campus-Plakate** als eigenes Konzept (z. B. die stärksten Loop-Frames). Plätze: 18 × A4 hoch, 56 × A3 hoch, 10 × A4 quer.
-- Zeigt das Video Campus-Fotos oder nur Simulation? Davon hängen `align` und das Shooting ab (Archiv in `ENTSCHEIDUNGEN.md`).
+- Campus-Fotos: ja, das Video zeigt echte Fotos (6.10., Abschnitt „Campus-Fotos“).
 - Resolve-Stern-Editor kennt 32 Frames und leere Frames noch nicht.
 - 9:16-Sicherheitszonen der Endkarte (Reels-UI unten/rechts).
 - `SV_LABEL_CELLS` in `lab_spark.py` spiegelt `[qr]` (Versalhöhe 9 + Abstand 4). Ändert sich JOIN US, dort nachziehen.

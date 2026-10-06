@@ -266,6 +266,23 @@ loudness_lufs = -14        # Vorschau/Reel: als feste Verstaerkung (kein Regler,
 jitter_px = 0              # Versatz des Plakats von Foto zu Foto nach dem Entzerren (Pixel im Endbild)
 jitter_rot_deg = 0.0      # Restdrehung von Foto zu Foto
 
+[photos]
+# Echte Fotos → photos/aligned/NN.png: `uv run src/kickoff_loop_photos.py` (Verfahren im Kopf der Datei).
+fit_edge_cells = 30        # Farbmessung nur im Inneren: Druckrand-Welle reicht bis 16 x 1.6 = 26 Zellen ins Bild
+fit_blur_cells = 2         # vor dem Vergleich weichzeichnen (Gauss-Sigma): Bayer-Korn, Marken, Restversatz weg
+fit_gammas = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]   # Foto^g vor dem 3x3: faengt Tonkurve der Kamera + Tonwertzunahme ab
+fit_robust_de = 0.03       # Cauchy-Breite in dE OK: Punkte weit darueber (Spiegelung, Blendlicht) zaehlen kaum
+blend_cells = 8            # Plakat-Korrektur → Wand-Korrektur (nur Grauachse) ueber so viele Zellen ausserhalb des Plakats
+wall_feather_cells = 12    # Wand-Abdunkeln auf surround_luma laeuft vom Plakatrand ueber so viele Zellen ein (Plakat ~290 breit).
+                           # Befund 6.10.: 40 gab einen weissen Ring ums Plakat (Papierrand + Wand dort ungedimmt), 12 nicht
+wall_min_gain = 0.5        # Wand hoechstens auf diesen Faktor abdunkeln. Befund 6.10.: die Fotos sind fast alle heller als
+                           # surround_luma, 0.35 wirkte nach Abend, 0.5 natuerlich (Bogen photos/ in der Session)
+wall_wb_max = 1.25         # Weissabgleich der Wand: Kanalfaktoren hoechstens so weit auseinander (aus der Grauachse des Plakats)
+wall_black_max = 0.02      # Schwarzpunkt der Wand hoechstens so weit verschieben (lineares Licht)
+wall_knee = 0.7            # Lichter der Wand ab hier (lineares Licht) weich gegen 1 statt hart ausgefressen
+pick_cover_weight = 0.5    # Auswahl: NCC minus dieses Gewicht x Anteil der Platte, den das Foto nicht abdeckt
+pick = {}                  # je Plakat ein bestimmtes Foto erzwingen, z. B. {9 = "IMG_1101"} (sonst das beste)
+
 [marks]
 # Druckmarken: unsichtbares Muster im Druck (nur `print`, nie im Video), traegt Frame-Nummer + Lage, damit
 # `uv run src/kickoff_loop_marks.py align <fotos>` Campus-Fotos ohne Raten entzerrt. Verfahren + Befund: CLAUDE.md
