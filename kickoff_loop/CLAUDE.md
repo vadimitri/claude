@@ -598,13 +598,13 @@ kein Lila (auch im Korn, `load` bricht ab) · Selbsttests schlagen nachweislich 
 - **F16 → F17** (dunkel → Papier) ist harsch; Vadim: „vielleicht lassen wir das so“. Lösung, falls doch: Welt 1 um einen
   Frame verschieben, damit der Wechsel auf den kleinsten Stern fällt, oder 1–2 Mittel-Helligkeits-Stationen als Brücke.
 - Lesbarkeit sinkt durch die Effekte im Titel (min 0.69 → 0.60 inkl. Welt 2, Plakat 33 Tokyo/S33 schlechtestes).
-- Ort fehlt weiter: Endkarte zeigt Platzhalter „ORT FOLGT“ (`card_info`).
+- Ort steht seit 6.10.: `kickoff.COPY["where"] = "D-SCHOOL"` (Vadim: d-school, Erdgeschoss; ohne Kurzform nur
+  „d-school“), dritte Zeile unter dem Datum auf allen 64. Endkarte (`card_info`) ungenutzt, solange das Ende `orbit` ist.
 - Sterne-Agent: das alte Korn mischt mit der Stufe darunter, auf der Split-Naht (Stufe 3) entsteht so Flieder/Oliv
   (Rot+Blau, Gelb+Blau). S56–S60 halten das Korn in einer Colorway; alte Sterne ungeprüft.
 - Auf F1–4/F29–32 liegt die ganze Seite im Stern: Effekte außerhalb sind dort unsichtbar (nur S58 trägt auf F1).
 
 - **Campus-Plakate** als eigenes Konzept (z. B. die stärksten Loop-Frames). Plätze: 18 × A4 hoch, 56 × A3 hoch, 10 × A4 quer.
-- Ort (`kickoff.COPY["where"]`) fehlt, für Endkarte und Plakate.
 - Zeigt das Video Campus-Fotos oder nur Simulation? Davon hängen `align` und das Shooting ab (Archiv in `ENTSCHEIDUNGEN.md`).
 - Resolve-Stern-Editor kennt 32 Frames und leere Frames noch nicht.
 - 9:16-Sicherheitszonen der Endkarte (Reels-UI unten/rechts).

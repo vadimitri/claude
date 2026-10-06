@@ -30,7 +30,7 @@ from styles import AX, BASE, CODENAME, KOMP, lila, line_mask, up, width_per_cap
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "kickoff")
 # Ort ist noch offen: bewusst nicht erfunden, hier eintragen (erscheint dann unter dem Datum)
-COPY = {"title": "SPARK", "what": "KICK-OFF", "when": "14.10. / 17:00", "where": None, "cta": "JOIN US",
+COPY = {"title": "SPARK", "what": "KICK-OFF", "when": "14.10. / 17:00", "where": "D-SCHOOL", "cta": "JOIN US",
         "qr_url": S.COPY["qr_url"]}
 FMTS = {"a3": "posters", "9x16": "story"}
 
