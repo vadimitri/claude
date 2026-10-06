@@ -1312,8 +1312,9 @@ def back_page():
 
 
 def pdf_files(cfg, out=None):
-    """PDFs aus den Druck-PNGs (print/NN.png) + Rueckseite, ohne neu zu rendern: aushang_NN.pdf mit Rueckseite (Duplex),
-    foto_NN.pdf einseitig, rueckseite.pdf allein. img2pdf: das PNG geht unveraendert hinein (kein JPEG, Korn exakt)."""
+    """PDFs aus den Druck-PNGs (print/NN.png) + Rueckseite, ohne neu zu rendern: aushaenge_duplex.pdf (alle Aushaenge,
+    vorn/hinten abwechselnd, gleiche Seitengroesse: ein Duplex-Auftrag, lange Kante), fotos_einseitig.pdf, je Plakat
+    aushang_NN.pdf / foto_NN.pdf, rueckseite.pdf allein. img2pdf: PNG unveraendert (kein JPEG, Korn exakt)."""
     import img2pdf
     out = out or os.path.join(PROJECT, "print")
     back = os.path.join(out, "_rueckseite.png")
@@ -1321,8 +1322,14 @@ def pdf_files(cfg, out=None):
     lay = img2pdf.get_fixed_dpi_layout_fun((PRINT_DPI, PRINT_DPI))
     with open(os.path.join(out, "rueckseite.pdf"), "wb") as fh:
         fh.write(img2pdf.convert([back], layout_fun=lay))
+    keys = [i for i in range(posters(cfg)) if is_print(cfg, i)]
+    pngs = [os.path.join(out, f"{i + 1:02d}.png") for i in range(posters(cfg))]
+    with open(os.path.join(out, "aushaenge_duplex.pdf"), "wb") as fh:        # Vadim 6.10.: ein Duplex-Auftrag (lange
+        fh.write(img2pdf.convert([p for i in keys for p in (pngs[i], back)], layout_fun=lay))   # Kante): vorn, hinten, ...
+    with open(os.path.join(out, "fotos_einseitig.pdf"), "wb") as fh:
+        fh.write(img2pdf.convert([pngs[i] for i in range(posters(cfg)) if i not in keys], layout_fun=lay))
     for i in range(posters(cfg)):
-        png = os.path.join(out, f"{i + 1:02d}.png")
+        png = pngs[i]
         for stale in (f"aushang_{i + 1:02d}.pdf", f"foto_{i + 1:02d}.pdf"):        # Rolle kann wechseln (video_only)
             if os.path.exists(os.path.join(out, stale)):
                 os.remove(os.path.join(out, stale))
