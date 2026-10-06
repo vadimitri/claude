@@ -723,7 +723,8 @@ def type_layers(c):
             for m in masks:
                 val = np.where(m, flip_word(c, m, v), val)
             key, T = str(lp["i"] + 1), lp["type"]
-            halo = [] if lp["digital"] else [s for s, *_ in lines] if T.get("halo_all") else T.get("halo", {}).get(key, [])
+            every = T.get("halo_all") and int(key) not in T.get("halo_none", [])   # halo_none: brauchen keins (Vadim)
+            halo = [] if lp["digital"] else [s for s, *_ in lines] if every else T.get("halo", {}).get(key, [])
             strong = np.logical_or.reduce([glyph_mask(c, lines, masks, sel) for sel in halo]) if halo else None
             if halo:                                  # eine Farbe je Block (Vadim 6.10.: im Loop keine einzelnen Zeilen):
                 block = np.logical_or.reduce(masks)   # Plakate aus [type.halo] ganz in Tinte (abgenommen), die anderen

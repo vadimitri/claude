@@ -141,6 +141,7 @@ halo_step = 1              # Gegenfarbe der Schrift, so viele Stufen zur Mitte: 
 halo_shift_cells = [0, 0]  # [y, x] verschieben. Vadim 6.10.: kein Drop-Shadow, nur sehr subtil rundum
 halo_all = true            # Vadim 6.10. (vorlaeufig): jedes Plakat, jede Zeile, eine Farbe je Block. Im Loop sah es
                            # unruhig aus, wenn einzelne Zeilen kippen/gluehen. false = nur [type.halo]
+halo_none = [22, 23, 24, 25, 26, 27, 37, 49, 50, 54, 55, 58]   # ohne Gluehen, wie vorher (Vadim 6.10.: "brauchen keins", wie 21)
 # Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert. Titelblock steht in jedem
 # Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
 

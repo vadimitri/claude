@@ -17,7 +17,8 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
   `halo_cells` 6, kein Kern, **kein Drop-Shadow** (`halo_shift_cells` [0, 0]), Innenraeume mit demselben Abfall wie aussen
   (gefuellt / frei / nur Kontur: alles verworfen). Volles Gluehen, schwach (`halo_weak`) nur ohne halo_all. Farbe = Seite mit
   mehr Helligkeitsabstand zur Schrift, `halo_step` 1 zur Mitte. Bayer direkt Untergrund <-> Gluehfarbe, Zweierpotenz-Baender.
-  `[type.ink]`: Stufe k, `"hell"`/`"dunkel"` (Luminanz) oder `["#unten", "#oben"]`, immer ganzer Block.
+  `[type.ink]`: Stufe k, `"hell"`/`"dunkel"` (Luminanz) oder `["#unten", "#oben"]`, immer ganzer Block. `halo_none`: Plakate
+  ohne Gluehen (Vadim 6.10.: 22-27, 37, 49, 50, 54, 55, 58 brauchen keins), dort Satz wie vor der Gluehen-Runde.
 - **QR blockiert keine Effekte mehr** (Vadim 6.10., 15/23 Fokuslinien): `fx_under_qr` auf allen Loop-Plakaten schaltet
   `lab_spark._qr_zone` ab, das QR-Gluehen bleibt. Selbsttest misst das Gluehen-Profil an einem Render ohne fx_under_qr.
 - Gewaehlt: 5 Dunkelblau (Stufe 2), 9 Karmin-Akzent, 15 Himmelblau-Akzent, 61 Gluehen; Rest der Liste vom 6.10. per
