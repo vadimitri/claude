@@ -134,11 +134,13 @@ effects_behind_title = ["S50", "S54c"]   # diese Sterne sparen den Titelblock ni
                            # liefen bisher nur bis zum Titel). Vadim 2.10.: "bei 15, 16, 07, 09, 25, 23 Effekte verborgen".
                            # Glitch (S48c/e/f) bleibt draussen (Vadim 1.10.: Glitch nie im Titelblock)
 title_plain_frames = [13]  # Ausnahme, Titel hier reine Tinte ohne Differenz (Vadim 2.10.: "bei Frame 13 nicht invertiert/dunkel")
-halo_cells = 8             # Schatten-Gluehen: Lichtabfall wie das QR-Gluehen (2 % nach so vielen Zellen), in Zweierpotenz-
-halo_core_cells = 1        # Baendern: erste Zelle dicht, dann Schachbrett, 1/4, 1/8. Kern = so viele Zellen extra dicht
+halo_cells = 6             # Schatten-Gluehen: Lichtabfall wie das QR-Gluehen (2 % nach so vielen Zellen), in Zweierpotenz-
+halo_core_cells = 0        # Baendern: erste Zelle dicht, dann Schachbrett, 1/4, 1/8. Kern = so viele Zellen extra dicht
 halo_weak = 0.5            # Staerke fuer Zeilen im Block, die es nicht brauchen (Vadim 6.10.: Gleichmaessigkeit)
 halo_step = 1              # Gegenfarbe der Schrift, so viele Stufen zur Mitte: auch auf dem Grund sichtbar (0 = unsichtbar dort)
-halo_shift_cells = [1, 0]  # [y, x] wie ein Schatten: unten dicht, oben weicher (Vadim 6.10.: "Fade in eine Richtung")
+halo_shift_cells = [0, 0]  # [y, x] verschieben. Vadim 6.10.: kein Drop-Shadow, nur sehr subtil rundum
+halo_all = true            # Vadim 6.10. (vorlaeufig): jedes Plakat, jede Zeile, eine Farbe je Block. Im Loop sah es
+                           # unruhig aus, wenn einzelne Zeilen kippen/gluehen. false = nur [type.halo]
 # Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert. Titelblock steht in jedem
 # Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
 
@@ -151,15 +153,15 @@ halo_shift_cells = [1, 0]  # [y, x] wie ein Schatten: unten dicht, oben weicher 
 3 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
 5 = { "KICK-OFF" = 2, "14.10. / 17:00" = 2, "D-SCHOOL" = 2 }     # Dunkelblau statt Schwarz
 9 = { "KICK-OFF" = ["#991B41", "#BB3F5C"], "14.10. / 17:00" = ["#991B41", "#BB3F5C"], "D-SCHOOL" = ["#991B41", "#BB3F5C"] }   # Karmin (Bogen ink_varianten 9A)
-12 = { "KICK-OFF" = "hell" }   # Vadim 6.10. Runde 2: hell
+12 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10.: eine Farbe je Block (vorher nur einzelne Zeilen)
 15 = { "KICK-OFF" = ["#1A83DB", "#42A3FD"], "14.10. / 17:00" = ["#1A83DB", "#42A3FD"], "D-SCHOOL" = ["#1A83DB", "#42A3FD"] }   # Himmelblau (15B)
-29 = { "14.10. / 17:00" = "hell" }   # Vadim 6.10. Runde 2: hell
+29 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10.: eine Farbe je Block (vorher nur einzelne Zeilen)
 33 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
 34 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
 39 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
-41 = { "14.10. / 17:00" = 0 }   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+41 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10.: eine Farbe je Block (vorher nur einzelne Zeilen)
 44 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
-64 = { "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10. Runde 2: hell
+64 = { "KICK-OFF" = "hell", "14.10. / 17:00" = "hell", "D-SCHOOL" = "hell" }   # Vadim 6.10.: eine Farbe je Block (vorher nur einzelne Zeilen)
 
 [type.halo]
 # Plakatnummer -> Zeilen mit vollem Schatten-Gluehen (stehen in Tinte). Die anderen Zeilen des Blocks behalten ihre

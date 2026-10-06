@@ -44,7 +44,7 @@ from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import binary_dilation, binary_fill_holes, distance_transform_edt, gaussian_filter, minimum_filter
+from scipy.ndimage import binary_dilation, distance_transform_edt, gaussian_filter, minimum_filter
 
 import kickoff as K
 import styles as S
@@ -484,7 +484,8 @@ def poster_style(cfg, i):
         (x, y, radius), code = OFF_STAR, "S2"                 # bleibt jede Stern-/Satzebene definiert (Maske leer). S2,
                                                               # weil Labor-Stile (S31g) am Stern messen und leer abbrechen
     st = K.style(palette(cfg, i), S_CODES[code], "riese", star=(x, y, radius), rot=rot,
-                 seed=cfg["styles"]["seed"], fx_behind_title=code in cfg["type"].get("effects_behind_title", []))
+                 seed=cfg["styles"]["seed"], fx_behind_title=code in cfg["type"].get("effects_behind_title", []),
+                 fx_under_qr=True)                              # keine Ruhezone um JOIN US + QR (das Gluehen bleibt)
     st.update(layout=layout, type_fn=type_layers,
               loop=dict(i=i, n=count(cfg), type=cfg["type"], qr=cfg["qr"], digital=None))
     if "ground" in cfg:                                       # Form des Grunds (styles.ground_shape); ohne [ground] bleibt
@@ -546,16 +547,14 @@ def glyph_mask(c, lines, masks, sel):
 
 def halo_field(c, m, T, strength):
     """Dichte 0..1 des Schatten-Gluehens um die Maske m (Zellen). Lichtabfall wie das QR-Gluehen ab halo_core_cells,
-    halo_shift_cells [y, x] schiebt es wie einen Schatten (Abfall zur einen Seite laenger), strength skaliert (schwaches
-    Gluehen fuer Zeilen, die es nicht brauchen). Baender in Zweierpotenzen = saubere Ordered-Dither-Muster (voll,
-    Schachbrett, 1/4, 1/8). Innenraeume (O, D, 0, 4): nur die erste Zelle als Kontur, die Mitte bleibt durchsichtig
-    (ganz gefuellt war "super scheisse", ganz frei liess das O wie eine Scheibe aussehen)."""
+    halo_shift_cells [y, x] schiebt es (Vadim 6.10.: kein Drop-Shadow, [0, 0]), strength skaliert (schwaches Gluehen fuer
+    Zeilen, die es nicht brauchen). Baender in Zweierpotenzen = saubere Ordered-Dither-Muster (voll, Schachbrett, 1/4,
+    1/8). Innenraeume (O, D, 0, 4) bekommen denselben Abfall wie aussen."""
     dy, dx = T["halo_shift_cells"]
     d = distance_transform_edt(~np.roll(m, (dy, dx), (0, 1))) - 0.5
     g = strength * np.exp(-GLOW_LIGHT_E * np.maximum(d - T["halo_core_cells"], 0) / T["halo_cells"])
-    g = np.where(g > GLOW_MIN, 2.0 ** -np.round(-np.log2(np.maximum(g, 1e-9))), 0)
-    holes = binary_fill_holes(m) & ~m
-    return np.where(holes & (distance_transform_edt(~m) > 1), 0, g)
+    return np.where(g > GLOW_MIN, 2.0 ** -np.round(-np.log2(np.maximum(g, 1e-9))), 0)   # Innenraeume wie aussen
+                                                                    # (Vadim 6.10.: gefuellt, frei, nur Kontur: alles schlecht)
 
 
 def rect(c, y0, x0, y1, x1, r=0):
@@ -724,10 +723,11 @@ def type_layers(c):
             for m in masks:
                 val = np.where(m, flip_word(c, m, v), val)
             key, T = str(lp["i"] + 1), lp["type"]
-            halo = [] if lp["digital"] else T.get("halo", {}).get(key, [])
+            halo = [] if lp["digital"] else [s for s, *_ in lines] if T.get("halo_all") else T.get("halo", {}).get(key, [])
             strong = np.logical_or.reduce([glyph_mask(c, lines, masks, sel) for sel in halo]) if halo else None
-            if halo:                                  # Zeilen mit vollem Gluehen stehen in Tinte (Vadim 6.10. abgenommen)
-                val = np.where(np.logical_or.reduce([m for m in masks if (m & strong).any()]), v, val)
+            if halo:                                  # eine Farbe je Block (Vadim 6.10.: im Loop keine einzelnen Zeilen):
+                block = np.logical_or.reduce(masks)   # Plakate aus [type.halo] ganz in Tinte (abgenommen), die anderen
+                val = np.where(block, v if T.get("halo", {}).get(key) else flip_word(c, block, v), val)   # kippen als Block
             lum = c.pal @ LUMA
             order = np.argsort(lum)
             hexes = ["#%02X%02X%02X" % tuple(int(x) for x in c.pal[k]) for k in range(c.N + 1)]
@@ -1212,6 +1212,9 @@ def selftest(cfg, i=8):
     cx, cy, R, rot = c.L["star"]
     text = binary_dilation(qr_glow(c, q)[-1][1], iterations=2)
     free = glow & (S.star_d(c, cx, cy, R, rot)[0] > STAR_CLEAR) & ~text   # ohne Stern + Schein, ohne JOIN US
+    img_q = frame(cfg, i, style={**st, "fx_under_qr": False})   # Gluehen-Geometrie ohne Effekte unter dem QR: seit 6.10.
+    cells_q = img_q[p // 2::p, p // 2::p].astype(int)            # laufen Fokuslinien bis an die Platte (fx_under_qr)
+    level = np.argmin(((cells_q[..., None, :] - c.pal.astype(int)[None, None]) ** 2).sum(-1), -1)
     sides = {"oben": np.s_[y0 - q["glow_cells"]:y0, x0:x1], "unten": np.s_[y1:y1 + q["glow_cells"], x0:x1],
              "links": np.s_[y0:y1, x0 - q["glow_cells"]:x0], "rechts": np.s_[y0:y1, x1:x1 + q["glow_cells"]]}
     ring = np.maximum(np.maximum(y0 - c.yy, c.yy - y1 + 1), np.maximum(x0 - c.xx, c.xx - x1 + 1)).astype(int)

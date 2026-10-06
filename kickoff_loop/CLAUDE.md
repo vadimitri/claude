@@ -11,15 +11,15 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
   .5 zur geraden Zahl, sonst sprang er 1 Zelle), linke Zeilen werden an der gemessenen Tinte auf `x0` geschoben.
 - **`[type.ink]`** Plakatnummer -> Zeile/Wort -> Palettenstufe k (Verlauf endet auf k) oder `["#unten", "#oben"]`
   (Akzent mit eigener Ebenenpalette, gleicher Verlauf + Bayer). Vadim: **nie flach, nie einzelne Buchstaben**.
-- **`[type.halo]`** Schatten-Gluehen, **ganzer Block oder nichts** (Vadim 6.10.): genannte Zeilen stehen in Tinte mit vollem
-  Gluehen, die anderen behalten ihre Farbe mit schwachem (`halo_weak` 0.5); eine Zeile, die zu > 10 % auf gleich hellem
-  Grund liegt, bekommt automatisch volles (`HALO_CLASH_FRAC`; schwach blieb dort nur ein gepunkteter Umriss = hohle
-  Buchstaben). Farbe je Zeile = die Seite mit mehr Helligkeitsabstand zur Schrift, `halo_step` 1 Stufe zur Mitte (sonst auf
-  dem Grund unsichtbar, „nur halb die Umrandung“). `halo_cells` 8, Kern 1, `halo_shift_cells` [1, 0] (unten dicht, oben
-  weicher, „Fade in eine Richtung“). Bayer direkt Untergrund <-> Gluehfarbe (ueber Zwischenstufen: farbiger Ring), Baender
-  in Zweierpotenzen. **Innenraeume (O, D, 0, 4): nur die erste Zelle als Kontur, Mitte durchsichtig** (ganz gefuellt:
-  „super scheisse“, ganz frei: O wirkt wie eine Scheibe). `[type.ink]` kennt `"hell"`/`"dunkel"` (zwei hellste/dunkelste
-  Farben nach Luminanz, als Verlauf; Tinte ist auf Papier-Paletten dunkel).
+- **Gluehen auf allen Plakaten** (`halo_all`, Vadim 6.10. vorlaeufig: „im Loop sieht es scheisse aus, wenn sich einzelne
+  Zeilen veraendern“): jeder Block hat eine Farbe. Plakate aus `[type.halo]` ganz in Tinte (abgenommen), die anderen
+  kippen als ganzer Block nach Mehrheit (sonst stand z. B. 13 hell auf hellem Stern). Gluehen sehr subtil rundum:
+  `halo_cells` 6, kein Kern, **kein Drop-Shadow** (`halo_shift_cells` [0, 0]), Innenraeume mit demselben Abfall wie aussen
+  (gefuellt / frei / nur Kontur: alles verworfen). Volles Gluehen, schwach (`halo_weak`) nur ohne halo_all. Farbe = Seite mit
+  mehr Helligkeitsabstand zur Schrift, `halo_step` 1 zur Mitte. Bayer direkt Untergrund <-> Gluehfarbe, Zweierpotenz-Baender.
+  `[type.ink]`: Stufe k, `"hell"`/`"dunkel"` (Luminanz) oder `["#unten", "#oben"]`, immer ganzer Block.
+- **QR blockiert keine Effekte mehr** (Vadim 6.10., 15/23 Fokuslinien): `fx_under_qr` auf allen Loop-Plakaten schaltet
+  `lab_spark._qr_zone` ab, das QR-Gluehen bleibt. Selbsttest misst das Gluehen-Profil an einem Render ohne fx_under_qr.
 - Gewaehlt: 5 Dunkelblau (Stufe 2), 9 Karmin-Akzent, 15 Himmelblau-Akzent, 61 Gluehen; Rest der Liste vom 6.10. per
   Messung (Kontrast des schlechtesten Buchstabens je Option auto/dunkel/hell/Gluehen, Wunschrichtung gewinnt bei >= 0.9x):
   meist Gluehen, dunkel bei 2 und 41. Runde 2 (Vadim): 3, 12, 33, 34, 39, 44, 48, 60 ganzer Block hell + Gluehen,
