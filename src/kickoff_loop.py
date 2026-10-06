@@ -1261,8 +1261,8 @@ def selftest(cfg, i=8):
 PRINT = "a3"
 PRINT_CELL_PX = S.SIZES[PRINT][2] * S.BASE["R"]                 # 3 * 4 = 12 px pro Zelle = 1 mm bei 300 dpi
 PRINT_DPI = 300                                                 # 3504 x 4956 px = 296.7 x 419.6 mm (A3: 297 x 420)
-BACK_LINES = ("BITTE NICHT", "ABHÄNGEN")                     # Rueckseite jedes Aushangs (Vadim 30.9.)
-BACK_WIDTH_FRAC = 0.8                                           # laengste Zeile / Seitenbreite
+BACK_LINES = ("BITTE NICHT ABHÄNGEN", "BIS 15.10.")           # Rueckseite jedes Aushangs (Vadim 30.9., 6.10.: + Datum)
+BACK_WIDTH_FRAC = 0.5                                           # laengste Zeile / Seitenbreite (6.10.: kleiner, war 0.8)
 
 
 def edge_fade(img, cell_px, pr, frame_i=0, loop_n=1):
@@ -1302,34 +1302,49 @@ def back_page():
     W, H = S.SIZES[PRINT][:2]
     name, var = S.FONTSPEC["clash"][:2]
     f0 = S.font(name, 100, var)
-    wide = max(f0.getlength(t) for t in BACK_LINES)
+    lines = [t.replace(" ", "  ") for t in BACK_LINES]             # Clash-Wortabstand doppelt wie im Plakatsatz
+    wide = max(f0.getlength(t) for t in lines)
     f = S.font(name, round(100 * BACK_WIDTH_FRAC * W / wide), var)
     im = Image.new("L", (W, H), 255)
-    ImageDraw.Draw(im).multiline_text((W / 2, H / 2), "\n".join(BACK_LINES), font=f, fill=0, anchor="mm", align="center",
+    ImageDraw.Draw(im).multiline_text((W / 2, H / 2), "\n".join(lines), font=f, fill=0, anchor="mm", align="center",
                                      spacing=round(0.3 * f.size))       # Luft fuer die Umlaut-Punkte
     return im
+
+
+def pdf_files(cfg, out=None):
+    """PDFs aus den Druck-PNGs (print/NN.png) + Rueckseite, ohne neu zu rendern: aushang_NN.pdf mit Rueckseite (Duplex),
+    foto_NN.pdf einseitig, rueckseite.pdf allein. img2pdf: das PNG geht unveraendert hinein (kein JPEG, Korn exakt)."""
+    import img2pdf
+    out = out or os.path.join(PROJECT, "print")
+    back = os.path.join(out, "_rueckseite.png")
+    back_page().save(back, dpi=(PRINT_DPI, PRINT_DPI))
+    lay = img2pdf.get_fixed_dpi_layout_fun((PRINT_DPI, PRINT_DPI))
+    with open(os.path.join(out, "rueckseite.pdf"), "wb") as fh:
+        fh.write(img2pdf.convert([back], layout_fun=lay))
+    for i in range(posters(cfg)):
+        png = os.path.join(out, f"{i + 1:02d}.png")
+        for stale in (f"aushang_{i + 1:02d}.pdf", f"foto_{i + 1:02d}.pdf"):        # Rolle kann wechseln (video_only)
+            if os.path.exists(os.path.join(out, stale)):
+                os.remove(os.path.join(out, stale))
+        name = f"{'aushang' if is_print(cfg, i) else 'foto'}_{i + 1:02d}.pdf"
+        with open(os.path.join(out, name), "wb") as fh:
+            fh.write(img2pdf.convert([png, back] if is_print(cfg, i) else [png], layout_fun=lay))
+    return out
 
 
 def print_files(cfg):
     """Druckdateien A3 hoch, 300 dpi, 12 px pro Zelle → kickoff_loop/print/. Aushaenge als aushang_NN.pdf mit
     Rueckseite (Duplex), Zwischenframes als foto_NN.pdf (einseitig, nur fuers Video). PDF per img2pdf: das PNG geht
     unveraendert hinein (kein JPEG, das Bayer-Korn bleibt exakt). Jeder QR wird in Druckaufloesung dekodiert."""
-    import img2pdf
     out = os.path.join(PROJECT, "print")
     os.makedirs(out, exist_ok=True)
     n = posters(cfg)
     with Pool() as pool:
         res = pool.map(_print_job, [(cfg, i) for i in range(n)])
     bad = [i + 1 for i, (_, ok) in enumerate(res) if not ok]
-    back = os.path.join(out, "_rueckseite.png")
-    back_page().save(back, dpi=(PRINT_DPI, PRINT_DPI))
     for i, (img, _) in enumerate(res):
-        png = os.path.join(out, f"{i + 1:02d}.png")
-        S.save(img, png, PRINT_DPI)
-        pages = [png, back] if is_print(cfg, i) else [png]
-        name = f"{'aushang' if is_print(cfg, i) else 'foto'}_{i + 1:02d}.pdf"
-        with open(os.path.join(out, name), "wb") as fh:
-            fh.write(img2pdf.convert(pages, layout_fun=img2pdf.get_fixed_dpi_layout_fun((PRINT_DPI, PRINT_DPI))))
+        S.save(img, os.path.join(out, f"{i + 1:02d}.png"), PRINT_DPI)
+    pdf_files(cfg, out)
     keys = sum(is_print(cfg, i) for i in range(n))
     return (f"{n} Druckdateien in {out}: {keys} Aushaenge (mit Rueckseite), {n - keys} Fotoframes; "
             f"QR lesbar {n - len(bad)}/{n}" + (f"  ! NICHT lesbar: {bad}" if bad else ""))
@@ -1358,6 +1373,8 @@ def main():
             print(V.flash_selftest(cfg))
     elif cmd == "print":
         print(print_files(cfg))
+    elif cmd == "pdf":                                  # nur PDFs neu aus den Druck-PNGs (z. B. neue Rueckseite)
+        print(pdf_files(cfg))
     elif cmd == "stars":                                # Sterne aussuchen: Zyklus oder die genannten Codes
         print(stars(cfg, args[1:] or cfg["styles"]["cycle"]))
     elif cmd == "grounds":                              # Hintergruende vergleichen: blanker Grund je Variante
