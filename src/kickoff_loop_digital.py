@@ -296,7 +296,12 @@ def zoom_sparks(c):
         pj = np.where(clip, j, pj)
     K._EXTRA["extra"] = []
     c.star_m = lit
-    if len(dolls) > 1:
+    if dolls[0][5]:                                                       # O17: Stern 0 in eigener (abgedunkelter) Colorway
+        c.pals = np.stack([c.pal] + [styles.hexpal_list(d[5]) if d[5] else c.pal for d in dolls])
+        c.pal_map = pj + 1
+        c.spark_eff = luma_to_base(c, np.nan_to_num(V), c.pals, c.pal_map)
+        c.star_m = c.spark_eff > 0.5
+    elif len(dolls) > 1:
         c.pals = np.stack([c.pal] + [styles.hexpal_list(d[5]) for d in dolls[1:]])
         c.pal_map = pj
         eff = luma_to_base(c, np.nan_to_num(V), c.pals, c.pal_map)          # Schrift/Gluehen sehen die Helligkeit
@@ -383,9 +388,13 @@ def zoom_card_type(c):
     """Satz im Zoom (zoom_type), darueber die Endkarte, falls [ending].card_on. Steht hier und nicht in
     kickoff_loop_video, damit der Cache-Schluessel des Digitalteils nur Quelltext enthaelt, der beim Rendern laeuft
     (kickoff_loop.DIGITAL_SOURCES)."""
-    if c.st.get("P_type"):                                                # O16: Welt dunkelt ab, die Schrift nicht
-        for name in ("title", "date", "new", "qr", "cta"):
-            c.layer_pal[name] = styles.hexpal(c.st["P_type"])
+    if c.st.get("P_spark") and c.pals is None:                            # O17: die Sternflaeche dunkelt ab (Silhouette;
+        x, y, R, rot = c.L["star"]                                        # Labor-Sterne malen die ganze Seite als Ebene
+        c.pals = np.stack([c.pal, styles.hexpal_list(c.st["P_spark"])])  # 'spark': Palette je Zelle statt je Ebene)
+        c.pal_map = (styles.star_d(c, x, y, R, rot)[0] < 1).astype(int)
+        V = next(np.nan_to_num(v) for n, _, v, _, _ in reversed(c.layers) if n == "spark")
+        c.spark_eff = luma_to_base(c, V, c.pals, c.pal_map)              # Schrift kippt gegen die echte Helligkeit
+        c.star_m = c.spark_eff > 0.5
     zoom_type(c)
     if c.st["loop"]["digital"].get("card"):
         import kickoff_loop_end as KE

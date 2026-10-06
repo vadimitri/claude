@@ -700,9 +700,9 @@ def orbit_state(cfg, dt, jump=0.0):
     else:
         idx = orbit_poster(cfg, dt)
     st = KL.poster_style(cfg, idx)
-    if e.get("orbit_darken") and os_["loop"] and dt > 0:                  # O16 (Vadim 6.10.: "die Sparks werden Richtung
-        p = min(dt / (e["orbit_close_at_beats"] * b), 1.0) ** e.get("orbit_darken_pow", 1.0)   # Ende des Loops dunkler")
-        st["P_type"], st["P"] = st["P"], dark_palette(cfg, idx, 1 - e["orbit_darken"] * p)
+    if e.get("orbit_darken") and dt > 0:                                  # O17 (Vadim 6.10.: "die Sparks werden dunkler",
+        p = min(dt / (e["orbit_close_at_beats"] * b), 1.0) ** e.get("orbit_darken_pow", 1.0)   # nicht das Bild): nur die
+        st["P_spark"] = dark_palette(cfg, idx, 1 - e["orbit_darken"] * p)                       # Sternpixel dunkeln ab
     star = os_["star"]
     if not os_["loop"] and e["orbit_path"] == "dive":                      # Zoom in den Stern (Finale: KD.zoom_sparks)
         st.update(S=KL.S_CODES["S33"], spark_fn=KD.zoom_sparks if e.get("orbit_sparks") else KD.zoom_spark,
@@ -726,7 +726,7 @@ def orbit_state(cfg, dt, jump=0.0):
                                                    blur=round(os_.get("blur", 0.0), 4), flow=flow, morph=morph,
                                                    finale=finale(cfg, dt, os_)))
         if e.get("orbit_sparks"):                                          # O12: grosser Stern + kleiner Stern je Begriff
-            big = (KL.style_code(cfg, idx), *[round(v, 3) for v in star], None)
+            big = (KL.style_code(cfg, idx), *[round(v, 3) for v in star], st.get("P_spark"))   # O17: Anflug dunkel
             slot = word_slot(cfg, dt)
             kf = frame_slot(cfg, dt)
             if kf is not None:                                             # O14 (Vadim 6.10.: "jeden Frame aendert sich der Spark",
@@ -750,14 +750,11 @@ def orbit_state(cfg, dt, jump=0.0):
 
 
 def dark_palette(cfg, i, f):
-    """O16: Colorway von Plakat i in OKLab Richtung Schwarz skaliert (f = 1 unveraendert, 0 schwarz), als Palettenname."""
+    """O16: Colorway von Plakat i in OKLab Richtung Schwarz skaliert (f = 1 unveraendert, 0 schwarz), als Hex-Liste."""
     import kickoff_loop as KL
     lab = KL.to_oklab([[int(h[k:k + 2], 16) for k in (1, 3, 5)] for h in KL.palette_hex(cfg, i)])
     lab = lab * [f, f ** 0.5, f ** 0.5]                                   # Buntheit sinkt langsamer: satte Tiefen statt Matsch
-    out = ["#%02X%02X%02X" % tuple(int(v) for v in c) for c in KL.from_oklab(lab)]
-    name = "loop:" + "".join(h[1:] for h in out)
-    S.PALS[name] = out
-    return name
+    return ["#%02X%02X%02X" % tuple(int(v) for v in c) for c in KL.from_oklab(lab)]
 
 
 def frame_slot(cfg, dt):
