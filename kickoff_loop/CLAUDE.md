@@ -3,7 +3,40 @@
 Session-Start: diese Datei, dann `uv run src/kickoff_loop.py sheet` (zeigt den Stand in ~10 s). Stellschrauben: `loop.toml`.
 Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Befunde, Verworfenes, Archiv) und Skill `spark-motion`.
 
-## Stand 6.10. (Ort, Satzkante, Lesbarkeit je Plakat) · **wartet auf Vadims Urteil am Kontaktbogen**
+## Übergabe Video (6.10. abends) · **neue Session: das Video fertig machen**
+
+**Plakate sind abgenommen (Vadim 6.10.) und gedruckt** (`print` → `kickoff_loop/print/`, gitignored: `aushang_NN.pdf` mit
+Rückseite, `foto_NN.pdf`, `NN.png`, A3 300 dpi mit Druckmarken). `[type]`, `[type.ink]`, `[type.halo]`, `[color]`,
+`[styles]`, `[spark]` in `loop.toml` **nicht mehr ändern** (sonst stimmen Video und Druck nicht überein; Marken: Nummer +
+Lage bleiben, nur `polish` greift nicht). Details zum Satz: Abschnitt „Stand 6.10.“ unten.
+
+Start: diese Datei, dann `uv run src/kickoff_loop.py preview kickoff_loop/previz/review/O13/O13.toml --draft` (neue
+Plakate im Video; Foto-Segment ist kalt, weil sich der Satz geändert hat → erster Lauf länger).
+
+In dieser Reihenfolge:
+1. **Ende wählen.** O13 (`previz/review/O13/`, gerendert 3.10. mit den alten Plakaten) wartet auf Vadims Urteil, siehe
+   Abschnitt „Finale O13“. Offen dort: Lesbarkeit der Begriffe auf dem großen Stern; Selbsttest am fertigen Bild, der
+   Effekte hinter Titel/QR misst („zum vierten Mal“; die Plakate haben jetzt `fx_under_qr`, das Finale `fx_behind_qr`).
+   O6/O7/O12a/O12b sind überholt → nach `archiv/review/alt/`, `INK/` und `S58b_S60d/` ebenso (entschieden).
+2. **Sprung am Eintauchen prüfen (Risiko, ungeprüft):** `type_layers` überspringt im Digitalteil `[type.ink]` und
+   `[type.halo]` (`if not lp["digital"]`, `halo = [] if lp["digital"]`). Beim Übergang Loop → Zoom kann der Satz springen:
+   Glühen weg, Block-Farbe kippt zeilenweise zurück, Akzente (9 Karmin, 15 Himmelblau, 5 Dunkelblau) verschwinden. Am
+   Eintauch-Bild mit dem Plakat davor vergleichen. Fix: Plakatnummer des Eintauch-Plakats in `dg` mitgeben und Farbe +
+   Glühen dort weiterführen (oder bewusst überblenden), Vadim zeigen.
+3. Gewähltes `[ending]` + `[endcard]` nach `loop.toml`, dann `preview` ohne `--draft`, zum Schluss `preview --master`
+   (x264). Lieferung: `*.mp4` (Master), `*_share.mp4`, ProRes für Resolve (`resolve`).
+4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
+   IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
+5. Campus-Fotos (falls das Video echte Fotos zeigt): Probedruck + Handyfoto + `uv run src/kickoff_loop_marks.py align
+   photos/raw/*.jpg` bestätigt das Druckermodell, dann alle Aushänge fotografieren → `photos/aligned/NN.png`.
+
+Vadims Regeln aus der Plakat-Runde, gelten fürs Video weiter: nie flache Farben (immer Verlauf + Bayer), nie einzelne
+Buchstaben umfärben, Effekte werden nie von QR/Titel blockiert, kein Drop-Shadow, im Loop keine Zeilen, die sich einzeln
+ändern. Er entscheidet an beschrifteten Bögen/Videos (Codes), schnell zeigen (`sheet`, `--draft`), volles Video nur wenn
+Musik/Ende betroffen. Hilfsskripte der Plakat-Runde (Kontrast-Messung je Zeile, Vergleichsbögen) lagen nur im Job-Ordner,
+nicht im Repo; die Messidee steht unten unter „Stand 6.10.“.
+
+## Stand 6.10. (Ort, Satzkante, Lesbarkeit je Plakat) · **abgenommen**
 
 - **Ort** `kickoff.COPY["where"] = "D-SCHOOL"` (d-school, EG; ohne Kurzform), dritte Zeile unter dem Datum.
 - **Satzkante** = linke Tinte des zentrierten SPARK (`title_left`): KICK-OFF/Datum/Ort, JOIN US, QR-Platte buendig am S
@@ -28,7 +61,7 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
   Vergleich `previz/review/INK/vorher_nachher.png`, ganze Plakate `INK/*.png`.
 - **`[loop].video_only = [1]`**: Aushang nur fuers Video (Druck als Fotoframe, Bogen „V“). Video-only laut Vadim auch 4,
   14, 46, 48 (sind ohnehin Fotoframes).
-- Naechster Schritt nach Vadims OK: `print` (64 Druckdateien mit Marken).
+- Abgenommen 6.10., gedruckt (`print`).
 
 ## Stand 3.10. (Vadims Urteil zu N1/G1/S58/S60, Hintergrund-Inseln)
 
