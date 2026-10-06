@@ -564,6 +564,9 @@ def _photo_job(args):
     from multiprocessing import shared_memory
     cfg, k, ts, shm_name = args
     poster = KL.frame(cfg, k)
+    if cfg["video"].get("print_edge"):                              # Plakat wie gedruckt: Rand [print] + Druckerrand
+        pr = {**cfg["print"], "margin_cells": cfg["video"].get("print_edge_margin_cells", 5)}
+        poster = KL.edge_fade(poster, KL.PREVIEW_CELL_PX, pr, k, KL.count(cfg))
     tl, plate = Timeline(cfg), photo_plate(cfg, poster, k)
     h, (W, H) = poster.shape[0], cfg["video"]["size_px"]
     try:                                                            # track=False (ab 3.13): der Hauptprozess raeumt auf
