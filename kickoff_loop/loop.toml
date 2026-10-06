@@ -145,13 +145,44 @@ halo_core_cells = 1        # davor dicht (ganz Grundfarbe), dann erst der Abfall
 # Datum / Ort) -> Palettenstufe k (0 = Grund ... hellste = N). Der Verlauf in der Schrift bleibt 1 Stufe und endet auf k.
 # ["#unten", "#oben"] = eigene Akzentfarbe, gleicher Verlauf und Dither (Vadim 6.10.: nie flach, nie einzelne Buchstaben).
 # Ueberschreibt das automatische Kippen (flip_word). Vadim 6.10. vom Kontaktbogen.
+2 = { "KICK-OFF" = 0, "14.10. / 17:00" = 0, "D-SCHOOL" = 0 }   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+3 = { "14.10. / 17:00" = 0, "D-SCHOOL" = 0 }   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 5 = { "KICK-OFF" = 2, "14.10. / 17:00" = 2, "D-SCHOOL" = 2 }     # Dunkelblau statt Schwarz
 9 = { "KICK-OFF" = ["#991B41", "#BB3F5C"], "14.10. / 17:00" = ["#991B41", "#BB3F5C"], "D-SCHOOL" = ["#991B41", "#BB3F5C"] }   # Karmin (Bogen ink_varianten 9A)
 15 = { "KICK-OFF" = ["#1A83DB", "#42A3FD"], "14.10. / 17:00" = ["#1A83DB", "#42A3FD"], "D-SCHOOL" = ["#1A83DB", "#42A3FD"] }   # Himmelblau (15B)
+33 = { "14.10. / 17:00" = 0, "D-SCHOOL" = 0 }   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+41 = { "14.10. / 17:00" = 0 }   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 
 [type.halo]
 # Plakatnummer -> Zeilen/Woerter mit Schatten-Gluehen (halo_cells). Die Zeile steht dann immer in Tinte (kein Kippen).
+3 = ["KICK-OFF"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+6 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, ganzer Block (am Bild geprueft)
+7 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+8 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+10 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+12 = ["14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+16 = ["KICK-OFF"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+29 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+31 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+32 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+33 = ["KICK-OFF"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+34 = ["KICK-OFF", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+35 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, ganzer Block (am Bild geprueft)
+38 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+39 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+40 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+42 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+44 = ["14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+45 = ["14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+47 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+48 = ["KICK-OFF"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+51 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+52 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+60 = ["14.10. / 17:00", "D-SCHOOL"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 61 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # 61C
+62 = ["KICK-OFF"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+63 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
+64 = ["14.10. / 17:00"]   # Vadim 6.10. Liste, autofix (Kontrast schlechtester Buchstabe)
 
 [qr]
 # JOIN US + QR gluehen ein (Vadim zu v005: keine harte Caption-Box, zurueck zum Gluehen von v003, aber sauber).

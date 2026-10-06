@@ -3,6 +3,26 @@
 Session-Start: diese Datei, dann `uv run src/kickoff_loop.py sheet` (zeigt den Stand in ~10 s). Stellschrauben: `loop.toml`.
 Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Befunde, Verworfenes, Archiv) und Skill `spark-motion`.
 
+## Stand 6.10. (Ort, Satzkante, Lesbarkeit je Plakat) · **wartet auf Vadims Urteil am Kontaktbogen**
+
+- **Ort** `kickoff.COPY["where"] = "D-SCHOOL"` (d-school, EG; ohne Kurzform), dritte Zeile unter dem Datum.
+- **Satzkante** = linke Tinte des zentrierten SPARK (`title_left`): KICK-OFF/Datum/Ort, JOIN US, QR-Platte buendig am S
+  (Vadim: seit Kerning P-A stand der Block daneben; lieber mehr Rand). Titel wird immer ab `m` zentriert (round() rundet
+  .5 zur geraden Zahl, sonst sprang er 1 Zelle), linke Zeilen werden an der gemessenen Tinte auf `x0` geschoben.
+- **`[type.ink]`** Plakatnummer -> Zeile/Wort -> Palettenstufe k (Verlauf endet auf k) oder `["#unten", "#oben"]`
+  (Akzent mit eigener Ebenenpalette, gleicher Verlauf + Bayer). Vadim: **nie flach, nie einzelne Buchstaben**.
+- **`[type.halo]`** Schatten-Gluehen: Zeile in Tinte, Grundfarbe faellt um die Buchstaben ab (`halo_core_cells` 1 dicht,
+  `halo_cells` 4), Bayer direkt Untergrund <-> Grund (ueber Zwischenstufen gab es einen farbigen 1-Zellen-Ring), Abfall in
+  Zweierpotenz-Baendern (sauber: voll, Schachbrett, 1/4, 1/8), **Innenraeume von O/D/0 durchsichtig** (gefuellt: "super
+  scheisse"). Standard fuer Zeilen halb auf hellem, halb auf dunklem Grund (Akzent-Mitteltoene wurden trueb, Kontrast <= 2.7).
+- Gewaehlt: 5 Dunkelblau (Stufe 2), 9 Karmin-Akzent, 15 Himmelblau-Akzent, 61 Gluehen; Rest der Liste vom 6.10. per
+  Messung (Kontrast des schlechtesten Buchstabens je Option auto/dunkel/hell/Gluehen, Wunschrichtung gewinnt bei >= 0.9x):
+  meist Gluehen, dunkel bei 2, 3/33 (Datum, Ort), 41. 6 und 35 am Bild auf Gluehen fuer den ganzen Block korrigiert.
+  Vergleich `previz/review/INK/vorher_nachher.png`, ganze Plakate `INK/*.png`.
+- **`[loop].video_only = [1]`**: Aushang nur fuers Video (Druck als Fotoframe, Bogen „V“). Video-only laut Vadim auch 4,
+  14, 46, 48 (sind ohnehin Fotoframes).
+- Naechster Schritt nach Vadims OK: `print` (64 Druckdateien mit Marken).
+
 ## Stand 3.10. (Vadims Urteil zu N1/G1/S58/S60, Hintergrund-Inseln)
 
 - **In `loop.toml`:** N1 übernommen (Welt 2 eigene Sternfolge). **S45 raus** („öde“), **S48c → S48e** (Poly-Glitch G1;
