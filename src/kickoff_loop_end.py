@@ -726,10 +726,12 @@ def orbit_state(cfg, dt, jump=0.0):
             slot = word_slot(cfg, dt)
             kf = frame_slot(cfg, dt)
             if kf is not None:                                             # O14 (Vadim 6.10.: "jeden Frame aendert sich der Spark",
-                idx = colour_tour(cfg, idx)[kf % len(colour_tour(cfg, idx))]   # Schrift + Grund in derselben Colorway; Reise
+                tour = colour_tour(cfg, idx)                               # Schrift + Grund in derselben Colorway; Reise
+                idx = tour[kf * e.get("orbit_frame_tour_stride", 1) % len(tour)]
                 st["P"], dg["poster"] = KL.palette(cfg, idx), idx          # geordnet, damit die Uebergaenge clean bleiben)
-                big = (e["orbit_sparks"][kf % len(e["orbit_sparks"])], *big[1:5], KL.palette_hex(cfg, idx))
-            elif e["orbit_stop_r_frac"] == 0 and slot:                     # O13 (Vadim 3.10.: "der grosse Spark bleibt gross,
+                rot = big[4] + kf * e.get("orbit_frame_step_deg", 0.0)     # O15: dreht weiter, in Stufen (posterized)
+                big = (e["orbit_sparks"][kf % len(e["orbit_sparks"])], *big[1:4], round(rot % 360, 3), KL.palette_hex(cfg, idx))
+            elif e["orbit_stop_r_frac"] == 0 and slot and slot[0] is not None:                     # O13 (Vadim 3.10.: "der grosse Spark bleibt gross,
                 k = slot[0]                                                # jedes Wort ein anderer Spark"): Stil + Colorway
                 big = (e["orbit_sparks"][k % len(e["orbit_sparks"])], *big[1:5],   # der Farbreise wie O12 klein
                        KL.palette_hex(cfg, (idx + 1 + k) % KL.posters(cfg)))
@@ -744,10 +746,15 @@ def orbit_state(cfg, dt, jump=0.0):
 
 
 def frame_slot(cfg, dt):
-    """O14: Videobild seit dem ersten Begriff (orbit_frame_sparks), None davor, ohne Schalter und ab dem Abschluss."""
+    """O14: Videobild seit dem ersten Begriff (orbit_frame_sparks), None davor, ohne Schalter und ab dem Abschluss.
+    O15 (Vadim 6.10.: "zu schnell, zu viel Aenderung, posterized drehen"): orbit_frame_step_beats > 0 = Stufe statt Bild."""
     e, b = cfg["ending"], beat(cfg)
-    if not e.get("orbit_frame_sparks") or not e["orbit_words_at_beats"] * b <= dt < e["orbit_close_at_beats"] * b:
+    if not e.get("orbit_frame_sparks") or dt < e["orbit_words_at_beats"] * b:
         return None
+    dt = min(dt, e["orbit_close_at_beats"] * b - 1e-6)                    # Abschluss: letzte Stufe steht, dimmt ins Schwarz
+    step = e.get("orbit_frame_step_beats", 0)
+    if step:
+        return int((dt - e["orbit_words_at_beats"] * b) / (step * b) + 1e-6)
     return int(round((dt - e["orbit_words_at_beats"] * b) * cfg["video"]["timeline_fps"]))
 
 
@@ -801,6 +808,8 @@ def word_slot(cfg, dt):
     x = dt / b - e["orbit_words_at_beats"]
     if x < 0:
         return None
+    if e.get("orbit_date_center") and dt >= e["orbit_close_at_beats"] * b:   # O15: Abschluss = Datum mittig, pixelt ein
+        return None, _prog(dt, e["orbit_close_at_beats"], e["orbit_close_beats"], b), e["orbit_close_beats"]
     k = 0
     for n, ln in e["orbit_words_slots"]:
         if x < n * ln:
@@ -835,7 +844,7 @@ def finale(cfg, dt, os_):
                 dissolve=round(_prog(dt, e["orbit_dissolve_at_beats"], e["orbit_dissolve_beats"], b), 3),
                 scale=e["orbit_dissolve_scale"], words=finale_words(cfg, dt), flash=e["orbit_words_flash_frac"],
                 clear=e.get("orbit_glow_clear_cells", GLOW_CLEAR_CELLS),
-                back=close if e.get("orbit_date_back") else 0.0)
+                back=close if e.get("orbit_date_back") and not e.get("orbit_date_center") else 0.0)
 
 
 def finale_words(cfg, dt):
@@ -852,6 +861,9 @@ def finale_words(cfg, dt):
         return []
     k, local, _ = slot
     fl, fi, ff, fo = (e[f"orbit_words_{q}_frac"] for q in ("flash", "in", "fade", "out"))
+    if k is None:                                                          # O15: KICK-OFF/Datum/Ort entstehen beim Dunkelwerden
+        return [dict(date=True, lines=[], seed=-1, scale=e["orbit_date_center"], grow=round(local * (1 + fl), 3),
+                     fade=1.0, out=0.0)]
     return [dict(lines=list(e["orbit_words"][k % len(e["orbit_words"])]), seed=k, left=e.get("orbit_words_left", False),                  # in/out 0 = hart mit dem Stern (O12a)
                  grow=1 + fl if fi == 0 else round(local / fi * (1 + fl), 3),
                  fade=1.0 if ff == 0 else round(min(max(local - fi, 0) / ff, 1.0), 3),
@@ -1175,6 +1187,9 @@ def word_mask(c, lines, cap, lead, cx, top):
     return mk, v
 
 
+WORD_HALO_CELLS = 2.5   # O15: Gluehen um die Begriffe, Abfall in Zellen
+
+
 def word_layer(c, w, flash, hi):
     """Ein Begriff (finale_words) aufs Bild, mittig: Groesse und Zeilenabstand wie KICK-OFF/Datum, Block waagerecht und
     senkrecht auf der Bildmitte. Endwert = Tinte, kippt als Ganzes hell/dunkel (KL.flip_word wie JOIN US); davor als
@@ -1185,6 +1200,10 @@ def word_layer(c, w, flash, hi):
     L = c.L
     cap = L["capd"]
     lead = L["sb"][1] - L["sb"][0] if len(L["sb"]) > 1 else 1.4 * cap
+    if w.get("date"):                                                      # O15: KICK-OFF/Datum/Ort gross in der Mitte
+        w = dict(w, lines=list(L["sub"]))
+        sc = min(w["scale"], (c.W - 2 * L["x0"]) / max(S.width_per_cap(s) * cap for s in w["lines"]))
+        cap, lead = cap * sc, lead * sc
     if w.get("left"):                                                      # O14: an der Stelle von KICK-OFF/Datum,
         lines = [x for s in w["lines"] for x in ([s] if S.width_per_cap(s) * cap <= c.W - 2 * L["x0"] else s.split())]
         ms = KL.line_masks(c, [(s, L["sb"][0] + j * lead, cap) for j, s in enumerate(lines)])   # buendig am S
@@ -1203,6 +1222,16 @@ def word_layer(c, w, flash, hi):
     diff = KL.title_value(c, v)                                            # Negativ des Untergrunds wie SPARK
     c.title_target, c.title_fx = keep                                      # (Selbsttest Titel misst SPARK)
     body = diff + (ink - diff) * w["fade"]
+    halo_c = WORD_HALO_CELLS if not w.get("date") else 0                   # O15: Begriffe gluehen gegen unruhige Sterne
+    if halo_c:                                                             # (exponentieller Abfall, Gegenseite der Tinte)
+        from scipy.ndimage import distance_transform_edt
+        d = distance_transform_edt(~mk)
+        g = np.exp(-(d - 1) / halo_c) * (d <= 4 * halo_c) * (d > 0)
+        u = KL.under(c)
+        lum = c.pal @ KL.LUMA                                              # Gegenhelligkeit der Tinte (Luminanz, nicht
+        il = lum[np.round(np.broadcast_to(ink, mk.shape)[mk] * c.N).astype(int)].mean()   # Stufe: Papier-Colorways)
+        tgt = c.lvl(int(lum.argmin() if il > (lum.min() + lum.max()) / 2 else lum.argmax()))
+        c.add("wglow", g > GLOW_MIN, u + (tgt - u) * g)
     rng = np.random.default_rng(WORD_SEED + w["seed"])
     t_in, t_out = rng.random((2, c.gh, c.gw))
     a_in, a_out = (w["grow"] - t_in) / flash, (w["out"] - t_out) / flash     # 0..1 = leuchtet gerade auf
