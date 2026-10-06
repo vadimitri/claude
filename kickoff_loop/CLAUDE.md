@@ -5,6 +5,8 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
 
 ## Übergabe Video (6.10. abends) · **neue Session: das Video fertig machen**
 
+**Zuerst `HANDOFF_ENDE.md` lesen** (6.10. nachmittags): Video-Ende O14–M4 verworfen, Vadims Stand, Aufräumen (Agent A), Neubau (Agent B). Schritt 1 unten ist überholt.
+
 **Plakate sind abgenommen (Vadim 6.10.) und gedruckt** (`print` → `kickoff_loop/print/`, gitignored: `aushang_NN.pdf` mit
 Rückseite, `foto_NN.pdf`, `NN.png`, A3 300 dpi mit Druckmarken). `[type]`, `[type.ink]`, `[type.halo]`, `[color]`,
 `[styles]`, `[spark]` in `loop.toml` **nicht mehr ändern** (sonst stimmen Video und Druck nicht überein; Marken: Nummer +
