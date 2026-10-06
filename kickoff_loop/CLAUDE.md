@@ -9,6 +9,9 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
 Rückseite, `foto_NN.pdf`, `NN.png`, A3 300 dpi mit Druckmarken). `[type]`, `[type.ink]`, `[type.halo]`, `[color]`,
 `[styles]`, `[spark]` in `loop.toml` **nicht mehr ändern** (sonst stimmen Video und Druck nicht überein; Marken: Nummer +
 Lage bleiben, nur `polish` greift nicht). Details zum Satz: Abschnitt „Stand 6.10.“ unten.
+**Druck-PDFs** (`pdf` baut sie ohne Rendern neu aus `print/NN.png`): `aushaenge_duplex.pdf` (31 Aushänge, vorn/hinten
+abwechselnd, Duplex lange Kante), `fotos_einseitig.pdf` (33), `rueckseite.pdf` („BITTE NICHT ABHÄNGEN / BIS 15.10.“),
+Einzel-PDFs. A4 = dieselben Dateien mit „An Seite anpassen“ (kein eigener Export). `print_a4/` vom 2.10. ist veraltet.
 **Druckrand** (`[print]`, `edge_fade`, nur Druck, nie im Video): kein eigener weißer Rand (den setzt der Drucker, Vadim),
 ab der Kante Lichtabfall ins Weiß über 16 Zellen
 (Bayer, ab 1/8 Dichte abgeschnitten: sonst gerade Punktlinie = Rahmen), Breite als **Welle** (A2: 3 Wellen, ±60 %, laufen
