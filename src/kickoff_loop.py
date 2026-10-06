@@ -44,7 +44,7 @@ from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import binary_dilation, distance_transform_edt, gaussian_filter, minimum_filter
+from scipy.ndimage import binary_dilation, binary_fill_holes, distance_transform_edt, gaussian_filter, minimum_filter
 
 import kickoff as K
 import styles as S
@@ -715,6 +715,9 @@ def type_layers(c):
                 d = distance_transform_edt(~hm) - 0.5   # Bayer direkt zwischen Untergrund und Grundfarbe: ueber die
                 d = np.maximum(d - lp["type"]["halo_core_cells"], 0)   # Kern: dicht an der Schrift, dann Lichtabfall
                 g = np.exp(-GLOW_LIGHT_E * d / lp["type"]["halo_cells"])   # Zwischenstufen gab es einen farbigen Ring
+                g = np.where(g > GLOW_MIN, 2.0 ** -np.round(-np.log2(np.maximum(g, 1e-9))), 0)   # Vadim 6.10. "cleaner":
+                # Baender in Zweierpotenzen = saubere Ordered-Dither-Muster (voll, Schachbrett, 1/4, 1/8), nicht je Zelle neu
+                g = np.where(binary_fill_holes(hm), 1.0, g)   # Innenraeume (0, O, D) ganz: sonst blieb ein Punkt stehen
                 c.add("halo", (g > S.tile(S.bayer(4), shape)) & ~hm & ~title_mk, c.lvl(0))   # (Stahlblau, Orange)
             if not lp["digital"]:                     # Vadim 6.10.: Farbe je Plakat und Zeile/Wort, immer mit Verlauf
                 for sel, k in lp["type"].get("ink", {}).get(str(lp["i"] + 1), {}).items():

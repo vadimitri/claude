@@ -146,9 +146,12 @@ halo_core_cells = 1        # davor dicht (ganz Grundfarbe), dann erst der Abfall
 # ["#unten", "#oben"] = eigene Akzentfarbe, gleicher Verlauf und Dither (Vadim 6.10.: nie flach, nie einzelne Buchstaben).
 # Ueberschreibt das automatische Kippen (flip_word). Vadim 6.10. vom Kontaktbogen.
 5 = { "KICK-OFF" = 2, "14.10. / 17:00" = 2, "D-SCHOOL" = 2 }     # Dunkelblau statt Schwarz
+9 = { "KICK-OFF" = ["#991B41", "#BB3F5C"], "14.10. / 17:00" = ["#991B41", "#BB3F5C"], "D-SCHOOL" = ["#991B41", "#BB3F5C"] }   # Karmin (Bogen ink_varianten 9A)
+15 = { "KICK-OFF" = ["#1A83DB", "#42A3FD"], "14.10. / 17:00" = ["#1A83DB", "#42A3FD"], "D-SCHOOL" = ["#1A83DB", "#42A3FD"] }   # Himmelblau (15B)
 
 [type.halo]
 # Plakatnummer -> Zeilen/Woerter mit Schatten-Gluehen (halo_cells). Die Zeile steht dann immer in Tinte (kein Kippen).
+61 = ["KICK-OFF", "14.10. / 17:00", "D-SCHOOL"]   # 61C
 
 [qr]
 # JOIN US + QR gluehen ein (Vadim zu v005: keine harte Caption-Box, zurueck zum Gluehen von v003, aber sauber).
