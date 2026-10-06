@@ -281,10 +281,11 @@ search_cells = 10          # Suchradius um die grobe Lage aus dem QR (Hochrechnu
 
 [print]
 # Druckrand (nur `print`, nie im Video). Vadim 6.10.: Drucker lassen eh einen weissen Rand, ein geditherter Uebergang
-# sieht gewollt aus. Gewaehlt R1d+ (Bogen previz/review/RAND/rand4_ganz.png). Mit 100 % / Originalgroesse drucken, nicht
-# "an Seite anpassen" (sonst kommt der Druckerrand zusaetzlich dazu).
+# sieht gewollt aus. Gewaehlt R1d+ (Bogen previz/review/RAND/rand4_ganz.png) mit Welle A2. Der Drucker setzt den weissen
+# Rand selbst, die Datei laeuft nur dorthin aus.
 edge = true                # false: randlos wie vorher
-margin_cells = 5           # aeussere Zellen ganz weiss (5 Zellen = 5 mm auf A3)
+margin_cells = 0           # eigener weisser Rand in Zellen. 0: Vadim 6.10. "der Drucker forciert den Rand", die Datei hat keinen,
+                           # der Uebergang beginnt an der Kante und laeuft in den Druckerrand
 fade_cells = 16            # danach Lichtabfall wie das QR-Gluehen ins Weiss (2 % nach so vielen Zellen)
 fade_min = 0.125           # darunter kein Weiss mehr (sonst gerade Punktlinie am Ende = sah aus wie ein Rahmen)
 wave_count = 3             # Vadim 6.10. A2: so viele Wellen entlang des Umfangs, laufen je Loop eine Wellenlaenge weiter
