@@ -1265,11 +1265,35 @@ BACK_LINES = ("BITTE NICHT", "ABHÄNGEN")                     # Rueckseite jedes
 BACK_WIDTH_FRAC = 0.8                                           # laengste Zeile / Seitenbreite
 
 
+def edge_fade(img, cell_px, pr, frame_i=0, loop_n=1):
+    """Druckrand ([print], Vadim 6.10. R1d+): die aeusseren margin_cells weiss (dort druckt der Drucker eh nicht), danach
+    laeuft das Plakat wie das QR-Gluehen ins Weiss aus (Lichtabfall ueber fade_cells, Bayer 4x4 auf dem Zellraster),
+    unter fade_min Dichte nichts mehr (der Schweif zog sonst eine gerade Punktlinie = sah aus wie ein Rahmen).
+    Welle (Vadim 6.10. A2): die Breite schwankt um +-wave_amp, wave_count Wellen entlang des Umfangs, die pro Loop
+    (loop_n Plakate) einmal eine Wellenlaenge weiterlaufen: fotografiert und im Loop abgespielt laeuft der Rand um."""
+    gh, gw = img.shape[0] // cell_px, img.shape[1] // cell_px
+    yy, xx = np.mgrid[0:gh, 0:gw]
+    top, bot, lef, rig = yy, gh - 1 - yy, xx, gw - 1 - xx
+    dm = np.minimum(np.minimum(top, bot), np.minimum(lef, rig))
+    d = dm + 0.5 - pr["margin_cells"]
+    s = np.select([top == dm, rig == dm, bot == dm], [xx, gw + yy, gw + gh + (gw - 1 - xx)], 2 * gw + gh + (gh - 1 - yy))
+    w = pr["fade_cells"] * (1 + pr.get("wave_amp", 0) * np.sin(2 * np.pi * (pr.get("wave_count", 0) * s / (2 * (gw + gh))
+                                                                            - (frame_i % loop_n) / loop_n)))
+    g = np.exp(-GLOW_LIGHT_E * np.maximum(d, 0) / np.maximum(w, 1))
+    white = (d < 0) | ((g > S.tile(S.bayer(4), (gh, gw))) & (g >= pr["fade_min"]))
+    out = img.copy()
+    out[:gh * cell_px, :gw * cell_px][np.kron(white, np.ones((cell_px, cell_px), bool))] = 255
+    return out
+
+
 def _print_job(args):
-    """Druckbild mit Druckmarken (kickoff_loop_marks, [marks]); der QR wird am markierten Bild geprueft."""
+    """Druckbild mit Druckmarken (kickoff_loop_marks, [marks]) und Rand ([print], nach den Marken: die werden am Rand
+    sauber abgeschnitten statt auf Weiss gerechnet); der QR wird am fertigen Bild geprueft."""
     import kickoff_loop_marks as M
     cfg, i = args
     img = M.print_image(cfg, frame(cfg, i, PRINT), i, PRINT_CELL_PX)
+    if cfg.get("print", {}).get("edge"):
+        img = edge_fade(img, PRINT_CELL_PX, cfg["print"], i, count(cfg))
     return img, K.check_qr(img, PRINT_CELL_PX)
 
 

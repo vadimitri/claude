@@ -279,6 +279,17 @@ patch_chips = 48           # Messfeld fuer die Lage (48 Chips = 96 Zellen, halb 
                            # (24) reichte auf dunklen Frames nicht: Fast-Schwarz traegt im Druck kaum Hub
 search_cells = 10          # Suchradius um die grobe Lage aus dem QR (Hochrechnung QR → Plakatecke)
 
+[print]
+# Druckrand (nur `print`, nie im Video). Vadim 6.10.: Drucker lassen eh einen weissen Rand, ein geditherter Uebergang
+# sieht gewollt aus. Gewaehlt R1d+ (Bogen previz/review/RAND/rand4_ganz.png). Mit 100 % / Originalgroesse drucken, nicht
+# "an Seite anpassen" (sonst kommt der Druckerrand zusaetzlich dazu).
+edge = true                # false: randlos wie vorher
+margin_cells = 5           # aeussere Zellen ganz weiss (5 Zellen = 5 mm auf A3)
+fade_cells = 16            # danach Lichtabfall wie das QR-Gluehen ins Weiss (2 % nach so vielen Zellen)
+fade_min = 0.125           # darunter kein Weiss mehr (sonst gerade Punktlinie am Ende = sah aus wie ein Rahmen)
+wave_count = 3             # Vadim 6.10. A2: so viele Wellen entlang des Umfangs, laufen je Loop eine Wellenlaenge weiter
+wave_amp = 0.6             # Breite schwankt um +-60 % (0 = statischer Rand R1d+)
+
 [checks]
 # Gates: Verstoesse stehen im report.txt der Version, die Vorschau wird trotzdem gebaut.
 flash_gate = false         # Blitz-Check (WCAG 2.3.1) messen und berichten. Vadim 2.10.: "soll weg, ist voellig okay, wenn

@@ -9,6 +9,10 @@ Regeln fürs Pack: `../CLAUDE.md`. **Vor Vorschlägen** `ENTSCHEIDUNGEN.md` (Bef
 Rückseite, `foto_NN.pdf`, `NN.png`, A3 300 dpi mit Druckmarken). `[type]`, `[type.ink]`, `[type.halo]`, `[color]`,
 `[styles]`, `[spark]` in `loop.toml` **nicht mehr ändern** (sonst stimmen Video und Druck nicht überein; Marken: Nummer +
 Lage bleiben, nur `polish` greift nicht). Details zum Satz: Abschnitt „Stand 6.10.“ unten.
+**Druckrand** (`[print]`, `edge_fade`, nur Druck, nie im Video): 5 Zellen weiß, dann Lichtabfall ins Weiß über 16 Zellen
+(Bayer, ab 1/8 Dichte abgeschnitten: sonst gerade Punktlinie = Rahmen), Breite als **Welle** (A2: 3 Wellen, ±60 %, laufen
+je 32er-Loop eine Wellenlänge um). Fotografiert und im Loop abgespielt läuft der Rand um; im Video selbst ist er noch
+**nicht** drin (Vorschau: `previz/review/RAND/anim/A2.mp4`). Mit 100 % drucken, nicht „an Seite anpassen“.
 
 Start: diese Datei, dann `uv run src/kickoff_loop.py preview kickoff_loop/previz/review/O13/O13.toml --draft` (neue
 Plakate im Video; Foto-Segment ist kalt, weil sich der Satz geändert hat → erster Lauf länger).
