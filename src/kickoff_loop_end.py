@@ -820,9 +820,10 @@ def word_slot(cfg, dt):
     x = dt / b - e["orbit_words_at_beats"]
     if x < 0:
         return None
-    if e.get("orbit_date_center") and dt >= e["orbit_close_at_beats"] * b:   # O15: Abschluss = Datum mittig, pixelt ein
+    date_at = e.get("orbit_date_at_beats", e["orbit_close_at_beats"])      # O18: Datum darf vor dem Abschluss kommen
+    if e.get("orbit_date_center") and dt >= date_at * b:                    # O15: Abschluss = Datum mittig, pixelt ein
         ln = e.get("orbit_date_in_beats", e["orbit_close_beats"])         # O16: Datum entsteht langsamer als der Abschluss
-        return None, _prog(dt, e["orbit_close_at_beats"], ln, b), ln
+        return None, _prog(dt, date_at, ln, b), ln
     if not e.get("orbit_words_on", True):                                 # O16: keine Begriffe
         return None
     k = 0
@@ -859,7 +860,21 @@ def finale(cfg, dt, os_):
                 dissolve=round(_prog(dt, e["orbit_dissolve_at_beats"], e["orbit_dissolve_beats"], b), 3),
                 scale=e["orbit_dissolve_scale"], words=finale_words(cfg, dt), flash=e["orbit_words_flash_frac"],
                 clear=e.get("orbit_glow_clear_cells", GLOW_CLEAR_CELLS),
-                back=close if e.get("orbit_date_back") and not e.get("orbit_date_center") else 0.0)
+                back=close if e.get("orbit_date_back") and not e.get("orbit_date_center") else 0.0,
+                fly_out=e.get("orbit_dissolve_out", False),
+                **corona_state(cfg, dt))
+
+
+def corona_state(cfg, dt):
+    """O18: Mitternacht-Corona (orbit_corona = "hell" | "finsternis"), sonst {}."""
+    e, b = cfg["ending"], beat(cfg)
+    if not e.get("orbit_corona"):
+        return {}
+    date_at = e.get("orbit_date_at_beats", e["orbit_close_at_beats"])
+    return dict(corona_mode=e["orbit_corona"], corona_cells=e["orbit_corona_cells"],
+                corona=round(_prog(dt, e["orbit_corona_at_beats"], e["orbit_corona_beats"], b), 3),
+                date_p=round(_prog(dt, date_at, e.get("orbit_date_in_beats", 1.0), b), 3),
+                date_scale=e.get("orbit_date_center", 1.0))
 
 
 def finale_words(cfg, dt):
@@ -1205,6 +1220,46 @@ def word_mask(c, lines, cap, lead, cx, top):
 WORD_HALO_CELLS = 2.5   # O15: Gluehen um die Begriffe, Abfall in Zellen
 
 
+def date_cap(c, scale):
+    """O15: Versalhoehe + Zeilenabstand des mittigen Datum-Blocks (KICK-OFF/Datum/Ort x scale, passt in die Satzbreite)."""
+    L = c.L
+    cap = L["capd"]
+    lead = L["sb"][1] - L["sb"][0] if len(L["sb"]) > 1 else 1.4 * cap
+    sc = min(scale, (c.W - 2 * L["x0"]) / max(S.width_per_cap(s) * cap for s in L["sub"]))
+    return cap * sc, lead * sc
+
+
+CORONA_PEAK = 0.85   # O18: Corona erreicht an der Schrift hoechstens 85 % der Zielstufe
+
+
+def corona_layer(c, f):
+    """O18 Mitternacht (Vadim 6.10.: "wie bei einer Finsternis eine Corona, die entsteht, wie das Leuchten oben"): um
+    SPARK (corona 0..1) und den mittigen Datum-Block (date_p 0..1) waechst ein Leuchten in der hellsten Stufe,
+    exponentieller Abfall, Reichweite waechst mit. Malt unter der Schrift, ueber dem Schwarz des Abschlusses."""
+    import kickoff_loop as KL
+    from scipy.ndimage import distance_transform_edt
+    g = np.zeros((c.gh, c.gw), np.float32)
+    title = np.logical_or.reduce(KL.line_masks(c, KL.text_lines(c)["title"], centered=True))
+    parts = [(title, f["corona"])]
+    if f.get("date_p", 0) > 0:
+        cap, lead = date_cap(c, f["date_scale"])
+        mk, _ = word_mask(c, list(c.L["sub"]), cap, lead, c.W / 2, c.H / 2 - (cap + (len(c.L["sub"]) - 1) * lead) / 2)
+        parts.append((mk, f["date_p"]))
+    for mk, p in parts:
+        if p > 0 and mk.any():
+            d = distance_transform_edt(~mk)
+            tau = f["corona_cells"] * (0.4 + 0.6 * p)                     # Kern steil, Schweif lang (Licht, kein Sticker)
+            prof = 0.5 * np.exp(-(d - 1) / 1.5) + 0.5 * np.exp(-(d - 1) / tau)
+            g = np.maximum(g, CORONA_PEAK * p * prof * (d > 0))
+    lum = c.pal @ KL.LUMA
+    if f["corona_mode"] == "hell":                                         # helle Schrift: Corona in der satten Mitte
+        k = int(np.abs(lum - (lum.min() + 0.55 * (lum.max() - lum.min()))).argmin())
+    else:                                                                  # Finsternis: hellste Stufe um schwarze Schrift
+        k = int(lum.argmax())
+    u = KL.under(c)
+    c.add("corona", g > GLOW_MIN, u + (c.lvl(k) - u) * g)
+
+
 def word_layer(c, w, flash, hi):
     """Ein Begriff (finale_words) aufs Bild, mittig: Groesse und Zeilenabstand wie KICK-OFF/Datum, Block waagerecht und
     senkrecht auf der Bildmitte. Endwert = Tinte, kippt als Ganzes hell/dunkel (KL.flip_word wie JOIN US); davor als
@@ -1217,8 +1272,7 @@ def word_layer(c, w, flash, hi):
     lead = L["sb"][1] - L["sb"][0] if len(L["sb"]) > 1 else 1.4 * cap
     if w.get("date"):                                                      # O15: KICK-OFF/Datum/Ort gross in der Mitte
         w = dict(w, lines=list(L["sub"]))
-        sc = min(w["scale"], (c.W - 2 * L["x0"]) / max(S.width_per_cap(s) * cap for s in w["lines"]))
-        cap, lead = cap * sc, lead * sc
+        cap, lead = date_cap(c, w["scale"])
     if w.get("left"):                                                      # O14: an der Stelle von KICK-OFF/Datum,
         lines = [x for s in w["lines"] for x in ([s] if S.width_per_cap(s) * cap <= c.W - 2 * L["x0"] else s.split())]
         ms = KL.line_masks(c, [(s, L["sb"][0] + j * lead, cap) for j, s in enumerate(lines)])   # buendig am S
@@ -1269,11 +1323,17 @@ def finale_layers(c, f, n0):
         out = [ly for ly in c.layers[n0:] if ly[0] in f["parts"]]
         c.layers[n0:] = [ly for ly in c.layers[n0:] if ly[0] not in f["parts"]]
         if out and f["dissolve"] < 1:
-            v = np.full((c.gh, c.gw), np.nan, np.float32)
-            for ly in out:
-                v = np.where(np.isnan(ly[2]), v, ly[2])
-            m, val = _fly(c, ~np.isnan(v), v, f["dissolve"], f["scale"], centre)
-            c.add("qr", m, val)
+            for grp in ({"date"}, {"qr", "cta"}):                          # O18 (Vadim 6.10.: "geht quer ueber den Screen"):
+                v = np.full((c.gh, c.gw), np.nan, np.float32)              # jede Gruppe fliegt zu ihrem Rand, QR nach unten
+                for ly in out:                                             # links (Mitte = Bildmitte), Datum nach links
+                    if ly[0] in grp:                                       # (Mitte rechts auf Hoehe des Blocks)
+                        v = np.where(np.isnan(ly[2]), v, ly[2])
+                ys = np.nonzero((~np.isnan(v)).any(1))[0]
+                if not len(ys):
+                    continue
+                ctr = (ys.mean(), c.gw - 1.0) if "date" in grp else (c.gh / 2, c.gw / 2) if f.get("fly_out") else centre
+                m, val = _fly(c, ~np.isnan(v), v, f["dissolve"], f["scale"], ctr)
+                c.add("qr", m, val)
         if f.get("back", 0) > 0:                                           # O14: KICK-OFF/Datum/Ort pixeln zum Abschluss
             on = np.random.default_rng(WORD_SEED - 1).random((c.gh, c.gw)) < f["back"]   # wieder ein
             for name, a, v, flat, D in out:

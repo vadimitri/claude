@@ -351,6 +351,9 @@ def zoom_type(c):
         c.layer_pal["dim"] = np.zeros_like(c.pal)                         # in Schwarz (O11, Vadim: "Schluss schwarz"; #000)
         c.add("dim", thr < fin["close"], c.lvl(0))
         c.star_m = c.star_m & (thr >= fin["close"])                       # abgedimmt ist Grund: Schrift kippt dort nicht
+    if fin and fin.get("corona", 0) > 0:                                  # O18: Corona waechst unter der Schrift
+        import kickoff_loop_end as KE
+        KE.corona_layer(c, fin)
     n0 = len(c.layers)
     if zm["type_out"] < 1:
         KL.type_layers(c)
@@ -368,6 +371,15 @@ def zoom_type(c):
                 name, a, v, flat, D = c.layers[j]
                 if name in ("title", "date", "new"):
                     c.layers[j] = (name, a, np.where(dim & ~np.isnan(v), hi, v), None, D)
+        if fin.get("corona_mode") == "finsternis" and fin["corona"] > 0:   # O18: schwarze Schrift, nur die Corona zeigt sie
+            c.layer_pal["dim"] = np.zeros_like(c.pal)                     # (SPARK kippt im Korn mit der Corona, der Block
+            blk = np.zeros((c.gh, c.gw), bool)                            # ist von Anfang an schwarz)
+            for name, a, v, flat, D in c.layers[n0:]:
+                if name == "title":
+                    blk |= ~np.isnan(v) & (thr < fin["corona"])
+                elif name == "new":
+                    blk |= ~np.isnan(v)
+            c.add("dim", blk, 0.0)
     if zm["info"] and zm["info_in"] > 0:
         cap = zm["info_cap_cells"] * c.px
         lead = round(zm["info_lead_frac"] * zm["info_cap_cells"]) * c.px
