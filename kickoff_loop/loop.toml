@@ -136,6 +136,17 @@ title_plain_frames = [13]  # Ausnahme, Titel hier reine Tinte ohne Differenz (Va
 # Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert. Titelblock steht in jedem
 # Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
 
+[type.ink]
+# Farbe je Plakat (Nummer auf dem Kontaktbogen 1-64) und Zeile/Wort/Buchstaben (erstes Vorkommen im Block KICK-OFF /
+# Datum / Ort) -> Palettenstufe k (0 = Grund ... hellste = N). Der Verlauf in der Schrift bleibt 1 Stufe und endet auf k.
+# [k, 0] = flache Stufe ohne Verlauf (Akzentfarbe, z. B. eine Zeile halb auf hellem, halb auf dunklem Grund).
+# Ueberschreibt das automatische Kippen (flip_word). Vadim 6.10. vom Kontaktbogen.
+1 = { "14.10. / 17:00" = 0 }
+5 = { "KICK-OFF" = 2, "14.10. / 17:00" = 2, "D-SCHOOL" = 2 }     # Dunkelblau statt Schwarz
+9 = { "14.10." = 0, "FF" = 5, "OOL" = 5 }
+15 = { "KICK" = 5, "14.10. / 17:00" = [3, 0] }                    # Zeile halb auf Lime, halb auf Navy: Pink
+61 = { "D-SCHOOL" = 3 }                                            # Orange
+
 [qr]
 # JOIN US + QR gluehen ein (Vadim zu v005: keine harte Caption-Box, zurueck zum Gluehen von v003, aber sauber).
 # Die QR-Platte (Module + Ruhezone quiet_cells) steht flaechig in der hellsten Stufe, drumherum laeuft das Licht ins Plakat

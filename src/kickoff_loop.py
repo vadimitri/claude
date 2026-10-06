@@ -489,7 +489,7 @@ def layout(c):
     dg = c.st["loop"]["digital"]
     if not dg:
         L = K.layout(c)
-        return dict(L, x0=L["m"])
+        return dict(L, x0=title_left(L, c.px, (c.gh, c.gw)))
     W, H = S.SIZES[PREVIEW][:2]
     poster = K.layout(SimpleNamespace(W=W, H=H, px=c.px, st=c.st))
     native = K.layout(c)
@@ -497,13 +497,39 @@ def layout(c):
     snap = lambda v: round(v / c.px) * c.px                                   # noqa: E731
     mix = lambda a, b: snap(a + (b - a) * u)                                  # noqa: E731
     y = lambda k: mix(poster[k] + oy, native[k])                              # noqa: E731
-    L = dict(native, x0=mix(poster["m"] + ox, native["m"]), meta=y("meta"), cap=mix(poster["cap"], native["cap"]),
+    x0 = mix(title_left(poster, c.px, (H // c.px, W // c.px)) + ox, title_left(native, c.px, (c.gh, c.gw)))
+    L = dict(native, x0=x0, meta=y("meta"), cap=mix(poster["cap"], native["cap"]),
              capd=mix(poster["capd"], native["capd"]), capj=mix(poster["capj"], native["capj"]), qbot=y("qbot"))
     L["tb"] = [mix(poster["tb"][0] + oy, native["tb"][0])]
     L["sb"] = [mix(a + oy, b) for a, b in zip(poster["sb"], native["sb"])]
     L["db"] = L["sb"][-1]
     L["star"] = dg["star"]
     return L
+
+
+def title_left(L, px, shape):
+    """Linke Tintenkante des zentrierten Titels in Displaypixeln = Satzkante fuer KICK-OFF/Datum/Ort, JOIN US und QR
+    (Vadim 6.10.: seit dem Kerning P-A stand der Block links neben dem S; lieber mehr Rand als nicht buendig).
+    Zentriert wie line_masks(centered=True)."""
+    m = S.line_mask(L["title"][0], "clash", L["cap"], L["tb"][0], L["m"], px, shape)
+    xs = np.nonzero(m.any(0))[0]
+    return int(xs[0] + round(shape[1] / 2 - (xs[0] + xs[-1] + 1) / 2)) * px
+
+
+def glyph_mask(c, lines, masks, sel):
+    """Maske der Zeichen `sel` in der ersten Zeile, die sie enthaelt (ganze Zeile, Wort oder Buchstaben wie "FF"):
+    Spalten von der letzten Tinte davor bis zur letzten Tinte von sel. Fuer [type.ink]."""
+    for (s, b, cap), m in zip(lines, masks):
+        a = s.find(sel)
+        if a < 0:
+            continue
+        def ink(t):
+            return np.nonzero(S.line_mask(t, "clash", cap, b, c.L["x0"], c.px, m.shape).any(0))[0] if t.strip() else []
+        dx = np.nonzero(m.any(0))[0][0] - ink(s)[0]                     # line_masks schiebt die Zeile auf die Tinte
+        right = lambda t: ink(t)[-1] + dx if len(ink(t)) else -1        # noqa: E731
+        cols = np.arange(m.shape[1])
+        return m & (cols > right(s[:a])) & (cols <= right(s[:a + len(sel)]))
+    raise KeyError(f"[type.ink]: {sel!r} steht in keiner Zeile {[s for s, *_ in lines]}")
 
 
 def rect(c, y0, x0, y1, x1, r=0):
@@ -630,12 +656,12 @@ def line_masks(c, lines, centered=False):
     """Masken der Zeilen, linksbuendig an x0; centered: waagerecht auf die Bildmitte (Plakat- bzw. 9:16-Mitte, im
     Digitalteil liegt das Plakat mittig im Bild, die Mitte wandert also nicht)."""
     out = []
-    for s, b, cap in lines:
-        m = S.line_mask(s, "clash", cap, b, c.L["x0"], c.px, (c.gh, c.gw))
-        if centered and m.any():
+    for s, b, cap in lines:                     # Titel immer ab m setzen: round() beim Zentrieren rundet .5 zur geraden
+        m = S.line_mask(s, "clash", cap, b, c.L["m"] if centered else c.L["x0"], c.px, (c.gh, c.gw))   # Zahl, sonst
+        if m.any():                                                          # haengt die Lage an der Startspalte
             xs = np.nonzero(m.any(0))[0]
-            m = np.roll(m, round(c.gw / 2 - (xs[0] + xs[-1] + 1) / 2), 1)
-        out.append(m)
+            m = np.roll(m, round(c.gw / 2 - (xs[0] + xs[-1] + 1) / 2) if centered else round(c.L["x0"] / c.px) - xs[0], 1)
+        out.append(m)                           # linke Zeilen: Tinte genau auf x0 (die Fontbox liegt ~1 Zelle daneben)
     return out
 
 
@@ -670,6 +696,11 @@ def type_layers(c):
             val = v
             for m in masks:
                 val = np.where(m, flip_word(c, m, v), val)
+            if not lp["digital"]:                     # Vadim 6.10.: Farbe je Plakat und Wort/Buchstabe, Verlauf endet auf Stufe k
+                fall = (1 - v) * c.N / steps if steps else np.zeros_like(v)     # 0 = oberste Pixelreihe, 1 = unterste
+                for sel, k in lp["type"].get("ink", {}).get(str(lp["i"] + 1), {}).items():
+                    k, span = (k, steps) if np.isscalar(k) else k            # [k, 0] = flache Stufe ohne Verlauf
+                    val = np.where(glyph_mask(c, lines, masks, sel), np.clip((k - span * fall) / c.N, 0, 1), val)
         c.add(name, mk, val)
         K._EXTRA[name] = mk
 
@@ -1093,6 +1124,8 @@ def selftest(cfg, i=8):
                                                          # Kopie: masks wird unten mit F32 verglichen
         if m.sum() < full.sum() / 2:                    # Zeile gekippt (dunkle Schrift auf Papier, C5b): kein Licht-Verlauf
             continue
+        if any(sel in s for sel in st["loop"]["type"].get("ink", {}).get(str(i + 1), {})):
+            continue                                    # [type.ink]: Farbe von Hand gesetzt (auch flach)
         rows = np.array([np.mean(level[y][m[y]]) for y in np.nonzero(m.any(1))[0]])
         assert rows[0] == top_level and rows[-1] == top_level - 1, f"{s}: Enden nicht flaechig {rows[0]:.2f} {rows[-1]:.2f}"
         period = len(S.bayer(4))                        # Bayer 4x4 fuellt Nachbarreihen verschieden: ueber 4 Reihen mitteln
