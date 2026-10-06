@@ -383,6 +383,9 @@ def zoom_card_type(c):
     """Satz im Zoom (zoom_type), darueber die Endkarte, falls [ending].card_on. Steht hier und nicht in
     kickoff_loop_video, damit der Cache-Schluessel des Digitalteils nur Quelltext enthaelt, der beim Rendern laeuft
     (kickoff_loop.DIGITAL_SOURCES)."""
+    if c.st.get("P_type"):                                                # O16: Welt dunkelt ab, die Schrift nicht
+        for name in ("title", "date", "new", "qr", "cta"):
+            c.layer_pal[name] = styles.hexpal(c.st["P_type"])
     zoom_type(c)
     if c.st["loop"]["digital"].get("card"):
         import kickoff_loop_end as KE

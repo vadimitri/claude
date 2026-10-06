@@ -700,6 +700,9 @@ def orbit_state(cfg, dt, jump=0.0):
     else:
         idx = orbit_poster(cfg, dt)
     st = KL.poster_style(cfg, idx)
+    if e.get("orbit_darken") and os_["loop"] and dt > 0:                  # O16 (Vadim 6.10.: "die Sparks werden Richtung
+        p = min(dt / (e["orbit_close_at_beats"] * b), 1.0) ** e.get("orbit_darken_pow", 1.0)   # Ende des Loops dunkler")
+        st["P_type"], st["P"] = st["P"], dark_palette(cfg, idx, 1 - e["orbit_darken"] * p)
     star = os_["star"]
     if not os_["loop"] and e["orbit_path"] == "dive":                      # Zoom in den Stern (Finale: KD.zoom_sparks)
         st.update(S=KL.S_CODES["S33"], spark_fn=KD.zoom_sparks if e.get("orbit_sparks") else KD.zoom_spark,
@@ -716,8 +719,9 @@ def orbit_state(cfg, dt, jump=0.0):
         morph = morph if any(morph.values()) else None
     flow = orbit_flow(cfg, dt)
     dg = dict(u=0.0, offset=(ox, oy), star=star, show=None)
-    if not os_["loop"] or tout > 0 or card or flow:                        # sonst exakt das Plakat-Dict (bitgleich)
-        dg.update(poster=idx, card=card, zoom=dict(dolls=round(os_["dolls"], 6), type_out=round(tout, 4), info=[],
+    gone = e.get("orbit_darken") and dt >= e["orbit_dissolve_at_beats"] * b   # O16: QR/KICK-OFF gehen schon im Loop
+    if not os_["loop"] or tout > 0 or card or flow or gone:                # sonst exakt das Plakat-Dict (bitgleich)
+        dg.update(poster=idx, card=card, zoom=dict(dolls=round(os_.get("dolls", 0.0), 6), type_out=round(tout, 4), info=[],
                                                    info_in=0.0, core_shrink=e.get("orbit_dive_core_shrink", 0.0),
                                                    blur=round(os_.get("blur", 0.0), 4), flow=flow, morph=morph,
                                                    finale=finale(cfg, dt, os_)))
@@ -743,6 +747,17 @@ def orbit_state(cfg, dt, jump=0.0):
     st["loop"] = {**st["loop"], "digital": dg}
     st["star"] = (star[0] / W, star[1] / H, star[2] / W)
     return st
+
+
+def dark_palette(cfg, i, f):
+    """O16: Colorway von Plakat i in OKLab Richtung Schwarz skaliert (f = 1 unveraendert, 0 schwarz), als Palettenname."""
+    import kickoff_loop as KL
+    lab = KL.to_oklab([[int(h[k:k + 2], 16) for k in (1, 3, 5)] for h in KL.palette_hex(cfg, i)])
+    lab = lab * [f, f ** 0.5, f ** 0.5]                                   # Buntheit sinkt langsamer: satte Tiefen statt Matsch
+    out = ["#%02X%02X%02X" % tuple(int(v) for v in c) for c in KL.from_oklab(lab)]
+    name = "loop:" + "".join(h[1:] for h in out)
+    S.PALS[name] = out
+    return name
 
 
 def frame_slot(cfg, dt):
@@ -809,7 +824,10 @@ def word_slot(cfg, dt):
     if x < 0:
         return None
     if e.get("orbit_date_center") and dt >= e["orbit_close_at_beats"] * b:   # O15: Abschluss = Datum mittig, pixelt ein
-        return None, _prog(dt, e["orbit_close_at_beats"], e["orbit_close_beats"], b), e["orbit_close_beats"]
+        ln = e.get("orbit_date_in_beats", e["orbit_close_beats"])         # O16: Datum entsteht langsamer als der Abschluss
+        return None, _prog(dt, e["orbit_close_at_beats"], ln, b), ln
+    if not e.get("orbit_words_on", True):                                 # O16: keine Begriffe
+        return None
     k = 0
     for n, ln in e["orbit_words_slots"]:
         if x < n * ln:
