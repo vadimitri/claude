@@ -12,6 +12,7 @@
 frames = 32          # Frames pro Loop. Vadim 1.10.: Farbe C1 (32 Frames, eine Reise), Tempo T16 (16.32/s, 32tel-Triolen
                      # auf IGOR); der Video-Loop ist von den Plakaten getrennt, leere Frames (Stern hinter dem Kopf) ok
 key_every = 2        # Stationen der Farbreise liegen auf jedem 2. Frame (aus der Plakatzeit, 1.10.: Video getrennt)
+video_only = [1]     # Aushaenge, die nur ins Video gehen (Druck als Fotoframe, Bogen: V). Vadim 6.10.: 1 nicht lesbar zu machen
 changes_per_bar = 48 # Tempo: Plakatwechsel pro Takt, ueber das ganze Karussell (ersetzt die Takte im Musik-Raster).
                      # Vadim 2.10. "alles auf Tempo 16": T16 = 32tel-Triolen = 48/Takt, auf IGOR (81.61 BPM) 16.32/s.
                      # Teiler von 48 (8 = Achtel, 16 = 16tel, 24 = 16tel-Triolen). 0 = wie im Raster ([mashup] *_carousel)
@@ -133,19 +134,21 @@ effects_behind_title = ["S50", "S54c"]   # diese Sterne sparen den Titelblock ni
                            # liefen bisher nur bis zum Titel). Vadim 2.10.: "bei 15, 16, 07, 09, 25, 23 Effekte verborgen".
                            # Glitch (S48c/e/f) bleibt draussen (Vadim 1.10.: Glitch nie im Titelblock)
 title_plain_frames = [13]  # Ausnahme, Titel hier reine Tinte ohne Differenz (Vadim 2.10.: "bei Frame 13 nicht invertiert/dunkel")
+halo_cells = 4             # Schatten-Gluehen um Zeilen aus [type.halo]: Lichtabfall wie das QR-Gluehen, 2 % nach so
+                           # vielen Zellen. Grundfarbe faellt um die Buchstaben ab (auf dunklem Grund unsichtbar)
+halo_core_cells = 1        # davor dicht (ganz Grundfarbe), dann erst der Abfall
 # Keine Kopfzeile (Vadim 30.9.: Nummern komplett raus). SPARK steht waagerecht zentriert. Titelblock steht in jedem
 # Frame gleich (Vadim 30.9.: kein Wachsen, nichts verrutscht), der Selbsttest prueft das am Bild.
 
 [type.ink]
 # Farbe je Plakat (Nummer auf dem Kontaktbogen 1-64) und Zeile/Wort/Buchstaben (erstes Vorkommen im Block KICK-OFF /
 # Datum / Ort) -> Palettenstufe k (0 = Grund ... hellste = N). Der Verlauf in der Schrift bleibt 1 Stufe und endet auf k.
-# [k, 0] = flache Stufe ohne Verlauf (Akzentfarbe, z. B. eine Zeile halb auf hellem, halb auf dunklem Grund).
+# ["#unten", "#oben"] = eigene Akzentfarbe, gleicher Verlauf und Dither (Vadim 6.10.: nie flach, nie einzelne Buchstaben).
 # Ueberschreibt das automatische Kippen (flip_word). Vadim 6.10. vom Kontaktbogen.
-1 = { "14.10. / 17:00" = 0 }
 5 = { "KICK-OFF" = 2, "14.10. / 17:00" = 2, "D-SCHOOL" = 2 }     # Dunkelblau statt Schwarz
-9 = { "14.10." = 0, "FF" = 5, "OOL" = 5 }
-15 = { "KICK" = 5, "14.10. / 17:00" = [3, 0] }                    # Zeile halb auf Lime, halb auf Navy: Pink
-61 = { "D-SCHOOL" = 3 }                                            # Orange
+
+[type.halo]
+# Plakatnummer -> Zeilen/Woerter mit Schatten-Gluehen (halo_cells). Die Zeile steht dann immer in Tinte (kein Kippen).
 
 [qr]
 # JOIN US + QR gluehen ein (Vadim zu v005: keine harte Caption-Box, zurueck zum Gluehen von v003, aber sauber).

@@ -1050,7 +1050,7 @@ def contact_sheet(cfg, posters, qr_ok, legib, stills, path):
         x, y = (i % cols) * (pw + gap), (i // cols) * (ph + cap)
         sheet.paste(Image.fromarray(img).resize((pw, ph), Image.BOX), (x, y))
         warn = ("" if qr_ok[i] else " QR!") + ("" if legib[i] >= K.TIER[0] else f" L{legib[i]:.2f}")
-        d.text((x, y + ph + 4), f"{'A' if KL.is_key(cfg, i) else ' '} {i + 1:02d} {KL.style_code(cfg, i)}{warn}",
+        d.text((x, y + ph + 4), f"{'A' if KL.is_print(cfg, i) else 'V' if KL.is_key(cfg, i) else ' '} {i + 1:02d} {KL.style_code(cfg, i)}{warn}",
                font=font, fill=(230, 230, 230) if not warn else (255, 120, 90))
         d.text((x, y + ph + 28), KL.station_label(cfg, i), font=font, fill=(140, 140, 150))
     y = rows * (ph + cap) + gap

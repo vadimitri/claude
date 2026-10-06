@@ -44,7 +44,7 @@ from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import binary_dilation, gaussian_filter, minimum_filter
+from scipy.ndimage import binary_dilation, distance_transform_edt, gaussian_filter, minimum_filter
 
 import kickoff as K
 import styles as S
@@ -134,6 +134,11 @@ def load(path=CONFIG, music=None):
                                  "werden auf dem Weg grau (Grund und Tinte gleich hell). Papier in eine eigene Welt")
     assert posters(cfg) % n == 0, (f"[color]: {len(col['worlds'])} Welten x {wf} Frames = {posters(cfg)} Plakate, kein "
                                    f"Vielfaches von [loop].frames {n}: Bahn und Stile sprangen am Neustart")
+    for num, d in cfg["type"].get("ink", {}).items():   # [type.ink]: Plakatnummer -> Stufe oder Akzent-Verlauf, nie Lila
+        assert num.isdigit() and 1 <= int(num) <= posters(cfg), f"[type.ink]: Plakat {num} gibt es nicht"
+        for sel, k in d.items():
+            assert np.isscalar(k) or (len(k) == 2 and not is_lilac(k)), \
+                f"[type.ink] {num} {sel!r}: Stufe 0..N oder [\"#unten\", \"#oben\"] ohne Lila, nicht {k}"
     gd = cfg.get("ground")
     if gd:
         need = {"islands": {"islands", "size_frac", "drift_frac", "warp_frac", "seed", "terraces", "gain", "lin_frac"},
@@ -241,6 +246,12 @@ def posters(cfg):
 def is_key(cfg, i):
     """Aushang (haengt auf dem Campus) oder Zwischenframe (nur fuers Video). Frame 1 ist immer ein Aushang."""
     return i % cfg["loop"]["key_every"] == 0
+
+
+def is_print(cfg, i):
+    """Aushang, der auch gedruckt aushaengt. [loop].video_only: Aushang-Frames, die nur ins Video gehen (Vadim 6.10.:
+    Satz dort nicht lesbar zu machen); sie werden wie Fotoframes gedruckt (einseitig, nur zum Fotografieren)."""
+    return is_key(cfg, i) and i + 1 not in cfg["loop"].get("video_only", [])
 
 
 # ---------------------------------------------------------------- Farbe
@@ -678,6 +689,7 @@ def type_layers(c):
     steps = lp["type"]["text_gradient_steps"]
     flow = (((lp["digital"] or {}).get("zoom") or {}).get("flow"))       # Ende: (phase, Stufen) des laufenden Verlaufs
     phase, steps = (flow[0], flow[1]) if flow else (0.0, steps)
+    accent, title_mk = [], np.zeros(shape, bool)
     for name, lines in text_lines(c).items():
         if show is not None and name not in show:
             continue
@@ -696,13 +708,29 @@ def type_layers(c):
             val = v
             for m in masks:
                 val = np.where(m, flip_word(c, m, v), val)
-            if not lp["digital"]:                     # Vadim 6.10.: Farbe je Plakat und Wort/Buchstabe, Verlauf endet auf Stufe k
-                fall = (1 - v) * c.N / steps if steps else np.zeros_like(v)     # 0 = oberste Pixelreihe, 1 = unterste
+            halo = [] if lp["digital"] else lp["type"].get("halo", {}).get(str(lp["i"] + 1), [])
+            if halo:                                  # Schatten-Gluehen: Zeile in Tinte (kein Kippen), um die Buchstaben
+                hm = np.logical_or.reduce([glyph_mask(c, lines, masks, sel) for sel in halo])  # faellt der Grund ab wie
+                val = np.where(hm, v, val)            # das QR-Gluehen (Lichtabfall), auf dunklem Grund unsichtbar
+                d = distance_transform_edt(~hm) - 0.5   # Bayer direkt zwischen Untergrund und Grundfarbe: ueber die
+                d = np.maximum(d - lp["type"]["halo_core_cells"], 0)   # Kern: dicht an der Schrift, dann Lichtabfall
+                g = np.exp(-GLOW_LIGHT_E * d / lp["type"]["halo_cells"])   # Zwischenstufen gab es einen farbigen Ring
+                c.add("halo", (g > S.tile(S.bayer(4), shape)) & ~hm & ~title_mk, c.lvl(0))   # (Stahlblau, Orange)
+            if not lp["digital"]:                     # Vadim 6.10.: Farbe je Plakat und Zeile/Wort, immer mit Verlauf
                 for sel, k in lp["type"].get("ink", {}).get(str(lp["i"] + 1), {}).items():
-                    k, span = (k, steps) if np.isscalar(k) else k            # [k, 0] = flache Stufe ohne Verlauf
-                    val = np.where(glyph_mask(c, lines, masks, sel), np.clip((k - span * fall) / c.N, 0, 1), val)
+                    g = glyph_mask(c, lines, masks, sel)
+                    if np.isscalar(k):                # Palettenstufe: Verlauf endet auf Stufe k
+                        val = np.where(g, np.clip(v - (c.N - k) / c.N, 0, 1), val)
+                    else:                             # ["#unten", "#oben"]: eigene Farbe, gleicher Verlauf + Dither
+                        accent.append((g, k))
         c.add(name, mk, val)
         K._EXTRA[name] = mk
+        title_mk = mk if name == "title" else title_mk
+    for j, (g, hexes) in enumerate(accent):           # Akzent als eigene Ebene: dieselben Stufen (N-steps .. N), nur in
+        lo, hi = S.hexpal_list(hexes)                 # den zwei Farben, also dithert der Verlauf wie in der Palette
+        t = np.clip((np.arange(c.N + 1) - (c.N - steps)) / steps, 0, 1)[:, None] if steps else np.ones((c.N + 1, 1))
+        c.layer_pal[f"ink{j}"] = (lo + t * (hi - lo)).astype(np.float32)
+        c.add(f"ink{j}", g, v)
 
     K._EXTRA["type"] = (np.maximum.reduce([a for _, a, *_ in c.layers[n0:]]) > 0 if len(c.layers) > n0
                         else np.zeros((c.H, c.W), bool))            # fuer das Zweitlicht in kickoff.frame_of
@@ -1233,11 +1261,11 @@ def print_files(cfg):
     for i, (img, _) in enumerate(res):
         png = os.path.join(out, f"{i + 1:02d}.png")
         S.save(img, png, PRINT_DPI)
-        pages = [png, back] if is_key(cfg, i) else [png]
-        name = f"{'aushang' if is_key(cfg, i) else 'foto'}_{i + 1:02d}.pdf"
+        pages = [png, back] if is_print(cfg, i) else [png]
+        name = f"{'aushang' if is_print(cfg, i) else 'foto'}_{i + 1:02d}.pdf"
         with open(os.path.join(out, name), "wb") as fh:
             fh.write(img2pdf.convert(pages, layout_fun=img2pdf.get_fixed_dpi_layout_fun((PRINT_DPI, PRINT_DPI))))
-    keys = sum(is_key(cfg, i) for i in range(n))
+    keys = sum(is_print(cfg, i) for i in range(n))
     return (f"{n} Druckdateien in {out}: {keys} Aushaenge (mit Rueckseite), {n - keys} Fotoframes; "
             f"QR lesbar {n - len(bad)}/{n}" + (f"  ! NICHT lesbar: {bad}" if bad else ""))
 
