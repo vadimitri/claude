@@ -416,7 +416,7 @@ def check_orbit(cfg, beats_left):
         assert ws and all(isinstance(w, list) and w and all(isinstance(x, str) for x in w) for w in ws), \
             "[ending] Finale: orbit_words = [[\"ZEILE\", ...], ...] (je Begriff eine Liste Zeilen)"
         assert sl and all(len(x) == 2 and type(x[0]) is int and x[0] > 0 and x[1] > 0 for x in sl) \
-            and sum(x[0] for x in sl) == len(ws), (
+            and sum(x[0] for x in sl) >= len(ws), (   # O14: mehr Slots = Liste laeuft zyklisch
                 f"[ending].orbit_words_slots = [[Anzahl, Beats je Begriff], ...], Anzahlen zusammen = {len(ws)} Begriffe "
                 f"(heute {sum(x[0] for x in sl if len(x) == 2)})")
         fr = [e[k] for k in ("orbit_words_in_frac", "orbit_words_fade_frac", "orbit_words_out_frac")]
@@ -724,7 +724,12 @@ def orbit_state(cfg, dt, jump=0.0):
         if e.get("orbit_sparks"):                                          # O12: grosser Stern + kleiner Stern je Begriff
             big = (KL.style_code(cfg, idx), *[round(v, 3) for v in star], None)
             slot = word_slot(cfg, dt)
-            if e["orbit_stop_r_frac"] == 0 and slot:                       # O13 (Vadim 3.10.: "der grosse Spark bleibt gross,
+            kf = frame_slot(cfg, dt)
+            if kf is not None:                                             # O14 (Vadim 6.10.: "jeden Frame aendert sich der Spark",
+                idx = colour_tour(cfg, idx)[kf % len(colour_tour(cfg, idx))]   # Schrift + Grund in derselben Colorway; Reise
+                st["P"], dg["poster"] = KL.palette(cfg, idx), idx          # geordnet, damit die Uebergaenge clean bleiben)
+                big = (e["orbit_sparks"][kf % len(e["orbit_sparks"])], *big[1:5], KL.palette_hex(cfg, idx))
+            elif e["orbit_stop_r_frac"] == 0 and slot:                     # O13 (Vadim 3.10.: "der grosse Spark bleibt gross,
                 k = slot[0]                                                # jedes Wort ein anderer Spark"): Stil + Colorway
                 big = (e["orbit_sparks"][k % len(e["orbit_sparks"])], *big[1:5],   # der Farbreise wie O12 klein
                        KL.palette_hex(cfg, (idx + 1 + k) % KL.posters(cfg)))
@@ -736,6 +741,36 @@ def orbit_state(cfg, dt, jump=0.0):
     st["loop"] = {**st["loop"], "digital": dg}
     st["star"] = (star[0] / W, star[1] / H, star[2] / W)
     return st
+
+
+def frame_slot(cfg, dt):
+    """O14: Videobild seit dem ersten Begriff (orbit_frame_sparks), None davor, ohne Schalter und ab dem Abschluss."""
+    e, b = cfg["ending"], beat(cfg)
+    if not e.get("orbit_frame_sparks") or not e["orbit_words_at_beats"] * b <= dt < e["orbit_close_at_beats"] * b:
+        return None
+    return int(round((dt - e["orbit_words_at_beats"] * b) * cfg["video"]["timeline_fps"]))
+
+
+_TOUR = {}
+
+
+def colour_tour(cfg, start):
+    """O14: alle Colorways als Reise mit kleinen Schritten (naechster Nachbar in OKLab ueber alle Stufen, ab dem
+    Eintauch-Plakat), hin und zurueck (kein Sprung am Ende). ponytail: Greedy-Tour, 2-opt falls ein Sprung stoert."""
+    import kickoff_loop as KL
+    key = (KL.posters(cfg), start)
+    if key not in _TOUR:
+        n = key[0]
+        lab = np.array([KL.to_oklab([[int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in KL.palette_hex(cfg, j)])
+                        for j in range(n)])
+        lab[..., 0] *= 2                                                   # Helligkeit zaehlt doppelt (Flash, Lesbarkeit)
+        left, tour = set(range(n)) - {start}, [start]
+        while left:
+            j = min(left, key=lambda q: np.abs(lab[q] - lab[tour[-1]]).sum())
+            tour.append(j)
+            left.remove(j)
+        _TOUR[key] = tour + tour[-2:0:-1]
+    return _TOUR[key]
 
 
 def stop_sparks(cfg, dt, idx):
@@ -799,7 +834,8 @@ def finale(cfg, dt, os_):
     return dict(glow=round(glow, 4), close=round(close, 3), parts=list(e["orbit_dissolve"]),
                 dissolve=round(_prog(dt, e["orbit_dissolve_at_beats"], e["orbit_dissolve_beats"], b), 3),
                 scale=e["orbit_dissolve_scale"], words=finale_words(cfg, dt), flash=e["orbit_words_flash_frac"],
-                clear=e.get("orbit_glow_clear_cells", GLOW_CLEAR_CELLS))
+                clear=e.get("orbit_glow_clear_cells", GLOW_CLEAR_CELLS),
+                back=close if e.get("orbit_date_back") else 0.0)
 
 
 def finale_words(cfg, dt):
@@ -816,7 +852,7 @@ def finale_words(cfg, dt):
         return []
     k, local, _ = slot
     fl, fi, ff, fo = (e[f"orbit_words_{q}_frac"] for q in ("flash", "in", "fade", "out"))
-    return [dict(lines=list(e["orbit_words"][k]), seed=k,                  # in/out 0 = hart mit dem Stern (O12a)
+    return [dict(lines=list(e["orbit_words"][k % len(e["orbit_words"])]), seed=k, left=e.get("orbit_words_left", False),                  # in/out 0 = hart mit dem Stern (O12a)
                  grow=1 + fl if fi == 0 else round(local / fi * (1 + fl), 3),
                  fade=1.0 if ff == 0 else round(min(max(local - fi, 0) / ff, 1.0), 3),
                  out=0.0 if fo == 0 else round(max(local - (1 - fo), 0) / fo * (1 + fl), 3))]
@@ -1149,7 +1185,16 @@ def word_layer(c, w, flash, hi):
     L = c.L
     cap = L["capd"]
     lead = L["sb"][1] - L["sb"][0] if len(L["sb"]) > 1 else 1.4 * cap
-    mk, v = word_mask(c, w["lines"], cap, lead, c.W / 2, c.H / 2 - (cap + (len(w["lines"]) - 1) * lead) / 2)
+    if w.get("left"):                                                      # O14: an der Stelle von KICK-OFF/Datum,
+        lines = [x for s in w["lines"] for x in ([s] if S.width_per_cap(s) * cap <= c.W - 2 * L["x0"] else s.split())]
+        ms = KL.line_masks(c, [(s, L["sb"][0] + j * lead, cap) for j, s in enumerate(lines)])   # buendig am S
+        steps = c.st["loop"]["type"]["text_gradient_steps"]
+        mk, v = np.zeros((c.gh, c.gw), bool), np.zeros((c.gh, c.gw), np.float32)
+        for j, m in enumerate(ms):
+            v = np.where(m, KL.line_gradient(c, L["sb"][0] + j * lead, cap, steps), v)
+            mk |= m
+    else:
+        mk, v = word_mask(c, w["lines"], cap, lead, c.W / 2, c.H / 2 - (cap + (len(w["lines"]) - 1) * lead) / 2)
     if not mk.any():
         return
     K._EXTRA["new"] = mk
@@ -1185,6 +1230,11 @@ def finale_layers(c, f, n0):
                 v = np.where(np.isnan(ly[2]), v, ly[2])
             m, val = _fly(c, ~np.isnan(v), v, f["dissolve"], f["scale"], centre)
             c.add("qr", m, val)
+        if f.get("back", 0) > 0:                                           # O14: KICK-OFF/Datum/Ort pixeln zum Abschluss
+            on = np.random.default_rng(WORD_SEED - 1).random((c.gh, c.gw)) < f["back"]   # wieder ein
+            for name, a, v, flat, D in out:
+                if name == "date":
+                    c.layers.append((name, a * S.up(on.astype(np.float32), px), np.where(on, v, np.nan), flat, D))
     for w in f["words"]:
         word_layer(c, w, f["flash"], hi)
 
@@ -1203,6 +1253,8 @@ def glow_layer(c, f):
     hi = c.lvl(int((c.pal @ KL.LUMA).argmax()))
     text = np.zeros((c.gh, c.gw), bool)
     for name, lines in KL.text_lines(c).items():
+        if name in f.get("parts", ()) and f.get("dissolve", 0) > 0:        # O14: was zerfallen ist, glueht nicht als Geist
+            continue
         text |= np.logical_or.reduce(KL.line_masks(c, lines, centered=name == "title"))
     g = np.zeros((c.gh, c.gw), np.float32)
     for j in range(1, GLOW_SAMPLES + 1):
