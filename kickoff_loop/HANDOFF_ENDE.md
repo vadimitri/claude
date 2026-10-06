@@ -72,7 +72,8 @@ gesehen), deshalb wurde es teuer.
    `previz/marks/photo_01.jpg`, `O12a|O12b/digital.ts`, `O7/test*`.
 5. Alte `worktree-agent-*` Worktrees/Branches: nur mit Vadims OK entfernen.
 6. Stand Git: Branch `claude/kickoff-loop`, linear (Video-Runden O14–M4 + Druck-Runde des anderen Agenten:
-   Druckrand, Rückseite, Duplex-PDFs), gepusht, 145 Commits vor `main`. Merge nach `main` entscheidet Vadim.
+   Druckrand, Rückseite, Duplex-PDFs + Foto-Agent c4a1b34: `src/kickoff_loop_photos.py` Campus-Fotos erkennen/auswählen),
+   gepusht, ~150 Commits vor `main`. Merge nach `main` entscheidet Vadim.
 
 ## 5. Neu bauen (Agent B)
 
