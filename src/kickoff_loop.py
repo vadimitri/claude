@@ -1265,19 +1265,23 @@ BACK_LINES = ("BITTE NICHT ABHÄNGEN", "BIS 15.10.")           # Rueckseite jede
 BACK_WIDTH_FRAC = 0.5                                           # laengste Zeile / Seitenbreite (6.10.: kleiner, war 0.8)
 
 
-def edge_fade(img, cell_px, pr, frame_i=0, loop_n=1):
+def edge_fade(img, cell_px, pr, frame_i=0, loop_n=1, box=None):
     """Druckrand ([print], Vadim 6.10. R1d+): die aeusseren margin_cells weiss (dort druckt der Drucker eh nicht), danach
     laeuft das Plakat wie das QR-Gluehen ins Weiss aus (Lichtabfall ueber fade_cells, Bayer 4x4 auf dem Zellraster),
     unter fade_min Dichte nichts mehr (der Schweif zog sonst eine gerade Punktlinie = sah aus wie ein Rahmen).
     Welle (Vadim 6.10. A2): die Breite schwankt um +-wave_amp, wave_count Wellen entlang des Umfangs, die pro Loop
-    (loop_n Plakate) einmal eine Wellenlaenge weiterlaufen: fotografiert und im Loop abgespielt laeuft der Rand um."""
+    (loop_n Plakate) einmal eine Wellenlaenge weiterlaufen: fotografiert und im Loop abgespielt laeuft der Rand um.
+    box = (x0, y0, Breite, Hoehe) in Zellen: wo das Papier im Bild liegt (darf ueberstehen, ausserhalb weiss); ohne =
+    das ganze Bild (Druck). Video: Plakatrechteck des letzten Fotos, das nach aussen waechst (paper_wipe)."""
     gh, gw = img.shape[0] // cell_px, img.shape[1] // cell_px
+    x0, y0, bw, bh = box or (0, 0, gw, gh)
     yy, xx = np.mgrid[0:gh, 0:gw]
-    top, bot, lef, rig = yy, gh - 1 - yy, xx, gw - 1 - xx
+    yy, xx = yy - y0, xx - x0
+    top, bot, lef, rig = yy, bh - 1 - yy, xx, bw - 1 - xx
     dm = np.minimum(np.minimum(top, bot), np.minimum(lef, rig))
     d = dm + 0.5 - pr["margin_cells"]
-    s = np.select([top == dm, rig == dm, bot == dm], [xx, gw + yy, gw + gh + (gw - 1 - xx)], 2 * gw + gh + (gh - 1 - yy))
-    w = pr["fade_cells"] * (1 + pr.get("wave_amp", 0) * np.sin(2 * np.pi * (pr.get("wave_count", 0) * s / (2 * (gw + gh))
+    s = np.select([top == dm, rig == dm, bot == dm], [xx, bw + yy, bw + bh + (bw - 1 - xx)], 2 * bw + bh + (bh - 1 - yy))
+    w = pr["fade_cells"] * (1 + pr.get("wave_amp", 0) * np.sin(2 * np.pi * (pr.get("wave_count", 0) * s / (2 * (bw + bh))
                                                                             - (frame_i % loop_n) / loop_n)))
     g = np.exp(-GLOW_LIGHT_E * np.maximum(d, 0) / np.maximum(w, 1))
     white = (d < 0) | ((g > S.tile(S.bayer(4), (gh, gw))) & (g >= pr["fade_min"]))

@@ -38,9 +38,27 @@ In dieser Reihenfolge:
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
 5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
-6. **F7 (7.10. spät)**: Übergang Papier → digital (nur nach außen) + Spark hinter dem Slash, Abschnitt „F7“ hierunter.
+6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
+   weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
 
-## F7 (7.10. spät) · **wartet auf Vadim** · ansehen: `Vorschau/F7_draft.mp4`
+## F8 (7.10. nachts) · **wartet auf Vadim** · ansehen: `Vorschau/F8_draft.mp4`
+
+Vadim zu F7: Übergang „noch viel schlechter“ (Befund: 2 Bilder blankes Weiß, dann ein schmaler Streifen Digitalbild aus
+der Mitte, weil der Rand auf 9:16 von allen Seiten gleich breit war). Gewünscht: „erst mal hat alles einen weißen
+Hintergrund, dann nicht komplett blankweiß, sondern der digitale Loop geht weiter, hat erst den Rand wie das Papier,
+und das wird immer größer und wächst raus, super smooth“. Umgesetzt (`loop.toml [video] paper_*`, F8.toml = F7 + Kommentar):
+1. **Foto** (`kickoff_loop_video.paper_grow`, im `_photo_job` nach `shoot`): in den letzten `paper_photo_frames = 12`
+   Bildern wächst Weiß vom Plakatrand über die Wand (smoothstep), Front = Lichtabfall wie der Druckrand ([print]
+   fade_cells, Bayer auf dem Plakat-Zellraster, dreht mit der Kamera). Im letzten Foto ist alles außer dem Plakat weiß.
+2. **Digital** (`paper_wipe`): Bild 0 = Digitalbild genau im Plakatrechteck des letzten Fotos (`digital_offset`), außen
+   Weiß, an der Kante `KL.edge_fade` mit `box=` (neu, Druck bitgleich geprüft) und der Welle des letzten Plakats. In
+   `paper_frames = 12` Bildern wächst das Rechteck raus, der Lichtabfall 16 → `paper_fade_cells` 40, `paper_step_frames = 1`.
+Gemessen (Weiß je Bild ab 5.30 s): 0 → 14 % über 12 Foto-Bilder (= Fläche außerhalb des Plakats), hält am Schnitt, im
+Digitalteil weich auf ~0 bis 6.17 s. `paper_selftest` prüft beides, Gegenprobe (Bild 0 ganz weiß wie F7) schlägt an.
+Offen: Vadims Urteil (Tempo: je 12 Bilder; am Schnitt steht die Kante ~4 Bilder fast still, smoothstep auf beiden Seiten).
+Danach wie F7: `[ending]` nach `loop.toml`, `preview` ohne `--draft`, `--master`, Resolve.
+
+## F7 (7.10. spät) · Papier nur nach außen + Spark hinter dem Slash · **Papier überholt durch F8**, Spark gilt
 
 Vadim zu F6: Papier „erst weniger zu sehen, dann ganz viel ist scheiße, nur nach außen wachsen, über mehrere Frames
 langsam“; Spark „nicht über die Schrift fliegen, hinter dem Slash bleiben, super klein, nur das Halo entstehen lassen,

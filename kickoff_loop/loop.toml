@@ -228,12 +228,14 @@ shake_px = 1.5             # F4 (Vadim 7.10.: "weniger Stabilisierung, jeden Fra
                            # Sigma in Ausgabepixeln (1080 breit), auf +-2 Sigma begrenzt. 0 = ruhig wie F1-F3
 shake_rot_deg = 0.05       # ... und Zufallsdrehung je Bild (Sigma, Grad). F5: 0.3 → 0.05
 shake_fade_frac = 0.15     # Verwackeln laeuft ueber diesen Anteil der Fahrt zum Zoom-Ende auf 0 (Wechsel ins Digitale pixelgenau)
-# Papier → digital (F6, Vadim 7.10.: "erst in einen weissen Hintergrund, dann growt der Randeffekt raus, posterized"):
-# der Druckrand [print] (Weiss + Lichtabfall im Bayer-Korn + Welle) laeuft ueber das ganze Bild. 0 = harter Schnitt wie F5.
-# F7 (Vadim zu F6: "erst weniger, dann ganz viel ist scheisse"): das Foto schneidet auf Weiss, der Rand waechst nur nach aussen
-paper_frames = 16          # so viele Digital-Bilder ab dem Wechsel: erste Stufe weiss, dann growt das Bild raus, bis es frei ist
-paper_step_frames = 2      # posterized: der Rand springt alle 2 Bilder (Zweier wie der Digitalteil im Draft)
-paper_fade_cells = 40      # Lichtabfall des Rands in Zellen (Druck: [print].fade_cells 16; im Video groesser, damit man ihn sieht)
+# Papier → digital. F8 (Vadim zu F7: "erst mal hat alles einen weissen Hintergrund, dann nicht komplett blankweiss,
+# sondern der digitale Loop geht weiter, hat erst den Rand wie das Papier, und der wird immer groesser und waechst raus,
+# super smooth"). Teil 1 Foto: Papierweiss waechst vom Plakat ueber die Wand. Teil 2 digital: Digitalbild im
+# Plakatrechteck des letzten Fotos, Druckrand [print] an der Kante, Rechteck waechst raus. 0/0 = harter Schnitt wie F5.
+paper_photo_frames = 12    # so viele Foto-Bilder vor dem Wechsel: Weiss waechst ueber die Wand, im letzten ist alles ausser dem Plakat weiss
+paper_frames = 12          # so viele Digital-Bilder ab dem Wechsel: Rand an der Papierkante waechst raus, bis das Bild frei ist
+paper_step_frames = 1      # 1 = jedes Bild (smooth). F6/F7: 2 (posterized, Zweier)
+paper_fade_cells = 40      # Lichtabfall des Rands am Ende des Rauswachsens (Start = [print].fade_cells 16 wie gedruckt)
 punch_frac = 0.0           # Stoss nach vorn auf jedem Drum-Hit (Vadim 2.10.: aus, 0) ([music].grid hits_s): Massstab +5 %, klingt ab
 punch_decay_beats = 0.25   # Abklingzeit des Stosses (Beats). Kurz = zackig, auf dem Schlag
 

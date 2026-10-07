@@ -227,26 +227,61 @@ def digital_offset(cfg):
     return round((W - pw) / 2 / px) * px, round((H - ph) / 2 / px) * px
 
 
-def paper_wipe(cfg, img, j):
-    """Papier → digital (Vadim 7.10.: "erst in einen weissen Hintergrund, dann growt der Randeffekt raus, ueber ein paar
-    Frames, posterized"): der Druckrand (KL.edge_fade: Weiss, Lichtabfall im Bayer-Korn, umlaufende Welle) aufs ganze
-    Ausgabebild, nur sein weisser Rand margin_cells laeuft. j = Bild nach dem Wechsel: die erste Stufe ist ganz weiss,
-    danach waechst das Digitalbild in paper_frames Bildern nur nach aussen, bis es frei ist. Stufen von
-    paper_step_frames Bildern. F7 (Vadim zu F6: "erst weniger zu sehen, dann ganz viel ist scheisse, nur nach aussen
-    wachsen, ueber mehrere Frames langsam"): kein Einlauf mehr ueber das Foto, das schneidet auf Weiss."""
+def paper_grow(cfg, img, k, cam):
+    """Papier → digital, Teil 1 (F8, Vadim zu F7: "bei den letzten paar Frames waechst das Papier, also das Weiss,
+    raus, erst mal hat alles einen weissen Hintergrund"): k = Foto-Bild vor dem Wechsel, paper_photo_frames - 1 = das
+    letzte. Weiss waechst vom Plakatrand ueber die Wand nach aussen (smoothstep), die Front laeuft wie der Druckrand
+    aus ([print] fade_cells, Bayer 4x4 auf dem Zellraster des Plakats, dreht mit der Kamera). Im letzten Foto ist
+    alles ausser dem Plakat weiss, dort setzt paper_wipe an. cam = camera(...) dieses Bilds."""
+    n = cfg["video"].get("paper_photo_frames", 0)
+    if not 0 <= k < n:
+        return img
+    s, roll, dx, dy = cam
+    H, W = img.shape[:2]
+    (pw, ph), cell, pr = S.SIZES[KL.PREVIEW][:2], KL.PREVIEW_CELL_PX, cfg["print"]
+    a = np.radians(roll)
+    c, sn = np.cos(a) / s, np.sin(a) / s                         # wie shoot: Ausgabepixel → Plattenpixel
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    xx, yy = xx + 0.5 - W / 2, yy + 0.5 - H / 2                   # Pixelmitten (wie PIL)
+    qx = c * xx + sn * yy - dx / s + pw / 2                       # Plakatpixel (Plakat mittig auf der Platte)
+    qy = -sn * xx + c * yy - dy / s + ph / 2
+    d = np.maximum(np.maximum(-qx, qx - pw), np.maximum(-qy, qy - ph)) / cell   # Zellen ausserhalb des Plakats
+    far = max(H / scales(cfg, ph)[1] - ph, W / scales(cfg, ph)[1] - pw) / 2 / cell + 1   # weiteste Wand im letzten Foto
+    tail = pr["fade_cells"] * np.log(1 / pr["fade_min"]) / KL.GLOW_LIGHT_E
+    u = (k + 1) / n
+    r = -tail + u * u * (3 - 2 * u) * (far + tail)               # Front: anfangs nur der Schweif, am Schluss alles
+    g = np.exp(-KL.GLOW_LIGHT_E * np.maximum(d - r, 0) / pr["fade_cells"])
+    bay = S.bayer(4)[(qy // cell).astype(int) % 4, (qx // cell).astype(int) % 4]
+    out = np.array(img)
+    out[(d > 0) & ((d < r) | ((g > bay) & (g >= pr["fade_min"])))] = 255
+    return out
+
+
+def paper_wipe(cfg, img, j, k=0):
+    """Papier → digital, Teil 2 (F8, Vadim zu F7: "nicht komplett alles blankweiss und waechst, sondern der digitale
+    Loop geht weiter, hat erst den Rand wie das Papier, und das wird immer groesser und waechst raus"): j = Bild nach
+    dem Wechsel. Bild 0 = Digitalbild genau im Plakatrechteck des letzten Fotos (digital_offset), aussen Weiss, an der
+    Kante der Druckrand (KL.edge_fade mit [print], Welle in der Lage von Plakat k = letztes Foto). In paper_frames
+    Bildern waechst das Rechteck weich (smoothstep) nach aussen, der Lichtabfall von [print].fade_cells auf
+    paper_fade_cells, bis kein Weiss mehr im Bild ist. F7 (Schnitt auf ganz Weiss, Bild growt aus der Mitte) verworfen."""
     v = cfg["video"]
     n, step = v.get("paper_frames", 0), v.get("paper_step_frames", 1)
     if not 0 <= j < n:
         return img
     img = np.asarray(img)                                           # PIL-Bild des Digitalteils
-    j -= j % step                                                   # posterized: Stufe haelt step Bilder
-    u = 1 - j / n                                                   # 1 = ganz weiss
     px = S.BASE["R"] * S.SIZES["9x16"][2]                           # Zellraster des Digitalteils (Bayer deckungsgleich)
-    pr = dict(cfg["print"], fade_cells=v.get("paper_fade_cells", cfg["print"]["fade_cells"]))
-    tail = pr["fade_cells"] * (1 + pr["wave_amp"]) * np.log(1 / pr["fade_min"]) / KL.GLOW_LIGHT_E   # weitester Schweif
-    full = min(img.shape[:2]) / px / 2 + 1                          # ab hier ist alles weiss
-    pr["margin_cells"] = 0.5 - tail + u * (full - 0.5 + tail)      # u = 0: auch der Schweif liegt ausserhalb des Bilds
-    return KL.edge_fade(img, px, pr, j, n)                         # Welle laeuft im Uebergang einmal um
+    gh, gw = img.shape[0] // px, img.shape[1] // px
+    ox, oy = digital_offset(cfg)
+    x0, y0 = ox // px, oy // px
+    bw, bh = (q // KL.PREVIEW_CELL_PX for q in S.SIZES[KL.PREVIEW][:2])
+    u = (j - j % step) / n
+    e = u * u * (3 - 2 * u)
+    pr = dict(cfg["print"])
+    f0, f1 = pr["fade_cells"], v.get("paper_fade_cells", pr["fade_cells"])
+    pr["fade_cells"] = f0 + (f1 - f0) * e                           # der Rand wird beim Rauswachsen breiter
+    tail = f1 * (1 + pr["wave_amp"]) * np.log(1 / pr["fade_min"]) / KL.GLOW_LIGHT_E   # weitester Schweif am Schluss
+    g = e * (max(y0, x0, gh - y0 - bh, gw - x0 - bw) + tail)        # e = 1: auch der Schweif liegt ausserhalb
+    return KL.edge_fade(img, px, pr, k, KL.count(cfg), box=(x0 - g, y0 - g, bw + 2 * g, bh + 2 * g))
 
 
 def beat_s(cfg):
@@ -609,9 +644,10 @@ def _photo_job(args):
         shm = shared_memory.SharedMemory(name=shm_name)
     try:
         out = np.ndarray((tl.zoom_end, H, W, 3), np.uint8, buffer=shm.buf)
+        n = cfg["video"].get("paper_photo_frames", 0)
         for t in ts:
-            sc, *rest = camera(cfg, tl, t, h)
-            out[t] = np.asarray(shoot(plate, sc, (W, H), *rest))
+            cam = camera(cfg, tl, t, h)
+            out[t] = paper_grow(cfg, np.asarray(shoot(plate, cam[0], (W, H), *cam[1:])), t - tl.zoom_end + n, cam)
         del out
     finally:
         shm.close()
@@ -744,21 +780,32 @@ def prune_segments(folder, keep=SEGMENT_KEEP):
 
 
 def paper_selftest(cfg):
-    """Papier → digital am Bild (paper_wipe): das erste Bild nach dem Wechsel ist ganz weiss, danach wird es nur
-    weniger (Rand waechst nach aussen, F7: nie erst zu und dann auf), jede Stufe deckt noch etwas ab (nicht zu frueh
-    fertig), ab paper_frames ist das Digitalbild unberuehrt."""
+    """Papier → digital am Bild. Foto (paper_grow, letzte paper_photo_frames Bilder, Kamera am Zoom-Ende): Weiss nimmt
+    nur zu, das Plakat bleibt unberuehrt, im letzten Foto ist alles ausser dem Plakat weiss. Digital (paper_wipe): das
+    erste Bild ist NICHT ganz weiss (F7-Fehler "blankweiss"), sondern genau das Weiss ausserhalb des Plakats, danach
+    wird es nur weniger, ab paper_frames ist das Digitalbild unberuehrt."""
     v = cfg["video"]
-    n = v.get("paper_frames", 0)
+    n, m = v.get("paper_frames", 0), v.get("paper_photo_frames", 0)
     if not n:
         return "Selbsttest Papier: aus (paper_frames = 0)"
     W, H = v["size_px"]
     img = np.zeros((H, W, 3), np.uint8)
+    pw, ph = S.SIZES[KL.PREVIEW][:2]
+    _, s1 = scales(cfg, ph)
+    out = np.ones((H, W), bool)                                     # ausserhalb des Plakats im letzten Foto
+    out[round(H / 2 - ph * s1 / 2):round(H / 2 + ph * s1 / 2), max(0, round(W / 2 - pw * s1 / 2)):round(W / 2 + pw * s1 / 2)] = False
+    grow = [(paper_grow(cfg, img, k, (s1, 0.0, 0.0, 0.0)) == 255).all(-1) for k in range(m)]
+    gw = [float(g.mean()) for g in grow]
+    if m:
+        assert gw == sorted(gw), f"Papier Foto: Weiss nimmt nicht nur zu: {gw}"
+        assert not (grow[-1] & ~out).any(), "Papier Foto: Weiss auf dem Plakat"
+        assert (grow[-1] == out).all(), f"Papier Foto: letztes Foto ausserhalb des Plakats nicht ganz weiss ({gw[-1]:.1%})"
     white = [float((paper_wipe(cfg, img, j) == 255).all(-1).mean()) for j in range(n + 1)]
-    assert white[0] == 1.0, f"Papier: erstes Bild nur {white[0]:.1%} weiss"
-    assert white[-1] == 0.0, f"Papier: ab paper_frames noch {white[-1]:.1%} weiss"
-    assert all(0 < w < 1 for w in white[v.get("paper_step_frames", 1):-1]), f"Papier: Stufe ohne Rand: {white}"
-    assert white == sorted(white, reverse=True), f"Papier: Rand waechst nicht nur nach aussen: {white}"
-    return f"Selbsttest ok (Papier: {n} Bilder nach aussen, Weissanteil {' '.join(f'{w:.2f}' for w in white)})"
+    assert 0 < white[0] < float(out.mean()) + 0.05, f"Papier digital: erstes Bild {white[0]:.1%} weiss (Plakat aussen {out.mean():.1%})"
+    assert white[-1] == 0.0, f"Papier digital: ab paper_frames noch {white[-1]:.1%} weiss"
+    assert white == sorted(white, reverse=True), f"Papier digital: Rand waechst nicht nur nach aussen: {white}"
+    return (f"Selbsttest ok (Papier: Foto {m} Bilder Weiss {' '.join(f'{w:.2f}' for w in gw)} | digital {n} Bilder "
+            f"{' '.join(f'{w:.2f}' for w in white)})")
 
 
 def segment_selftest(cfg):
@@ -1247,7 +1294,7 @@ def preview(cfg, posters, qr_ok, legib):
         for j in range(len(digital)):
             img, t = digital[j], tl.zoom_end + j
             if j < cfg["video"].get("paper_frames", 0):                    # Papier → digital: Rand growt raus
-                img = Image.fromarray(paper_wipe(cfg, img, j))
+                img = Image.fromarray(paper_wipe(cfg, img, j, tl.poster_at(tl.zoom_end - 1)))
             ff.stdin.write(np.asarray(img).tobytes())
             if gate:
                 lum.append(luminance(img))
@@ -1384,7 +1431,7 @@ def export(cfg, posters):
                                  "3", "-pix_fmt", "yuv422p10le", path], stdin=subprocess.PIPE)
     ff = prores(os.path.join(out, "digital.mov"))
     for j, img in enumerate(digital_frames(cfg, tl)):
-        ff.stdin.write(np.asarray(paper_wipe(cfg, img, j)).tobytes())
+        ff.stdin.write(np.asarray(paper_wipe(cfg, img, j, tl.poster_at(tl.zoom_end - 1))).tobytes())
     ff.stdin.close()
     ff.wait()
     cam, ff = [], prores(os.path.join(out, "camera.mov"))
