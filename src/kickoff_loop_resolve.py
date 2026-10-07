@@ -19,6 +19,8 @@ Satz, QR) rendert weiter Python, aus der Bahn, die `pull` aus Resolve holt: je F
   uv run src/kickoff_loop_resolve.py schnitt       Previz zum Selberschneiden: Projekt SPARK_Kickoff_Schnitt, Timeline
                                                    "Schnitt" = Loop auf IGORs Raster + Song, verknuepft, mit Markern.
                                                    Erneut aufrufen = Medien neu (Timeline bleibt, Resolve verlinkt neu)
+  uv run src/kickoff_loop_resolve.py song <variante.toml>   Timeline "<Version> + Song" im Schnitt-Projekt: fertige
+                                                   Vorschau (V1, nur Bild) + ganzer IGOR-Song (A1, frei schiebbar)
 
 Konventionen (Resolve 21.1; Rundreise mit `check` gemessen, Bild-Pruefung `verify` noch offen, siehe EDITOR.md):
   unsere Bahn   x, y = Bruchteil von Plakatbreite/-hoehe, y nach unten; r = Spitzenradius / Plakatbreite;
@@ -597,11 +599,9 @@ def schnitt_media(cfg):
     return video, song, g
 
 
-def schnitt(cfg):
-    """Projekt SPARK_Kickoff_Schnitt: Timeline "Schnitt" = loop_igor.mp4 (V1) + IGOR-Song (A1), verknuepft, ab Frame 0,
-    Marker an den Songstellen; Timeline "Referenz" = alles aus resolve/schnitt/ref/ hintereinander. Bestehende Timelines
-    bleiben unangetastet (nur die Medien werden neu exportiert)."""
-    video, song, g = schnitt_media(cfg)
+def schnitt_project(cfg):
+    """Projekt SPARK_Kickoff_Schnitt laden oder anlegen (9:16, Bildrate laut [video]); ein anderes offenes Projekt wird
+    vorher gespeichert. → (ProjectManager, Projekt, item(path) = Media-Pool-Clip, importiert falls neu)."""
     r = connect()
     pm = r.GetProjectManager()
     cur = pm.GetCurrentProject()
@@ -623,7 +623,64 @@ def schnitt(cfg):
             assert got, f"Resolve importiert {path} nicht"
             known[path] = got[0]
         return known[path]
+    return pm, proj, item
 
+
+def song_timeline(cfg):
+    """Vadim 7.10.: "das Video mit dem Song allein in eine DaVinci-Timeline, damit ich den Song schieben kann, gucken,
+    was wir laenger oder kuerzer brauchen". Im Schnitt-Projekt Timeline "<Version> + Song": V1 = fertige Vorschau der
+    Variante (nur Bild, preview.mp4 vor preview_draft.mp4), A1 = ganzer IGOR-Song, nicht verknuepft (frei schiebbar),
+    so gelegt wie im Video (Songzeit file_offset_s auf dem ersten Bild). Resolve legt Clips nur auf ganze Bilder: der
+    Song bekommt vorn Stille bis zum naechsten ganzen Bild. Marker haengen an den Clips (wandern beim Schieben mit):
+    Song-Abschnitte am Song, Wechsel ins Digitale + Impact am Video. Eine bestehende Timeline bleibt (Vadims Schnitt)."""
+    import subprocess
+    import kickoff_loop_video as V
+    out = KL.out_dir(cfg)
+    name = os.path.basename(out)
+    video = next((p for p in (os.path.join(out, f) for f in ("preview.mp4", "preview_draft.mp4")) if os.path.exists(p)),
+                 None)
+    assert video, f"{out}: keine Vorschau, erst: uv run src/kickoff_loop.py preview <variante.toml> --draft"
+    fps, m, tl = cfg["video"]["timeline_fps"], cfg["music"], V.Timeline(cfg)
+    off = m["grid"]["file_offset_s"]
+    start = int(np.ceil(off * fps))                                   # erstes Videobild auf der Timeline
+    sr = 48000
+    pad = round((start / fps - off) * sr)                             # Stille vorn: Songzeit off liegt genau auf start
+    os.makedirs(SCHNITT, exist_ok=True)
+    song = os.path.join(SCHNITT, f"song_{name}.wav")
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", os.path.join(KL.PROJECT, m["loop_file"]), "-af",
+                    f"aresample={sr},adelay={pad}S:all=1", song], check=True)
+    pm, proj, item = schnitt_project(cfg)
+    mp, tname = proj.GetMediaPool(), f"{name} + Song"
+    if timeline_by_name(proj, tname) is not None:
+        proj.SetCurrentTimeline(timeline_by_name(proj, tname))
+        pm.SaveProject()
+        return f"{SCHNITT_PROJECT}: Timeline '{tname}' besteht (bleibt), Medien neu: {video}, {song}"
+    v, a = item(video), item(song)
+    t = mp.CreateEmptyTimeline(tname)
+    proj.SetCurrentTimeline(t)
+    t.SetStartTimecode("00:00:00:00")
+    got = mp.AppendToTimeline([dict(mediaPoolItem=v, trackIndex=1, recordFrame=start, mediaType=1, startFrame=0,
+                                    endFrame=int(v.GetClipProperty("Frames"))),   # ohne Start/Ende legt 21.1 falsch
+                               dict(mediaPoolItem=a, trackIndex=1, recordFrame=0, mediaType=2)])
+    assert got and len(got) == 2, "Video/Song liessen sich nicht auf die Timeline legen"
+    vi, ai = sorted(got, key=lambda i: i.GetStart())[::-1]            # Video beginnt spaeter als der Song
+    for f, label in [(0, "Start Video"), (tl.zoom_end, "Wechsel ins Digitale"), (tl.hit, "Impact")]:
+        vi.AddMarker(f, "Blue", label, label, 1)
+    for sec in m["loop_grid"]["sections"] + [dict(song_s=s_, label=l_) for s_, l_ in SONG_MARKS]:
+        f = round((pad / sr + sec["song_s"]) * fps)
+        ai.AddMarker(f, MARK_COLOR, sec["label"][:60], sec["label"], 1)
+    pm.SaveProject()
+    return (f"{SCHNITT_PROJECT}: Timeline '{tname}' neu: V1 {os.path.basename(video)} ab Bild {start} "
+            f"({start / fps:.3f} s), A1 ganzer Song (Songzeit {off:.3f} s auf Bild {start}), Marker an den Clips")
+
+
+def schnitt(cfg):
+    """Projekt SPARK_Kickoff_Schnitt: Timeline "Schnitt" = loop_igor.mp4 (V1) + IGOR-Song (A1), verknuepft, ab Frame 0,
+    Marker an den Songstellen; Timeline "Referenz" = alles aus resolve/schnitt/ref/ hintereinander. Bestehende Timelines
+    bleiben unangetastet (nur die Medien werden neu exportiert)."""
+    video, song, g = schnitt_media(cfg)
+    pm, proj, item = schnitt_project(cfg)
+    mp, fps = proj.GetMediaPool(), cfg["video"]["timeline_fps"]
     made = []
     if timeline_by_name(proj, SCHNITT_TIMELINE) is None:
         v, a = item(video), item(song)
@@ -666,6 +723,8 @@ def main():
         print(verify(cfg, [int(a) for a in args[1:]] or None))
     elif cmd == "schnitt":
         print(schnitt(cfg))
+    elif cmd == "song":
+        print(song_timeline(KL.load(args[1] if len(args) > 1 else KL.CONFIG)))
     else:
         sys.exit(__doc__)
 

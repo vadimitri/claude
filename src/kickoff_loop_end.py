@@ -77,6 +77,8 @@ FINALE_KEYS = ("orbit_zoom_peak_beats", "orbit_zoom_decay", "orbit_spin_stop_bea
 FLARE_KEYS = ("orbit_flare_at_beats", "orbit_flare_in_beats", "orbit_flare_xy", "orbit_flare_r_frac",
               "orbit_flare_spin_deg_per_beat", "orbit_flare_max_scale", "orbit_flare_creep_per_beat", "orbit_flare_peak",
               "orbit_flare_colors", "orbit_flare_step_frames")
+PRE_KEYS = ("orbit_pre_at_beats", "orbit_pre_in_beats", "orbit_pre_out_at_beats", "orbit_pre_out_beats", "orbit_pre_colors",
+            "orbit_pre_lines")   # F9: blauer Spark + Slogan vor dem roten (Vadim 7.10.), optional
 STOP_ON = 2          # O12: kleine Sterne wachsen nur alle 2 Videobilder einen Schritt (auf Zweiern, 12 fps wie Spider-Verse)
 STAR_SYM_DEG = 60.0  # der Stern hat 6 Zacken: alle 60 Grad steht er wieder gleich (gerade)
 SPIN_TAIL = 3        # Selbsttest Drehung: Bremsung in den letzten 3 bewegten Bildern ...
@@ -452,6 +454,18 @@ def check_orbit(cfg, beats_left):
         xy = e["orbit_flare_xy"]
         assert len(xy) == 2 and all(0 <= v <= 1 for v in xy), "[ending].orbit_flare_xy = [x, y] (Bruchteil des Bilds 0..1)"
         e["_flare_span_beats"] = beats_left - e["orbit_flare_at_beats"]   # der Spark waechst bis zum Videoende
+        e["_flare_end_beats"] = beats_left
+        assert 0 <= e.get("orbit_flare_out_beats", 0) < e["_flare_span_beats"], \
+            "[ending].orbit_flare_out_beats: 0 .. Laenge des Leuchtens (geht zum Videoende weg, der Ton mit)"
+        if any(k in e for k in PRE_KEYS):                                 # F9: blauer Spark + Slogan davor
+            miss = [k for k in PRE_KEYS if k not in e]
+            assert not miss, f"[ending] blauer Spark braucht noch: {', '.join(miss)}"
+            assert e["orbit_pre_at_beats"] + e["orbit_pre_in_beats"] <= e["orbit_pre_out_at_beats"] \
+                and e["orbit_pre_out_at_beats"] + e["orbit_pre_out_beats"] <= e["orbit_flare_at_beats"] \
+                and e["orbit_pre_in_beats"] > 0 and e["orbit_pre_out_beats"] > 0, (
+                "[ending] blauer Spark: at + in <= out_at, out_at + out <= orbit_flare_at_beats (Schwarz dazwischen), in/out > 0")
+            assert e["orbit_pre_lines"] and all(isinstance(x, str) for x in e["orbit_pre_lines"]), \
+                "[ending].orbit_pre_lines = [\"ZEILE\", ...] (Slogan, Zeilen mittig wie der Datumsblock)"
         fc = e["orbit_flare_colors"]
         assert len(fc) >= 2 and all(isinstance(x, str) and len(x) == 7 and x[0] == "#" for x in fc), \
             "[ending].orbit_flare_colors = [\"#000000\", ..., \"#ffffff\"] (Rampe von dunkel nach hell, OKLab dazwischen)"
@@ -877,7 +891,7 @@ def finale(cfg, dt, os_):
     glow = min(span, math.log(e["orbit_glow_max_scale"])) * (1 - close) if not os_["loop"] else 0.0
     return dict(glow=round(glow, 4), close=round(close, 3), parts=list(e["orbit_dissolve"]),
                 dissolve=round(_prog(dt, e["orbit_dissolve_at_beats"], e["orbit_dissolve_beats"], b), 3),
-                scale=e["orbit_dissolve_scale"], words=finale_words(cfg, dt), flash=e["orbit_words_flash_frac"],
+                scale=e["orbit_dissolve_scale"], words=finale_words(cfg, dt) + pre_words(cfg, dt), flash=e["orbit_words_flash_frac"],
                 clear=e.get("orbit_glow_clear_cells", GLOW_CLEAR_CELLS),
                 back=close if e.get("orbit_date_back") and not e.get("orbit_date_center") else 0.0,
                 fly_out=e.get("orbit_dissolve_out", False),
@@ -903,24 +917,61 @@ def flare_state(cfg, dt):
     danach um orbit_flare_creep_per_beat weiter, damit das Ende nicht steht. Zeit auf orbit_flare_step_frames-Stufen
     (posterized). F7 (Vadim zu F6: "nicht ueber die Schrift fliegen, hinter dem Slash bleiben, super klein, nur das
     Halo entstehen lassen, das sich durch die Groesse veraendert"): fester Ort orbit_flare_xy, der Spark waechst ueber das
-    ganze Ende bis orbit_flare_r_frac (ease-out). Vorher {} (Stil und Cache der Bilder davor bleiben unberuehrt)."""
+    ganze Ende bis orbit_flare_r_frac (ease-out).
+    F9 (Vadim 7.10. zu F8: "vorher schon der schwarze Screen, da kommt ein Spark, klein, hell in Blau, mit den Begriffen
+    ... dann geht der blaue Spark, alles wird schwarz, dann kommt noch einer, das Rote leuchtet auf und geht wieder weg,
+    damit auch der Sound"): optional davor ein zweites Licht orbit_pre_* (gleicher Ort, eigene Rampe, Slogan
+    orbit_pre_lines statt Datum), das in orbit_pre_out_beats zusammenfaellt (Spark + Leuchten auf 0, Slogan und SPARK
+    pixeln aus); SPARK pixelt mit dem Datum wieder ein (title_off). Das rote Licht geht in den letzten
+    orbit_flare_out_beats weg (Schrift bleibt). {flares: [Licht, ...], title_off 0..1} oder {} (Stil und Cache der
+    Bilder davor bleiben unberuehrt)."""
     e, b = cfg["ending"], beat(cfg)
     if "orbit_flare_at_beats" not in e:
         return {}
     fps, step = cfg["video"]["timeline_fps"], e["orbit_flare_step_frames"]
     k = math.floor(dt * fps + PHASE_EPS)
-    tb = (k - k % step) / fps / b - e["orbit_flare_at_beats"]           # Beats seit dem Auftauchen, gestuft
-    if tb < 0:
+    tq = (k - k % step) / fps / b                                           # Beats seit dem Karussell-Ende, gestuft
+    date_p = _prog(dt, e.get("orbit_date_at_beats", e["orbit_close_at_beats"]), e.get("orbit_date_in_beats", 1.0), b)
+
+    def light(tb, span, out, colors, lines, text):
+        p = 1 - (1 - min(tb / e["orbit_flare_in_beats"], 1.0)) ** 2
+        glow = p * math.log(e["orbit_flare_max_scale"]) + max(tb - e["orbit_flare_in_beats"], 0) * e["orbit_flare_creep_per_beat"]
+        q = 1 - (1 - min(tb / span, 1.0)) ** 2                              # waechst ueber sein Leuchten, bremst (ease-out)
+        return dict(xy=list(e["orbit_flare_xy"]), r=round(q * e["orbit_flare_r_frac"] * (1 - out), 4),
+                    rot=round(tb * e["orbit_flare_spin_deg_per_beat"] % STAR_SYM_DEG, 3), glow=round(glow * (1 - out), 4),
+                    peak=e["orbit_flare_peak"], colors=list(colors), lines=lines, text=round(text * (1 - out), 3))
+    lights, off = [], 0.0
+    if "orbit_pre_at_beats" in e:
+        a, o, ob = e["orbit_pre_at_beats"], e["orbit_pre_out_at_beats"], e["orbit_pre_out_beats"]
+        out = smooth((tq - o) / ob)
+        if a <= tq and out < 1:
+            lights.append(light(tq - a, o + ob - a, out, e["orbit_pre_colors"], list(e["orbit_pre_lines"]),
+                                _prog(dt, a, e["orbit_pre_in_beats"], b)))
+        off = round(out * (1 - date_p), 3)                                 # SPARK geht mit dem Blau, kommt mit dem Datum
+    tb = tq - e["orbit_flare_at_beats"]
+    if tb >= 0:
+        ob = e.get("orbit_flare_out_beats", 0)
+        span = ob - step / fps / b                                         # gestuft: im letzten Bild ganz weg
+        out = smooth((tq - e["_flare_end_beats"] + ob) / span) if ob else 0.0
+        lights.append(light(tb, e["_flare_span_beats"], out, e["orbit_flare_colors"], None, date_p))
+    if not lights and not off:
         return {}
-    p = 1 - (1 - min(tb / e["orbit_flare_in_beats"], 1.0)) ** 2
-    glow = p * math.log(e["orbit_flare_max_scale"]) + max(tb - e["orbit_flare_in_beats"], 0) * e["orbit_flare_creep_per_beat"]
-    date_at = e.get("orbit_date_at_beats", e["orbit_close_at_beats"])
-    q = 1 - (1 - min(tb / e["_flare_span_beats"], 1.0)) ** 2               # waechst bis zum Videoende, bremst (ease-out)
-    return dict(flare_xy=list(e["orbit_flare_xy"]), flare_r=round(q * e["orbit_flare_r_frac"], 4),
-                flare_rot=round(tb * e["orbit_flare_spin_deg_per_beat"] % STAR_SYM_DEG, 3), flare_glow=round(glow, 4),
-                flare_peak=e["orbit_flare_peak"], flare_colors=list(e["orbit_flare_colors"]),
-                flare_date=round(_prog(dt, date_at, e.get("orbit_date_in_beats", 1.0), b), 3),
-                flare_date_scale=e.get("orbit_date_center", 1.0))
+    return dict(flares=lights, title_off=off, flare_date_scale=e.get("orbit_date_center", 1.0))
+
+
+def pre_words(cfg, dt):
+    """F9: Slogan des blauen Sparks (orbit_pre_lines) als Begriff im Datum-Satz (mittig, gross), pixelt mit dem Spark
+    ein und beim Zusammenfallen wieder aus (word_layer: grow / out). [] ausserhalb."""
+    e, b = cfg["ending"], beat(cfg)
+    if "orbit_pre_at_beats" not in e:
+        return []
+    fl = e["orbit_words_flash_frac"]
+    grow = _prog(dt, e["orbit_pre_at_beats"], e["orbit_pre_in_beats"], b)
+    out = _prog(dt, e["orbit_pre_out_at_beats"], e["orbit_pre_out_beats"], b)
+    if grow <= 0 or out >= 1:
+        return []
+    return [dict(date=True, lines=list(e["orbit_pre_lines"]), seed=-2, scale=e.get("orbit_date_center", 1.0),
+                 grow=round(grow * (1 + fl), 3), fade=1.0, out=round(out * (1 + fl), 3))]
 
 
 def finale_words(cfg, dt):
@@ -1266,12 +1317,13 @@ def word_mask(c, lines, cap, lead, cx, top):
 WORD_HALO_CELLS = 2.5   # O15: Gluehen um die Begriffe, Abfall in Zellen
 
 
-def date_cap(c, scale):
-    """O15: Versalhoehe + Zeilenabstand des mittigen Datum-Blocks (KICK-OFF/Datum/Ort x scale, passt in die Satzbreite)."""
+def date_cap(c, scale, lines=None):
+    """O15: Versalhoehe + Zeilenabstand des mittigen Datum-Blocks (KICK-OFF/Datum/Ort x scale, passt in die Satzbreite).
+    lines: anderer Block im selben Satz (F9 Slogan), passt mit seinen eigenen Zeilen in die Breite."""
     L = c.L
     cap = L["capd"]
     lead = L["sb"][1] - L["sb"][0] if len(L["sb"]) > 1 else 1.4 * cap
-    sc = min(scale, (c.W - 2 * L["x0"]) / max(S.width_per_cap(s) * cap for s in L["sub"]))
+    sc = min(scale, (c.W - 2 * L["x0"]) / max(S.width_per_cap(s) * cap for s in lines or L["sub"]))
     return cap * sc, lead * sc
 
 
@@ -1307,34 +1359,36 @@ def corona_layer(c, f):
 
 
 def flare_layer(c, f):
-    """Weisser Spark hinter der Schrift (flare_state), malt ueber dem Schwarz des Abschlusses und unter dem Satz.
+    """Spark hinter der Schrift (flare_state), je Licht eine Ebene ueber dem Schwarz des Abschlusses und unter dem Satz.
     Das Leuchten ist dasselbe Verfahren wie glow_layer (gelobt, M1-M4 Distanz-Gluehen = "Sticker-Rand" verworfen):
-    SPARK, der mittige Datum-Block und der Spark selbst, GLOW_SAMPLES-mal vergroessert, aber um den Spark statt um die
-    Zoom-Mitte, also Lichtschweife vom Spark weg durch die Schrift. Eigene Palette der Ebene: orbit_flare_colors als
-    Rampe in OKLab auf die N+1 Stufen (Bayer dazwischen, keine flache Farbe); Schrift-Schweif hoechstens flare_peak,
-    der Spark selbst in der hellsten Stufe."""
+    SPARK, der mittige Block (Datum bzw. F9 Slogan) und der Spark selbst, GLOW_SAMPLES-mal vergroessert, aber um den
+    Spark statt um die Zoom-Mitte, also Lichtschweife vom Spark weg durch die Schrift. Eigene Palette je Licht: seine
+    Farben als Rampe in OKLab auf die N+1 Stufen (Bayer dazwischen, keine flache Farbe); Schrift-Schweif hoechstens
+    peak, der Spark selbst in der hellsten Stufe. SPARK leuchtet nur, wo er steht (title_off pixelt ihn aus)."""
     import kickoff_loop as KL
-    X, Y = f["flare_xy"][0] * c.W, f["flare_xy"][1] * c.H
-    centre = (Y / c.px - 0.5, X / c.px - 0.5)
     title = np.logical_or.reduce(KL.line_masks(c, KL.text_lines(c)["title"], centered=True))
-    cap, lead = date_cap(c, f["flare_date_scale"])
-    n = len(c.L["sub"])
-    date, _ = word_mask(c, list(c.L["sub"]), cap, lead, c.W / 2, c.H / 2 - (cap + (n - 1) * lead) / 2)
-    star = S.star_d(c, X, Y, f["flare_r"] * c.W, f["flare_rot"])[0] < 1
-    src = np.maximum.reduce([title * f["flare_peak"], date * f["flare_peak"] * f["flare_date"], star * 1.0])
-    g = src.astype(np.float32)
-    for j in range(1, GLOW_SAMPLES + 1):
-        sc = math.exp(f["flare_glow"] * j / GLOW_SAMPLES)
-        sy = np.round(centre[0] + (c.yy - centre[0]) / sc).astype(int)
-        sx = np.round(centre[1] + (c.xx - centre[1]) / sc).astype(int)
-        ok = (sy >= 0) & (sy < c.gh) & (sx >= 0) & (sx < c.gw)
-        hit = np.zeros_like(g)
-        hit[ok] = src[sy[ok], sx[ok]]
-        g = np.maximum(g, hit * (1 - j / (GLOW_SAMPLES + 1)))
-    stops = KL.to_oklab(S.hexpal_list(f["flare_colors"]))
-    t, x = np.arange(c.N + 1) / c.N, np.linspace(0, 1, len(stops))
-    c.layer_pal["flare"] = KL.from_oklab(np.stack([np.interp(t, x, stops[:, i]) for i in range(3)], -1)).astype(np.float32)
-    c.add("flare", g > GLOW_MIN, g)
+    title &= S.tile(S.bayer(4), (c.gh, c.gw)) >= f.get("title_off", 0.0)
+    for i, lt in enumerate(f["flares"]):
+        X, Y = lt["xy"][0] * c.W, lt["xy"][1] * c.H
+        centre = (Y / c.px - 0.5, X / c.px - 0.5)
+        lines = lt["lines"] or list(c.L["sub"])
+        cap, lead = date_cap(c, f["flare_date_scale"], lines)
+        block, _ = word_mask(c, lines, cap, lead, c.W / 2, c.H / 2 - (cap + (len(lines) - 1) * lead) / 2)
+        star = S.star_d(c, X, Y, lt["r"] * c.W, lt["rot"])[0] < 1 if lt["r"] > 0 else np.zeros((c.gh, c.gw), bool)
+        src = np.maximum.reduce([title * lt["peak"], block * lt["peak"] * lt["text"], star * 1.0])
+        g = src.astype(np.float32)
+        for j in range(1, GLOW_SAMPLES + 1):
+            sc = math.exp(lt["glow"] * j / GLOW_SAMPLES)
+            sy = np.round(centre[0] + (c.yy - centre[0]) / sc).astype(int)
+            sx = np.round(centre[1] + (c.xx - centre[1]) / sc).astype(int)
+            ok = (sy >= 0) & (sy < c.gh) & (sx >= 0) & (sx < c.gw)
+            hit = np.zeros_like(g)
+            hit[ok] = src[sy[ok], sx[ok]]
+            g = np.maximum(g, hit * (1 - j / (GLOW_SAMPLES + 1)))
+        stops = KL.to_oklab(S.hexpal_list(lt["colors"]))
+        t, x = np.arange(c.N + 1) / c.N, np.linspace(0, 1, len(stops))
+        c.layer_pal[f"flare{i}"] = KL.from_oklab(np.stack([np.interp(t, x, stops[:, k]) for k in range(3)], -1)).astype(np.float32)
+        c.add(f"flare{i}", g > GLOW_MIN, g)
 
 
 def word_layer(c, w, flash, hi):
@@ -1348,8 +1402,8 @@ def word_layer(c, w, flash, hi):
     cap = L["capd"]
     lead = L["sb"][1] - L["sb"][0] if len(L["sb"]) > 1 else 1.4 * cap
     if w.get("date"):                                                      # O15: KICK-OFF/Datum/Ort gross in der Mitte
-        w = dict(w, lines=list(L["sub"]))
-        cap, lead = date_cap(c, w["scale"])
+        w = dict(w, lines=w["lines"] or list(L["sub"]))                   # F9: Slogan im selben Satz
+        cap, lead = date_cap(c, w["scale"], w["lines"])
     if w.get("left"):                                                      # O14: an der Stelle von KICK-OFF/Datum,
         lines = [x for s in w["lines"] for x in ([s] if S.width_per_cap(s) * cap <= c.W - 2 * L["x0"] else s.split())]
         ms = KL.line_masks(c, [(s, L["sb"][0] + j * lead, cap) for j, s in enumerate(lines)])   # buendig am S
@@ -1682,11 +1736,49 @@ def selftest(cfg):
             sp, line = spin_selftest(cfg)
             lines.append(line)
             good &= sp
-        if "orbit_words" in cfg["ending"]:
+        if "orbit_pre_at_beats" in cfg["ending"]:
+            pr, line = pre_selftest(cfg)
+            lines.append(line)
+            good &= pr
+        if "orbit_words" in cfg["ending"] and cfg["ending"].get("orbit_words_on", True):   # O16: Begriffe aus = kein Test
             wd, line = words_selftest(cfg)
             lines.append(line)
             good &= wd
     return ok and good, lines
+
+
+def pre_selftest(cfg):
+    """F9 am fertigen Bild: Blau zuendet vor dem vollen Schwarz (Vadim zu F8: "Glow zu spaet"), leuchtet blau ohne Rot,
+    dazwischen ist das Bild ganz schwarz (auch SPARK weg), dann Rot, und im letzten Bild ist das Rot wieder weg.
+    Gegenprobe: SPARK bleibt im Schwarz stehen (title_off 0) muss als "nicht schwarz" auffallen."""
+    import kickoff as K
+    import kickoff_loop_video as V
+    e, b = cfg["ending"], beat(cfg)
+    last = e["_flare_end_beats"] - 1 / cfg["video"]["timeline_fps"] / b
+    gap = (e["orbit_pre_out_at_beats"] + e["orbit_pre_out_beats"] + e["orbit_flare_at_beats"]) / 2
+
+    def img(x):
+        return np.asarray(K.frame_of(V.digital_style(cfg, x * b), "9x16")).astype(int)
+
+    def tint(a):                                       # Anteil deutlich blauer / roter Pixel
+        r, g, bl = a[..., 0], a[..., 1], a[..., 2]
+        return float((bl > r + 60).mean()), float((r > bl + 60).mean())
+    early = tint(img(e["orbit_close_at_beats"]))[0]
+    blue, red0 = tint(img(e["orbit_pre_out_at_beats"] - 0.25))
+    dark = int(img(gap).max())
+    red = tint(img(e["orbit_flare_at_beats"] + e["orbit_flare_in_beats"] + 0.5))[1]
+    end = tint(img(last))[1]
+    import kickoff_loop_end as KE                       # das Modul, das digital_style rendert (nicht __main__)
+    keep = KE.flare_state
+    KE.flare_state = lambda c, dt: {**keep(c, dt), "title_off": 0.0} if keep(c, dt) else {}
+    try:
+        bites = int(img(gap).max()) > 8
+    finally:
+        KE.flare_state = keep
+    good = early > 0.005 and blue > 0.05 and red0 < 0.001 and dark <= 8 and red > 0.05 and end < 0.001 and bites
+    return good, (f"Blau/Schwarz/Rot: {'ok' if good else 'FEHLER'} (Blau am Abschluss-Beginn {early:.1%}, Blau {blue:.1%} "
+                  f"Rot {red0:.1%}, Luecke max {dark}, Rot {red:.1%}, letztes Bild Rot {end:.2%}; Gegenprobe SPARK im "
+                  f"Schwarz: {'schlaegt an' if bites else 'TEST BLIND'})")
 
 
 def words_selftest(cfg):

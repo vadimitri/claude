@@ -1049,7 +1049,8 @@ def song(cfg, tl, path):
     off = m["grid"].get("file_offset_s", 0.0)                   # [ending]: IGOR ungeschnitten ab dem Einstieg
     x = KM.decode(os.path.join(KL.PROJECT, m["file"]))[round(off * KM.SR):round((off + dur) * KM.SR)]
     x = x * 10 ** ((m["loudness_lufs"] - KM.lufs(x)) / 20)
-    k = round(m["fade_out_s"] * KM.SR)
+    fade = max(m["fade_out_s"], cfg.get("ending", {}).get("orbit_flare_out_beats", 0) * beat_s(cfg))   # F9: Ton geht
+    k = round(fade * KM.SR)                                                                              # mit dem Rot
     x[-k:] *= np.linspace(1, 0, k)[:, None]
     KM.write_wav(path, x)
 

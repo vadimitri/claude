@@ -354,7 +354,7 @@ def zoom_type(c):
     if fin and fin.get("corona", 0) > 0:                                  # O18: Corona waechst unter der Schrift
         import kickoff_loop_end as KE
         KE.corona_layer(c, fin)
-    if fin and "flare_glow" in fin:                                       # 7.10.: weisser Spark + Feuer-Leuchten hinter
+    if fin and fin.get("flares"):                                         # 7.10.: weisser Spark + Feuer-Leuchten hinter
         import kickoff_loop_end as KE                                     # der Schrift, ueber dem Schwarz
         KE.flare_layer(c, fin)
     n0 = len(c.layers)
@@ -367,6 +367,12 @@ def zoom_type(c):
     if fin:
         import kickoff_loop_end as KE
         KE.finale_layers(c, fin, n0)
+        if fin.get("title_off", 0) > 0:                                   # F9: SPARK pixelt mit dem blauen Spark aus und
+            for j in range(n0, len(c.layers)):                            # mit dem Datum wieder ein (Bayer-Korn)
+                name, a, v, flat, D = c.layers[j]
+                if name == "title":
+                    keep = thr >= fin["title_off"]
+                    c.layers[j] = (name, a * styles.up(keep.astype(np.float32), c.px), np.where(keep, v, np.nan), flat, D)
         if fin["close"] > 0:                                              # auf Schwarz steht die Schrift in der hellsten Stufe
             hi = c.lvl(int((c.pal @ KL.LUMA).argmax()))                   # (O11: Papier-Colorways haben dunkle Tinte)
             dim = thr < fin["close"]

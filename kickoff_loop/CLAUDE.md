@@ -38,8 +38,30 @@ In dieser Reihenfolge:
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
 5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
+7. **F9 (7.10. nachts)**: blauer Spark + Slogan vor dem roten Ende, Abschnitt „F9“ hierunter. Musik schieben: Resolve
+   `kickoff_loop_resolve.py song <variante.toml>` (Timeline „<Version> + Song“).
 6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
    weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
+
+## F9 (7.10. nachts) · **Slogan offen** · ansehen: `Vorschau/F9a_draft.mp4`, Bögen `Vorschau/F9_slogans.png`, `F9a_ablauf.png`
+
+Vadim zu F8: „gut“; Glow am Ende auf Schwarz „zu spät“; neu: „schon der schwarze Screen, ein Spark klein, hell in Blau,
+mit den Begriffen (Hardware, Design, Hackathons …), dann geht der blaue Spark, alles wird schwarz, dann kommt noch
+einer, das Rote leuchtet auf und geht wieder weg, damit auch der Sound“. Umgesetzt (`[ending]` in F9a–f, sonst = F8):
+- `orbit_pre_*` (neu, `kickoff_loop_end.flare_state` liefert jetzt `flares` = Liste von Lichtern + `title_off`): blauer
+  Spark am Ort des roten (0.5/0.5), eigene Rampe `orbit_pre_colors`, Slogan `orbit_pre_lines` im Datum-Satz
+  (`pre_words`, `date_cap(..., lines)`), zündet ab Beat 2.25 = 7.53 s (F8: 2.9 = 8.0 s, „zu spät“), fällt ab 4.5 in ½ Beat
+  zusammen (Spark + Leuchten auf 0, Slogan und SPARK pixeln aus), ½ Beat ganz schwarz.
+- Rot ab 5.5 = 9.92 s, SPARK + KICK-OFF/Datum/Ort pixeln mit ein (`orbit_date_at_beats`), geht in den letzten
+  `orbit_flare_out_beats = 1.5` weg (Schrift bleibt weiß), `song()` blendet genauso lang aus. `length_bars` 4.5 → 13.25 s.
+- F8 mit neuem Code bitgleich (4 Bilder geprüft). Selbsttest `pre_selftest` (in `kickoff_loop_end.py test <toml>`):
+  Blau schon am Abschluss-Beginn, Lücke ganz schwarz, letztes Bild ohne Rot; Gegenprobe (SPARK bleibt) schlägt an.
+  `words_selftest` läuft nur noch bei `orbit_words_on` (der Altfehler KeyError 'new'). Ebenfalls FEHLER, aber schon in
+  F8 gleich (nicht von F9): „Loop bitgleich zum Plakat (33, 38, 44)“, „Drehung läuft aus: Ruck am Ende“.
+- Offen: **Slogan** (Vadim: „nicht zufrieden mit den Begriffen; Essenz von Spark als Club, worum es geht, Bock
+  mitzumachen, kurz, Vielfalt + Konzentration auf Hardware, z. B. HARDWARE HARDWARE HARDWARE“). F9a–f = erste Runde
+  (a HARDWARE/HACKATHONS/INFINITE/CURIOSITY = Platzhalter im Video). Neuer Slogan = eine Zeile `orbit_pre_lines`,
+  dann `preview <toml> --draft` + `kickoff_loop_resolve.py song <toml>`.
 
 ## F8 (7.10. nachts) · **wartet auf Vadim** · ansehen: `Vorschau/F8_draft.mp4`
 
@@ -689,6 +711,7 @@ bei sheet/preview/end die einzige im Ordner.
 | `uv run src/kickoff_loop.py grounds [review/I1/I1.toml ..]` | blanker Grund (ohne Stern/Satz) je Variante, erste Zeile loop.toml → `previz/variants/grounds.png` | ~3 s |
 | `uv run src/kickoff_loop.py test [N..]` | Selbsttest am fertigen Bild (+ Bahn, Blitz) | ~5 s |
 | `uv run --with numpy --with pillow --with scipy --with qrcode --with scikit-image --with opencv-python-headless python src/lab_spark.py test` | Selbsttest Sterne (Hand-Schraffur) | ~20 s |
+| `uv run src/kickoff_loop_resolve.py song <variante.toml>` | Timeline „<Version> + Song“ im Schnitt-Projekt: Vorschau (V1, nur Bild) + ganzer IGOR-Song (A1, frei schiebbar, Songzeit auf dem ersten Bild), Marker an den Clips | ~10 s |
 | `uv run src/kickoff_loop_resolve.py schnitt` | Resolve-Projekt `SPARK_Kickoff_Schnitt`: Timeline „Schnitt" = Loop (9:16, Wechsel auf IGORs Raster, F1 auf 22.435 s) + IGOR-Song, verknüpft, 9 Marker; „Referenz" = `resolve/schnitt/ref/*`. Erneut aufrufen = neue Medien, Timeline bleibt (Resolve verlinkt neu) | ~3 min |
 | `uv run src/kickoff_loop.py preview [review/X/X.toml]` | ohne Argument neue Version `previz/vNNN/`, mit Variante in ihren Ordner (Video, Bögen, Report, Config-Kopie). `--master`: x264 statt Hardware-Encoder (Endabnahme) | nichts/nur Ende geändert ~9 / ~11 s, Stern geändert ~21 s, kalt ~30 s |
 | `uv run src/kickoff_loop.py preview review/X/X.toml --draft` | Entwurf: Digitalteil auf Zweiern, kein Zoom-Check → `*_draft.mp4/.png`, `report_draft.txt` (Kopfzeile DRAFT); teilt das Foto-Segment mit der Endversion | Ende geändert ~9 s |
