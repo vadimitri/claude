@@ -7,7 +7,7 @@ nachgezeichnet. Logik `src/zumo_sprites.py`, alle Werte `zumo_sprites.toml`, Dem
 ## Befehle (aus dem Repo-Root)
 
 ```
-uv run src/zumo_sprites.py variants          Variantenbogen Z1..Z7 -> previz/now/variants.png (Vadim waehlt per Code)
+uv run src/zumo_sprites.py variants          Variantenbogen Z1..Z9 -> previz/now/variants.png (Vadim waehlt per Code)
 uv run src/zumo_sprites.py look Z4           eine Variante gross, 8 Ansichten, Echtfarben + P1 -> previz/now/look_Z4.png
 uv run src/zumo_sprites.py sheet [Z4]        alle Richtungen x Paletten + 4 GIFs -> previz/now/
 uv run src/zumo_sprites.py test [Z4]         Selbsttest am fertigen Sprite (Loop, Ketten, Augen, Durchsicht, Leinwand)
@@ -52,23 +52,36 @@ Animationen (8 Frames, 12 fps): drive, reverse, turn_left, turn_right, idle, pus
 - **Rueckscheibe hinter jedem Ritzel + Hals unter dem Kopf**: sonst sieht man durch die Speichen das andere Ritzel bzw.
   der angehobene Kopf schwebt. Beides im Selbsttest.
 - **Kontur**: dunkel (Z4) fuer helle Gruende, Sticker-Kontur Stufe 4 (Z7) fuer dunkle Maker-Night-Gruende.
+- **Schild = Keil, Unterkante vorne** (Vadim 7.10.: war falsch herum). Befund CAD: Unterkante x 57.8..58.9 mm, Oberkante
+  ~49.6. Die Bounding-Box sagt nicht, welche Diagonale: Richtung immer an Vertices in Hoehenbaendern pruefen.
+- **Kette nur in der Kettenschleife** (Vadim 8.10.: "von vorne sind die Ketten nicht sichtbar, der Verlauf geht nicht bis
+  an die Raender"). Befund: die Band-Regel (Kette optisch 4.5 mm dick) markierte alles bei |z| 35..49.5 mm als Kette,
+  auch ausserhalb der Schleife -> die Schildraender wurden Kette, in allen Ansichten. Jetzt nur 0 <= Abstand <= Band; der
+  Selbsttest misst es (5632 falsche Abtastungen von vorne mit dem alten Fehler). Schild hat jetzt Kettenbreite (99 mm).
+- **Referenzen**: Pololu-Guide in `~/Nextcloud/Sporga/projects/makernight2026/hardware/zumo_2040/polulu_zumo_guide/images/`
+  (0J12327 = 3/4 vorne mit Schild, 0J12328 oben, 0J12330 Seite, 0J12331 = **hinten** (nicht vorne!), 0J3930/0J3931
+  Masszeichnungen Chassis, 0J6259 IR-LEDs in schwarzen Schrumpfschlauch-Roehrchen oben an der Front).
+- **Augen abschaltbar** (`[eyes] show`): Vadim findet sie suess, will aber auch den Zumo "wie er ist" (OLED schwarz) -> Z8, Z9.
+- **Demo = echte Pixel-Art** (Vadim 7.10. zur ersten Fassung: Ring "zu High Fidelity", Bewegung "nicht posterized", "zu
+  fake"): flache Flaechen in Palettenstufen, kein Bayer-Lichtkegel, keine weichen Verlaeufe; alles auf 12-fps-Ticks und
+  ganzen Pixeln, Keys linear (kein Smoothstep), Funke als Stempel. Das gilt fuer jede Szene mit diesen Sprites.
 - Ritzelkreise mit 36/18 Segmenten (durch 6 teilbar): 60 Grad Drehung = deckungsgleich, Loop nahtlos.
 - Pool: `OPENBLAS_NUM_THREADS=1` (gemessen: Export 6 min, Systemzeit > Nutzerzeit durch BLAS-Ueberbuchung).
 
 ## Varianten (Codes stabil, nie umnummerieren)
 
-Z1 CAD 2 mm/px · Z2 Spielzeug 2 mm/px · Z3 Chibi 2 mm/px (Kopf 1.3) · **Z4 Chibi 2.6 mm/px (Standard-Vorschlag)** ·
-Z5 Mini 3.2 mm/px · Z6 Gross 1.5 mm/px · Z7 = Z4 mit Sticker-Kontur.
+Z1 CAD 2 mm/px · Z2 Spielzeug 2 mm/px · Z3 Chibi 2 mm/px (Kopf 1.3) · **Z4 Chibi 2.6 mm/px (Vadim 8.10.: gewaehlt)** ·
+Z5 Mini 3.2 mm/px · Z6 Gross 1.5 mm/px · Z7 = Z4 mit Sticker-Kontur · Z8 = Z4 ohne Augen · Z9 = Z7 ohne Augen.
 
-## Stand 7.10. (Nacht)
+## Stand 8.10. (Nacht)
 
-Exportiert: Z4, Z7. Demo `demo_sumo` (Z7, P1). Selbsttest gruen fuer Z2-Z7 (Z1: Loop/Durchsicht nicht geprueft, die
-STEP-Ritzel haben keine 60-Grad-Symmetrie).
+Exportiert: Z4, Z7, Z8, Z9 (mit Keil-Schild). Demo `demo_sumo` v2 (Z7, P1, Pixel-Art auf Ticks). Selbsttest gruen fuer
+Z2-Z9 (Z1: Loop/Durchsicht nicht geprueft, die STEP-Ritzel haben keine 60-Grad-Symmetrie).
 
 ## Offen
 
-- Vadims Wahl: Groesse/Variante (Z-Code), Kontur, welche Paletten exportiert werden sollen.
-- Demos fuer Spormula E (Linie folgen, Draufsicht 16 Richtungen) und Area Capture (Schleife faehrt, Flaeche fuellt sich in
-  Bayer) — gleicher Aufbau wie `zumo_sprites_demo.py`.
+- Z4 ist der Look. Offen: mit oder ohne Augen (Z4/Z8), Sticker-Kontur fuer dunkle Gruende (Z7/Z9), weitere Paletten.
+- Demos fuer Spormula E (Linie folgen, Draufsicht 16 Richtungen) und Area Capture (Schleife faehrt, Flaeche fuellt sich flach,
+  Tick fuer Tick) — gleicher Aufbau wie `zumo_sprites_demo.py`.
 - Zwischenrichtungen fuer `tq` (16 statt 8) falls Kurvenfahrten in Iso gebraucht werden: eine Zeile in `[views.tq]`.
 - Schattenebene als eigene Ebene (heute in der Demo gezeichnet).
