@@ -37,9 +37,9 @@ In dieser Reihenfolge:
    (x264). Lieferung: `*.mp4` (Master), `*_share.mp4`, ProRes für Resolve (`resolve`).
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
-5. **Campus-Fotos: 64/64** (Abschnitt „Campus-Fotos“ unten), Vorschau F4 (Bearbeitung nur auf dem Papier, Handkamera).
+5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
 
-## Campus-Fotos (6.10., `src/kickoff_loop_photos.py`, `[photos]` in `loop.toml`) · **7.10.: 64/64, Vorschau F4, wartet auf Vadim**
+## Campus-Fotos (6.10., `src/kickoff_loop_photos.py`, `[photos]` in `loop.toml`) · **7.10.: 64/64, Vorschau F5, wartet auf Vadim** · Übergabe: `HANDOFF_FOTOS.md`
 
 **Stand 7.10.** A3-Runde (IMG_1143–1334, Ordner `~/Movies/116_1001`, nur JPG kopiert) dazu: 362 Fotos, 62/64 mit Foto,
 40 davon aus der A3-Runde. Vadim: „wenn es schon existiert, die neue Version nehmen“ → `prefer_from = "IMG_1143"`
@@ -65,7 +65,7 @@ Saturation stimmt, nicht super krass klar“ + „weniger Stabilisierung, jeden 
 - Wahl: `pick` 2 = IMG_1184, 9 = IMG_0982, 15 = IMG_1016, 52 = IMG_1333 (Riffelblech = „die andere Version“), Rest wie
   Bogen. 19 = IMG_1027 per `[photos].corners` (Ecken der Druckfläche, Gelb-Segmentierung), 45 = Montage
   `composite = {45 = "IMG_1104"}` (Druck durch die umgekehrte Farbabbildung des Fotos, Licht + Schärfe des echten Plakats).
-- Kamera: `[video] shake_px 6 / shake_rot_deg 0.3` je Bild (Saat = Bildnummer), läuft über `shake_fade_frac` zum
+- Kamera: `[video] shake_px` / `shake_rot_deg` je Bild (F4 6 / 0.3: „viel zu viel Bewegung“ → F5 1.5 / 0.05) (Saat = Bildnummer), läuft über `shake_fade_frac` zum
   Zoom-Ende aus. `plate_size` hat jetzt Rand für Rollen + Wackeln (vorher schwarze Ecken in den ersten ~12 Bildern,
   auch in F1–F3); Abdeckung in der Auswahl weiter über den ungedrehten Startausschnitt (sonst kippte die Wahl).
 
@@ -73,7 +73,7 @@ Vadim 6.10.: alles in A4 + A3 gedruckt, aufgehängt, mit der R8 fotografiert; Fo
 skaliert, Farben wie digital, nichts (kaum) überbelichtet; fehlende Plakate bleiben Simulation.
 - **Neue Fotos:** SD-Karte → `photos/raw/` (`rsync -a --include='IMG_*.JPG' --exclude='*' /Volumes/Canon/DCIM/<ordner>/
   kickoff_loop/photos/raw/`), dann `uv run src/kickoff_loop_photos.py` (~1 min, Erkennung je Foto gemerkt in
-  `photos/detect.json`), dann `preview review/F4/F4.toml --draft`. Ausgabe `photos/aligned/NN.png` (fertig gegradet,
+  `photos/detect.json`), dann `preview review/F5/F5.toml --draft`. Ausgabe `photos/aligned/NN.png` (fertig gegradet,
   `photo_plate` gradet echte Fotos nicht mehr nach), Bögen `photos/plates.png` (alle 64 wie im Video) und
   `photos/colors.png` (Plakat im Foto | digital), `photos/report.txt`. Foto je Plakat erzwingen: `[photos].pick`.
 - **Erkennen:** Marken (`marks.detect`) für 141/170; ohne Treffer QR + Vergleich mit allen 64 Renders + ECC (`identify`):
