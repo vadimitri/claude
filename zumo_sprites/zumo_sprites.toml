@@ -64,7 +64,8 @@ slot = [0, 0, 0]
 # Spielzeug-Modell: Grundformen mit den Massen aus dem STEP, plus Uebertreibung fuers Suesse
 [toy]
 head_scale = 1.0            # OLED-Kopf skalieren (1 = echt, 1.3 = Chibi)
-head_lift_mm = 0.0          # Kopf anheben (Abstandshalter werden laenger: "Hals")
+head_lift_mm = 0.0          # Kopf anheben (der Hals wird laenger)
+neck_inset_mm = 4.0         # Hals so viel schmaler als der Kopf (jede Seite)
 track_band_mm = 4.5         # Kettenstaerke inkl. Stollen
 rim_mm = 3.0                # Ritzel-Felge
 hub_mm = 4.5                # Ritzel-Nabe (Radius)
@@ -96,6 +97,8 @@ step_px = 1                 # Vorschub pro Frame: 8 Frames x 1 px = 2 Stollen, n
 offset_x_frac = 0.0         # Augenmitte relativ zur Bildschirmmitte, Anteil der Bildschirmtiefe (+ = nach vorne)
 spacing_frac = 0.42         # Augenabstand als Anteil der Bildschirmbreite
 min_rows_tall = 5           # so viele Bildschirmzeilen braucht die hohe Augenform, sonst flach
+min_gap_px = 2              # ausser Draufsicht: mindestens so viel Luft zwischen den Augen
+look_px = 1                 # ausser Draufsicht: Augen so weit in Fahrtrichtung verschoben (schaut, wohin er faehrt)
 
 # Gesichter: Stempel fuer das linke Auge (rechtes = gespiegelt), '#' = an. tall bei grossem, flat bei flachem Bildschirm.
 [faces.neutral]
@@ -200,7 +203,7 @@ accents = {r = "#FFFFFF", g = "#FFFFFF", b = "#FFFFFF", y = "#FFFFFF", m = "#FFF
 [export]
 dir = "~/vault/Files/03 Work/Spark/Assets/Zumo Sprites"   # pro Variante ein Unterordner (Z4/ ...)
 palettes = ["natural", "value", "P1"]   # Sprite-Sheets in diesen Paletten (Namen aus [palettes] oder P-Codes)
-seq_palettes = ["natural", "value"]     # zusaetzlich als PNG-Sequenzen (Resolve, After Effects)
+seq_palettes = ["natural"]              # zusaetzlich als PNG-Sequenzen (Resolve, After Effects; je Frame eine Datei)
 gif_palette = "natural"                 # GIFs fuer Galerie, Slack, Telegram
 scale = 4                   # Vergroesserung (nearest) der Sequenzen und @4x-Sheets: 4 px = Raster R3 bei 1080p
 fps = 12

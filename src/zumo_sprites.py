@@ -20,6 +20,8 @@ wird als Stempel gesetzt statt gerendert. Gerechnet wird im Wertraum 0..5 des Sy
 import json
 import math
 import os
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")   # ein Pool-Prozess pro Kern; BLAS-Threads je Prozess ueberbuchen sonst
+os.environ.setdefault("OMP_NUM_THREADS", "1")        # (gemessen 7.10.: Export 6 min statt ~40 s, Systemzeit > Nutzerzeit)
 import subprocess
 import sys
 import tomllib
@@ -27,7 +29,7 @@ from multiprocessing import Pool
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import distance_transform_edt, label, minimum_filter
+from scipy.ndimage import binary_fill_holes, distance_transform_edt, label, minimum_filter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT = os.path.join(ROOT, "zumo_sprites")
@@ -156,7 +158,6 @@ PCB = (-37.3, 45.6, 24.5, 26.1, 34.5)        # x0 x1 y0 y1, halbe Breite zwische
 CHASSIS_BOX = (-31.0, 34.0, 4.5, 24.5, 35.0)  # Batteriekasten zwischen den Ketten
 OLED_BOARD = (-14.3, 19.2, 32.9, 34.5, 17.7)
 OLED_GLASS = (-9.5, 14.5, 34.5, 35.6, 16.6)
-OLED_LEGS = [(-12.0, -15.0), (-12.0, 15.0), (16.5, -15.0), (16.5, 15.0)]   # Abstandshalter unter dem OLED (x, z)
 SENSOR_BAR = (46.1, 47.4, 28.7, 37.2, 25.0)
 EAR = (41.5, 45.6, 27.2, 37.2, 24.7, 32.0)    # IR-LED-Halter vorne links/rechts (x0 x1 y0 y1 |z|0 |z|1)
 LENS = (45.6, 52.5, 33.0, 2.4, 28.0)         # Front-IR-LED: x0 x1, Hoehe, Radius, |z|
@@ -224,8 +225,9 @@ def toy_mesh(t):
             sid = k * 2 + (sgn > 0)
             fz = sorted((sgn * SPROCKET_FACE_Z[0], sgn * SPROCKET_FACE_Z[1]))
             r_out = TRACK_R - band
-            add(_ring(_circle(ax, AXLE_Y, r_out, 32), _circle(ax, AXLE_Y, r_out - t["rim_mm"], 32), *fz), "sprocket", sid)
-            add(_prism(_circle(ax, AXLE_Y, t["hub_mm"], 16), *fz), "sprocket", sid)
+            # Segmentzahlen durch 6 teilbar: nach 60 Grad Drehung deckungsgleich (nahtloser Loop)
+            add(_ring(_circle(ax, AXLE_Y, r_out, 36), _circle(ax, AXLE_Y, r_out - t["rim_mm"], 36), *fz), "sprocket", sid)
+            add(_prism(_circle(ax, AXLE_Y, t["hub_mm"], 18), *fz), "sprocket", sid)
             for s in range(6):                                     # Speichen
                 a = math.radians(s * 60 + 30)
                 w = t["spoke_mm"] / 2
@@ -250,10 +252,11 @@ def toy_mesh(t):
     for (bx0, bx1, by0, by1, bz), mat in ((OLED_BOARD, "oled"), (OLED_GLASS, "screen")):
         (hx0, hy0), (hx1, hy1) = head(bx0, by0), head(bx1, by1)
         add(_box(hx0, hx1, hy0, hy1, -bz * hs, bz * hs), mat)
-    for lx, lz in OLED_LEGS:
-        hx, hy = head(lx, OLED_BOARD[2])
-        leg = _prism(_circle(hx, lz * hs, 1.6, 8), PCB[3], hy)    # Abstandshalter: Prisma entlang y bauen
-        add((leg[0][:, [0, 2, 1]], leg[1]), "screw")
+    # Hals: dunkler Block unter dem Kopf (echt: Stiftleiste + Stecker unter dem OLED). Ohne ihn schwebt der angehobene
+    # Kopf, und die Seitenansicht hat Durchsicht-Loecher.
+    (nx0, ny), (nx1, _) = head(OLED_BOARD[0] + t["neck_inset_mm"], OLED_BOARD[2]), head(OLED_BOARD[1] - t["neck_inset_mm"], 0)
+    add(_box(nx0, nx1, PCB[3], ny, -OLED_BOARD[4] * hs + t["neck_inset_mm"], OLED_BOARD[4] * hs - t["neck_inset_mm"]),
+        "plastic")
     x0, x1, y0, y1, hz = SENSOR_BAR
     add(_box(x0, x1, y0, y1, -hz, hz), "sensor")
     for sgn in (-1, 1):
@@ -570,40 +573,44 @@ def to_px(cfg, g, p):
     return c[0] / mm + ox, -c[1] / mm + oy, -c[2]
 
 
+EYES = []                   # gestempelte Augenpixel des letzten Sprites (fuer den Selbsttest)
+
+
 def stamp_eyes(cfg, out, win, g, view, dir_deg, face):
-    """Augen als Stempel aufs OLED: Form pixelgenau (nicht verzerrt), Lage aus dem 3D, beschnitten auf den Bildschirm."""
+    """Augen als Stempel aufs OLED, pixelgenau und auf den Bildschirm beschnitten. Draufsicht: Lage aus dem 3D, das
+    Gesicht dreht mit dem Roboter. Sonst Zeichner-Logik: beide Augen auf einer Zeile, Mindestabstand, in Fahrtrichtung
+    verschoben (physikalisch stuenden sie bei Fahrt nach rechts uebereinander, als Figur liest sich das nicht)."""
     e = cfg["eyes"]
+    EYES.clear()
     scr = win == MAT["screen"]
-    if not scr.any():
-        return out
-    tall, flat = (np.array([[c == "#" for c in row] for row in cfg["faces"][face][k]]) for k in ("tall", "flat"))
     V, F, M, _ = get_mesh(cfg)
     sv = V[np.unique(F[M == MAT["screen"]])]
     lo, hi = sv.min(0), sv.max(0)
-    x0 = (lo[0] + hi[0]) / 2 + e["offset_x_frac"] * (hi[0] - lo[0])
-    z0 = 0.0
-    y = hi[1]
+    x0, y = (lo[0] + hi[0]) / 2 + e["offset_x_frac"] * (hi[0] - lo[0]), hi[1]
     gap = e["spacing_frac"] * (hi[2] - lo[2])
-    for side in (-1, 1):
-        px, py, _ = to_px(cfg, g, (x0, y, z0 + side * gap / 2))
-        ix, iy = int(math.floor(px)), int(math.floor(py))
-        if not (0 <= iy < scr.shape[0] and 0 <= ix < scr.shape[1]) or not scr[iy, ix]:
-            continue
-        rows = scr[:, ix].sum()
-        st = tall if rows >= e["min_rows_tall"] else flat
-        if view == "top":                                          # Draufsicht: Gesicht dreht mit dem Roboter
-            st = np.rot90(st, k=int(round((dir_deg - 90) / 90)) % 4)
-        # linkes Auge (vom Roboter aus) = Stempel, rechtes gespiegelt; im Bild liegt links, was x kleiner ist
-        other = to_px(cfg, g, (x0, y, z0 - side * gap / 2))[0]
-        if px > other:
-            st = st[:, ::-1]
-        h, w = st.shape
-        ys, xs = np.nonzero(st)
-        ys, xs = ys + iy - (h - 1) // 2, xs + ix - (w - 1) // 2
+    cx, cy, _ = to_px(cfg, g, (x0, y, 0.0))
+    ix, iy = int(math.floor(cx)), int(math.floor(cy))
+    if not (0 <= iy < scr.shape[0] and 0 <= ix < scr.shape[1]) or not scr[iy, ix]:
+        return out                                                 # Bildschirm nicht sichtbar (Seite, verdeckt)
+    st = np.array([[c == "#" for c in row] for row in
+                   cfg["faces"][face]["tall" if scr[:, ix].sum() >= e["min_rows_tall"] else "flat"]])
+    side = [to_px(cfg, g, (x0, y, sgn * gap / 2))[:2] for sgn in (-1, 1)]   # linkes, rechtes Auge des Roboters
+    if view == "top":
+        k = int(round((dir_deg - 90) / 90)) % 4
+        eyes = [(side[0], np.rot90(st, k)), (side[1], np.rot90(st[:, ::-1], k))]
+    else:
+        sep = max(abs(side[0][0] - side[1][0]), st.shape[1] + e["min_gap_px"])
+        look = e["look_px"] * math.cos(math.radians(dir_deg))
+        eyes = [((cx + look - sep / 2, cy), st), ((cx + look + sep / 2, cy), st[:, ::-1])]
+    for (px, py), stp in eyes:
+        h, w = stp.shape
+        ys, xs = np.nonzero(stp)
+        ys, xs = ys + int(math.floor(py)) - (h - 1) // 2, xs + int(math.floor(px)) - (w - 1) // 2
         ok = (ys >= 0) & (ys < out.shape[0]) & (xs >= 0) & (xs < out.shape[1])
         ys, xs = ys[ok], xs[ok]
         keep = scr[ys, xs]
         out[ys[keep], xs[keep]] = 6                                # Stufe 5 = hellste
+        EYES.append((ys[keep], xs[keep]))
     return out
 
 
@@ -750,7 +757,7 @@ def variants(cfg):
     return p
 
 
-def look(cfg, views=(("tq", 270), ("tq", 315), ("tq", 225), ("top", 90), ("side", 0), ("front", 270)),
+def look(cfg, views=(("tq", 270), ("tq", 315), ("tq", 0), ("tq", 45), ("top", 0), ("top", 90), ("side", 0), ("front", 270)),
          looks=(("natural", "#E9E6F2"), ("P1", "#0A0711")), zoom=10):
     """Detailbogen fuer eine Variante: wenige Ansichten gross, zum Pixel-Pruefen."""
     out = os.path.join(PROJECT, "previz", "now")
@@ -804,6 +811,45 @@ def gifs(cfg, specs, pal="natural"):
         frames[0].save(p, save_all=True, append_images=frames[1:], duration=1000 // 12, loop=0)
         paths.append(p)
     return paths
+
+
+# ---------------------------------------------------------------- Selbsttest
+
+def eye_rows():
+    """Zeile (Mittel) jedes gestempelten Auges des letzten Sprites, von links nach rechts."""
+    return [ys.mean() for ys, xs in sorted(EYES, key=lambda e: e[1].mean()) if len(ys)]
+
+
+def selftest(cfg):
+    """Misst am fertigen Sprite. Jeder Test schlaegt am alten Fehler an (geprueft 7.10. durch kurzes Einbauen)."""
+    fails = []
+    n = cfg["anims"]["drive"]["frames"]
+    cad = cfg["render"]["model"] == "cad"                          # STEP-Ritzel: keine 60-Grad-Symmetrie, echte Luecken
+    for v, d in () if cad else (("top", 22.5), ("tq", 315), ("side", 0)):
+        a0, a1, an = (sprite(cfg, v, d, "drive", f) for f in (0, 1, n))
+        if (a0 != an).sum() > 2:                                   # Loop: Frame n = Frame 0 (Stollen + 6er-Speichen)
+            fails.append(f"Loop {v} {d}: Frame {n} weicht in {(a0 != an).sum()} px von Frame 0 ab")
+        if (a0 != a1).sum() < 10:
+            fails.append(f"Kette {v} {d}: Frame 0 -> 1 aendert nur {(a0 != a1).sum()} px")
+    for d in (0, 45, 180, 270):                                    # alter Fehler: Augen uebereinander bei Fahrt seitwaerts
+        sprite(cfg, "tq", d, "idle", 0)
+        rows = eye_rows()
+        if len(rows) != 2 or abs(rows[0] - rows[1]) > 0.5:
+            fails.append(f"Augen tq {d}: {len(rows)} Augen, Zeilen {rows}")
+    if not cad:                                                    # alter Fehler: durch die Speichenluecken sieht man
+        g = gbuffer(cfg, 0, 0, (0, 0), 0, n)                       # das Ritzel der anderen Seite (Pixelrauschen)
+        loc, hit = g["loc"], g["mat"] > 0
+        r_in = TRACK_R - cfg["toy"]["track_band_mm"] - 1
+        disc = np.min([np.hypot(loc[..., 0] - ax, loc[..., 1] - AXLE_Y) for ax in AXLE_X], 0) < r_in
+        deep = hit & disc & (loc[..., 2] < SPROCKET_Z)             # Kamera sieht die rechte Seite (+z)
+        if deep.mean() > 0.001:
+            fails.append(f"Seite: {deep.sum()} Abtastungen sehen durch die Ritzel hindurch")
+    for v, vv in cfg["views"].items():                             # gleiche Leinwand fuer alle Richtungen einer Ansicht
+        shapes = {sprite(cfg, v, d).shape for d in vv["dirs_deg"][:3]}
+        if len(shapes) != 1:
+            fails.append(f"Leinwand {v}: {shapes}")
+    print("\n".join(fails) or f"selftest ok ({cfg.get('_variant', 'base')})")
+    return not fails
 
 
 # ---------------------------------------------------------------- Export
@@ -921,6 +967,8 @@ if __name__ == "__main__":
     cfg = load(variant=code)
     if cmd == "mesh":
         mesh(cfg)
+    elif cmd == "test":
+        sys.exit(0 if selftest(cfg) else 1)
     elif cmd == "export":
         p = export(cfg)
         if "--no-open" not in sys.argv:
