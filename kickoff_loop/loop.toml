@@ -282,6 +282,11 @@ wall_black_max = 0.02      # Schwarzpunkt der Wand hoechstens so weit verschiebe
 wall_knee = 0.7            # Lichter der Wand ab hier (lineares Licht) weich gegen 1 statt hart ausgefressen
 pick_cover_weight = 0.5    # Auswahl: NCC minus dieses Gewicht x Anteil der Platte, den das Foto nicht abdeckt
 pick = {}                  # je Plakat ein bestimmtes Foto erzwingen, z. B. {9 = "IMG_1101"} (sonst das beste)
+prefer_from = "IMG_1143"   # Vadim 7.10.: Fotos ab diesem Namen (A3-Runde 7.10., bessere Fotos) schlagen die aelteren, wo es sie gibt
+variant_de = 0.07          # Auswahl-Bogen photos/auswahl.png: Wand-Abstand (Median dE OK) darueber = deutlich anderes Foto.
+                           # Befund 7.10.: Serienbilder derselben Szene 0.005-0.05, andere Wand/Licht 0.07-0.14
+number = {IMG_1303 = 46, IMG_1304 = 46, IMG_1305 = 46, IMG_1306 = 46}   # Nummer je Foto erzwingen, wo Marken + Render-
+                           # Vergleich unsicher sind. 7.10.: 46 in der Kueche (Druck magenta statt lila, Render 0.73 / naechster 0.65)
 
 [marks]
 # Druckmarken: unsichtbares Muster im Druck (nur `print`, nie im Video), traegt Frame-Nummer + Lage, damit

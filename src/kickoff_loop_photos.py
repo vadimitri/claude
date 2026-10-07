@@ -30,7 +30,7 @@ import sys
 from multiprocessing import Pool
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 from scipy.ndimage import gaussian_filter
 
 import kickoff_loop as KL
@@ -46,6 +46,9 @@ ID_MIN_NCC = 0.5                  # ... beste Korrelation muss darueber liegen (
 ID_MIN_GAP = 0.1                  # ... und so weit vor der zweitbesten (sonst ist die Nummer geraten)
 EXPO_STEP_PX = 8                  # Belichtung der Wand: auf jedem 8. Pixel gemessen (Mittelwert reicht)
 EXPO_BISECT = 20                  # Halbierungen fuer den Wand-Faktor
+THUMB = 12                        # Kandidaten-Vorschau: Platte 2446 x 4348 / 12 = 204 x 362 (Auswahl-Bogen, Wandvergleich)
+WALL_BLUR_PX = 12                 # Wandvergleich auf der Vorschau weichzeichnen (~36 Zellen): Parallaxe derselben Wand (Plakat in
+                                  # der Hand, Hintergrund wandert) zaehlt nicht, Licht + Farbe der Umgebung schon
 
 
 def lin(u8):
@@ -66,7 +69,8 @@ def check(cfg):
     ph = cfg.get("photos")
     assert ph, "loop.toml: Abschnitt [photos] fehlt"
     need = ["fit_edge_cells", "fit_blur_cells", "fit_gammas", "fit_robust_de", "blend_cells", "wall_feather_cells",
-            "wall_knee", "wall_min_gain", "wall_wb_max", "wall_black_max", "pick_cover_weight", "pick"]
+            "wall_knee", "wall_min_gain", "wall_wb_max", "wall_black_max", "pick_cover_weight", "pick", "prefer_from",
+            "variant_de", "number"]
     miss = [k for k in need if k not in ph]
     assert not miss, f"loop.toml [photos]: es fehlt {miss}"
     assert 0 < ph["wall_knee"] < 1, "[photos].wall_knee: Knie der Lichter-Schulter, zwischen 0 und 1 (lineares Licht)"
@@ -75,9 +79,11 @@ def check(cfg):
 
 # ---------------------------------------------------------------- Erkennen
 
-def _key(p):
+def _key(p, cfg):
+    """Cache-Schluessel je Foto: Datei + erzwungene Nummer ([photos].number), eine neue Zuordnung erkennt neu."""
     st = os.stat(p)
-    return f"{os.path.basename(p)}:{st.st_size}:{int(st.st_mtime)}"
+    n = cfg["photos"]["number"].get(os.path.splitext(os.path.basename(p))[0])
+    return f"{os.path.basename(p)}:{st.st_size}:{int(st.st_mtime)}" + (f":n{n}" if n else "")
 
 
 def _poster_cells(photo, H, grid):
@@ -93,9 +99,10 @@ def _ncc(a, b):
     return float((a * b).sum() / np.sqrt((a * a).sum() * (b * b).sum() + 1e-9))
 
 
-def identify(photo, cfg):
+def identify(photo, cfg, n=None):
     """Fallback ohne Marken: grobe Lage aus dem QR (kickoff_loop_marks.coarse), Nummer = bester Render im Vergleich
-    bei 1 px pro Zelle, Lage fein per ECC am ganzen Render (marks.polish). dict wie marks.detect oder dict(error=)."""
+    bei 1 px pro Zelle, Lage fein per ECC am ganzen Render (marks.polish). dict wie marks.detect oder dict(error=).
+    n: Nummer steht fest ([photos].number), nur die Lage wird gesucht, ohne Abstand zum zweitbesten Render."""
     import cv2
     import kickoff_loop_marks as M
     q = KL.PREVIEW_CELL_PX
@@ -106,36 +113,39 @@ def identify(photo, cfg):
     best = None
     for H in M.coarse(photo):
         seen = gaussian_filter(_poster_cells(photo, H, grid), ID_BLUR_CELLS)
-        z = sorted(((_ncc(seen, s), i) for i, s in enumerate(small)), reverse=True)
+        z = sorted(((_ncc(seen, s), i) for i, s in enumerate(small) if n is None or i == n - 1), reverse=True)
+        z.append((-1.0, -1))                                  # n fest: kein zweitbester
         if best is None or z[0][0] > best[0]:
             best = (z[0][0], z[1][0], z[0][1], H)
     if best is None:
         return dict(error="kein QR gefunden (grobe Lage fehlt)")
     cc, cc2, i, H = best
-    if cc < ID_MIN_NCC or cc - cc2 < ID_MIN_GAP:
+    if cc < ID_MIN_NCC or (n is None and cc - cc2 < ID_MIN_GAP):
         return dict(error=f"ohne Marken keine sichere Nummer (Render {i + 1}: {cc:.2f}, naechster {cc2:.2f})")
     H, pcc, took = M.polish(photo, H, renders[i])
-    return dict(n=i + 1, z=0.0, z2=0.0, H=H, fields=0, polish_cc=pcc, polished=took, by="render", ncc_id=cc, ncc_id2=cc2)
+    return dict(n=i + 1, z=0.0, z2=0.0, H=H, fields=0, polish_cc=pcc, polished=took, by="number" if n else "render",
+                ncc_id=cc, ncc_id2=cc2)
 
 
 def _detect(p):
     import kickoff_loop_marks as M
     cfg = KL.load()
+    n = cfg["photos"]["number"].get(os.path.splitext(os.path.basename(p))[0])
     try:
         photo = M.load_photo(p)
-        r = M.detect(photo, cfg)
-        if "error" in r:
+        r = identify(photo, cfg, n) if n else M.detect(photo, cfg)
+        if "error" in r and not n:
             r2 = identify(photo, cfg)
             r = r2 if "n" in r2 else dict(error=f"{r['error']}; {r2['error']}")
     except Exception as e:                                    # ein kaputtes Foto haelt den Lauf nicht an
         r = dict(error=repr(e))
-    return _key(p), {k: (v.tolist() if isinstance(v, np.ndarray) else v) for k, v in r.items() if k != "H_marks"}
+    return _key(p, cfg), {k: (v.tolist() if isinstance(v, np.ndarray) else v) for k, v in r.items() if k != "H_marks"}
 
 
-def detect_all(paths):
+def detect_all(paths, cfg):
     """Nummer + Lage je Foto, gemerkt in photos/detect.json (neue Fotos ~4 s, bekannte nichts)."""
     cache = json.load(open(CACHE)) if os.path.exists(CACHE) else {}
-    todo = [p for p in paths if _key(p) not in cache]
+    todo = [p for p in paths if _key(p, cfg) not in cache]
     if todo:
         print(f"erkenne {len(todo)} Fotos ...", flush=True)
         with Pool(WORKERS) as pool:
@@ -143,7 +153,7 @@ def detect_all(paths):
                 cache[k] = r
         os.makedirs(DIR, exist_ok=True)
         json.dump(cache, open(CACHE, "w"), indent=0)
-    return {p: cache[_key(p)] for p in paths}
+    return {p: cache[_key(p, cfg)] for p in paths}
 
 
 # ---------------------------------------------------------------- Farbe
@@ -282,28 +292,112 @@ def _candidate(args):
     import kickoff_loop_marks as M
     p, n, H = args
     cfg = KL.load()
-    plate, cover, (x0, y0, pw, ph) = _plate(M.load_photo(p), H, cfg)
+    plate, cover, (x0, y0, pw, ph_) = _plate(M.load_photo(p), H, cfg)
     poster = KL.frame(cfg, n - 1)
-    crop = plate[y0:y0 + ph, x0:x0 + pw]
+    crop = plate[y0:y0 + ph_, x0:x0 + pw]
     m = inner_mask(poster.shape, cfg)
     g = [gaussian_filter(x.astype(np.float32) @ KL.LUMA, M.ALIGN_BLUR_PX) for x in (crop, poster)]
     clip = float(((crop.max(-1) >= 250) & (poster.max(-1) < 240) & m).sum() / m.sum())
-    return dict(path=p, n=n, H=H, ncc=_ncc(*g), cover=cover, clip=clip, fit=fit_color(crop, poster, cfg))
+    fit = fit_color(crop, poster, cfg)
+    ph = cfg["photos"]                                        # Vorschau so gegradet wie im Video, Abstaende / THUMB
+    small = dict(cfg, photos=dict(ph, blend_cells=ph["blend_cells"] / THUMB, wall_feather_cells=ph["wall_feather_cells"] / THUMB))
+    thumb, _ = grade(np.asarray(Image.fromarray(plate).reduce(THUMB)), fit, (x0 // THUMB, y0 // THUMB, pw // THUMB,
+                                                                             ph_ // THUMB), small)
+    return dict(path=p, n=n, H=H, ncc=_ncc(*g), cover=cover, clip=clip, fit=fit, thumb=thumb,
+                rect=(x0 // THUMB, y0 // THUMB, pw // THUMB, ph_ // THUMB))
+
+
+def _name(c):
+    return os.path.splitext(os.path.basename(c["path"]))[0]
 
 
 def pick(cands, cfg):
-    """Je Plakat ein Foto: [photos].pick (Dateiname ohne Endung) oder das beste nach NCC - Gewicht x Luecke."""
+    """Je Plakat ein Foto: [photos].pick (Dateiname ohne Endung) oder das beste nach NCC - Gewicht x Luecke. Hat ein
+    Plakat Fotos ab [photos].prefer_from, zaehlen nur diese (Vadim 7.10.: die A3-Runde hat die besseren Fotos)."""
     ph, best = cfg["photos"], {}
     forced = {int(k): v for k, v in ph["pick"].items()}
     for c in cands:
-        name = os.path.splitext(os.path.basename(c["path"]))[0]
         c["score"] = c["ncc"] - ph["pick_cover_weight"] * (1 - c["cover"])
+        c["rank"] = (_name(c) >= ph["prefer_from"], c["score"])   # ponytail: Namensvergleich, bricht erst beim Ueberlauf IMG_9999
         if c["n"] in forced:
-            if name == forced[c["n"]]:
+            if _name(c) == forced[c["n"]]:
                 best[c["n"]] = c
-        elif c["score"] > best.get(c["n"], {"score": -9})["score"]:
+        elif c["rank"] > best.get(c["n"], {"rank": (False, -9)})["rank"]:
             best[c["n"]] = c
     return best
+
+
+def _wall(c):
+    """Wand der Kandidaten-Vorschau (ohne Plakat), weichgezeichnet, in OKLab, flach (n x 3)."""
+    x0, y0, w, h = c["rect"]
+    keep = np.ones(c["thumb"].shape[:2], bool)
+    keep[y0:y0 + h, x0:x0 + w] = False
+    return oklab(np.stack([gaussian_filter(ch, WALL_BLUR_PX) for ch in lin(c["thumb"]).transpose(2, 0, 1)], -1))[keep]
+
+
+def _wall_de(a, b):
+    return float(np.median(np.linalg.norm(a - b, axis=1)))
+
+
+def variants(cands, chosen, cfg):
+    """Je Plakat die deutlich verschiedenen Fotos (andere Wand, anderes Licht, anderer Ausschnitt): Gruppen nach
+    Wand-Abstand (Median dE OK > [photos].variant_de zum Besten jeder Gruppe = neue Gruppe), je Gruppe das beste.
+    Befund 7.10.: Grau-Korrelation trennt nicht (Serienbild 0.33-0.68, andere Szene 0-0.69), der Farbabstand schon
+    (Serienbild 0.005-0.05, andere Szene 0.07-0.14). Nur aus der Charge, aus der gewaehlt wird (prefer_from), nicht
+    fuer Plakate mit [photos].pick. Zurueck {n: [Vertreter, bestes zuerst]}, nur Plakate mit >= 2 Gruppen."""
+    ph, out = cfg["photos"], {}
+    forced = {int(k) for k in ph["pick"]}
+    for n, best in chosen.items():
+        if n in forced:
+            continue
+        pool = sorted((c for c in cands if c["n"] == n and c["rank"][0] == best["rank"][0]), key=lambda c: -c["score"])
+        reps = []
+        for c in pool:
+            w = _wall(c)
+            if all(_wall_de(w, r) > ph["variant_de"] for _, r in reps):
+                reps.append((c, w))
+        if len(reps) > 1:
+            out[n] = [c for c, _ in reps]
+    return out
+
+
+def choice_sheet(groups, out_dir):
+    """auswahl.png: je Plakat mit deutlich verschiedenen Fotos eine Zeile, je Gruppe das beste Foto (gegradet wie im
+    Video), das automatisch gewaehlte (erstes) rot umrandet. Andere Wahl: [photos].pick = {NN = "IMG_...."}."""
+    path = os.path.join(out_dir, "auswahl.png")
+    if not groups:
+        if os.path.exists(path):
+            os.remove(path)
+        return
+    th, tw = next(iter(groups.values()))[0]["thumb"].shape[:2]
+    lab, gap = 26, 12
+    font = ImageFont.load_default(18)
+    bw, bh, per = max(len(g) for g in groups.values()) * (tw + gap) + 3 * gap, th + lab + gap, 3   # 3 Plakate je Zeile
+    sheet = Image.new("RGB", (per * bw, -(-len(groups) // per) * bh + gap), "white")
+    d = ImageDraw.Draw(sheet)
+    for b, n in enumerate(sorted(groups)):
+        for i, c in enumerate(groups[n]):
+            x, y = gap + (b % per) * bw + i * (tw + gap), gap + (b // per) * bh
+            sheet.paste(Image.fromarray(c["thumb"]), (x, y + lab))
+            d.text((x, y + 2), f"{n:02d}  {_name(c)}{'  auto' if i == 0 else ''}", fill="black", font=font)
+            if i == 0:
+                d.rectangle([x - 5, y + lab - 5, x + tw + 4, y + lab + th + 4], outline=(220, 0, 0), width=4)
+    sheet.save(path)
+
+
+def reprint(cfg, chosen):
+    """print/nachdruck.pdf: alle Plakate ohne Foto, nur Vorderseite (aus print/NN.png wie kickoff_loop.pdf_files,
+    PNG unveraendert). Vadim 7.10.: fehlende Plakate neu drucken und fotografieren. Zurueck: die Nummern."""
+    import img2pdf
+    miss = [k for k in range(1, KL.posters(cfg) + 1) if k not in chosen]
+    path = os.path.join(KL.PROJECT, "print", "nachdruck.pdf")
+    if os.path.exists(path):
+        os.remove(path)
+    if miss:
+        lay = img2pdf.get_fixed_dpi_layout_fun((KL.PRINT_DPI, KL.PRINT_DPI))
+        with open(path, "wb") as fh:
+            fh.write(img2pdf.convert([os.path.join(KL.PROJECT, "print", f"{k:02d}.png") for k in miss], layout_fun=lay))
+    return miss
 
 
 def _build(args):
@@ -365,7 +459,7 @@ def sheets(cfg, built, out_dir):
     sheet.save(os.path.join(out_dir, "colors.png"))
 
 
-def report(det, cands, chosen, built, cfg):
+def report(det, cands, chosen, built, cfg, groups, miss):
     n = KL.posters(cfg)
     L = [f"Campus-Fotos: {len(det)} Fotos, {sum('n' in r for r in det.values())} erkannt "
          f"({sum(r.get('by') == 'render' for r in det.values())} ohne Marken, am Render), "
@@ -381,7 +475,11 @@ def report(det, cands, chosen, built, cfg):
         L.append(f"{k:2d}  {os.path.basename(c['path'])[:8]}  {c['ncc']:.2f}  {c['cover']:.2f}       "
                  f"{c['fit']['de_before'][0]:.3f}/{c['fit']['de_before'][1]:.3f}   {b['de'][0]:.3f}/{b['de'][1]:.3f}   "
                  f"{b['burnt'] * 100:5.2f} %       {b['s']:.2f}   ({len(per[k])})")
-    L += ["", "Ohne Foto: " + " ".join(f"{k}" for k in range(1, n + 1) if k not in chosen), "",
+    new = sum(c["rank"][0] for c in chosen.values())
+    L += ["", f"Aus der Charge ab {cfg['photos']['prefer_from']}: {new}/{len(chosen)}",
+          "Ohne Foto (print/nachdruck.pdf): " + (" ".join(f"{k}" for k in miss) or "keins"),
+          "Deutlich verschiedene Fotos (photos/auswahl.png, auto = erstes): "
+          + ("; ".join(f"{k}: " + " ".join(_name(c) for c in g) for k, g in sorted(groups.items())) or "keine"), "",
           "Nicht zugeordnet:"]
     L += [f"  {os.path.basename(p)}: {r['error']}" for p, r in sorted(det.items()) if "error" in r]
     return "\n".join(L)
@@ -394,7 +492,7 @@ def main():
     paths = [p for a in args for p in sorted(glob.glob(a)) or [a]] or sorted(glob.glob(os.path.join(DIR, "raw", "*.JPG")))
     cfg = KL.load()
     check(cfg)
-    det = detect_all(paths)
+    det = detect_all(paths, cfg)
     with Pool(WORKERS) as pool:
         cands = pool.map(_candidate, [(p, r["n"], r["H"]) for p, r in det.items() if "n" in r], chunksize=1)
     chosen = pick(cands, cfg)
@@ -405,7 +503,9 @@ def main():
     with Pool(WORKERS) as pool:
         built = {b["n"]: b for b in pool.map(_build, list(chosen.values()), chunksize=1)}
     sheets(cfg, built, DIR)
-    rep = report(det, cands, chosen, built, cfg)
+    groups = variants(cands, chosen, cfg)
+    choice_sheet(groups, DIR)
+    rep = report(det, cands, chosen, built, cfg, groups, reprint(cfg, chosen))
     open(os.path.join(DIR, "report.txt"), "w").write(rep + "\n")
     print(rep)
 
@@ -439,6 +539,16 @@ def selftest():
             abs(s - cfg["photos"]["wall_min_gain"]) < 1e-3 and wall > cfg["video"]["surround_luma"])
         ok &= d < 0.02 and hit
         res.append(f"Wand {grey}: Plakat dE {d:.3f}, Wand {wall:.3f} x{s:.2f} ({want} {'ok' if hit else 'FEHLER'})")
+    # Auswahl: neue Charge schlaegt die alte (auch mit schlechterem NCC), gleiche Wand = eine Gruppe, andere = zweite
+    wa, wb = np.full((90, 60, 3), 60, np.uint8), np.full((90, 60, 3), (200, 170, 120), np.uint8)
+    mk = lambda name, wall, ncc: dict(path=f"{name}.JPG", n=1, ncc=ncc, cover=1.0, thumb=wall, rect=(15, 20, 30, 50))
+    pc = dict(cfg, photos=dict(cfg["photos"], pick={}, prefer_from="IMG_0500"))
+    cs = [mk("IMG_0100", wa, 0.99), mk("IMG_0600", wa, 0.80), mk("IMG_0601", wa, 0.79), mk("IMG_0602", wb, 0.70)]
+    ch = pick(cs, pc)
+    g, g0 = variants(cs, ch, pc), variants(cs[:3], pick(cs[:3], pc), pc)          # Gegenprobe: nur eine Wand
+    sel = _name(ch[1]) == "IMG_0600" and [_name(c) for c in g.get(1, [])] == ["IMG_0600", "IMG_0602"] and not g0
+    ok &= sel
+    res.append(f"Auswahl {'ok' if sel else 'FEHLER'}")
     print(f"Plakat roh dE {de(shot):.3f} · " + " · ".join(res) + f" · {'OK' if ok else 'FEHLER'}")
     return 0 if ok else 1
 
