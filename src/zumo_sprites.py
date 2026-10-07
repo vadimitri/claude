@@ -58,6 +58,7 @@ AXLE_X = (-17.8, 30.2)      # hinten (Umlenkrolle), vorne (Antrieb)
 AXLE_Y = 19.5
 TRACK_R = 19.5
 TRACK_Z = (34.9, 49.5)
+TRACK_TOL = 0.3             # mm ausserhalb der Kettenkontur, die noch als Kette zaehlen (Tesselierung der Rundung)
 SPROCKET_R = 18.6           # Ritzel samt Zaehnen bleibt innerhalb der Kette
 SPROCKET_Z = 36.5           # ab hier nach aussen ist Teil 64 Ritzel, innen Chassis
 SPROCKET_FOLD_DEG = 60      # die Ritzel haben 6 Speichen: nach 60 Grad sieht das Bild gleich aus (nahtloser Loop)
@@ -161,8 +162,9 @@ OLED_GLASS = (-9.5, 14.5, 34.5, 35.6, 16.6)
 SENSOR_BAR = (46.1, 47.4, 28.7, 37.2, 25.0)
 EAR = (41.5, 45.6, 27.2, 37.2, 24.7, 32.0)    # IR-LED-Halter vorne links/rechts (x0 x1 y0 y1 |z|0 |z|1)
 LENS = (45.6, 52.5, 33.0, 2.4, 28.0)         # Front-IR-LED: x0 x1, Hoehe, Radius, |z|
-BLADE = ((58.4, 0.5), (49.6, 37.3), 1.0, 49.0)   # Schild als Keil: Unterkante vorne, Oberkante am Roboter (x, y), Dicke,
-                                                 # halbe Breite. CAD: Unterkante x 57.8..58.9 (Vadim 7.10.: war vertauscht)
+BLADE = ((58.4, 0.5), (49.6, 37.3), 1.0, 49.5)   # Schild als Keil: Unterkante vorne, Oberkante am Roboter (x, y), Dicke,
+                                                 # halbe Breite. CAD: Unterkante x 57.8..58.9 (Vadim 7.10.: war vertauscht).
+                                                 # Breite = Kettenbreite (CAD 98 vs 99 mm): sonst 1 px Kette nur links
 USB = (-37.6, -29.4, 26.1, 29.3, 2.5, 11.5)
 SPROCKET_FACE_Z = (44.0, 47.1)               # Ritzel-Aussenscheibe (|z|), dahinter Chassis-Seitenwand bei |z| 35
 
@@ -437,8 +439,9 @@ def gbuffer(cfg, dir_deg, pitch, tread, frame, nframes):
     yy, xx = np.mgrid[0:H * ss, 0:W * ss]
     cam = np.stack([(xx + 0.5 - ox * ss) * mm, -(yy + 0.5 - oy * ss) * mm, -np.where(hit, zb, 0)], -1)
     loc = cam @ R + PIVOT
+    td = track_depth(loc[..., 0], loc[..., 1])
     band = hit & (np.abs(loc[..., 2]) >= TRACK_Z[0]) & (np.abs(loc[..., 2]) <= TRACK_Z[1]) \
-        & (track_depth(loc[..., 0], loc[..., 1]) <= r["track_band_mm"])
+        & (td >= -TRACK_TOL) & (td <= r["track_band_mm"])          # nur in der Schleife (Vadim 7.10.: Schild war Kette)
     mat = np.where(band, MAT["track"], mat)
     return dict(mat=mat, n=n, z=np.where(hit, zb, np.inf), loc=loc, W=W, H=H, ss=ss, R=R, origin=(ox, oy))
 
@@ -847,6 +850,12 @@ def selftest(cfg):
         deep = hit & disc & (loc[..., 2] < SPROCKET_Z)             # Kamera sieht die rechte Seite (+z)
         if deep.mean() > 0.001:
             fails.append(f"Seite: {deep.sum()} Abtastungen sehen durch die Ritzel hindurch")
+    for v, d in (("front", 270), ("tq", 315), ("top", 0)):         # alter Fehler: Schildraender ausserhalb der Kettenschleife
+        g = gbuffer(cfg, d, cfg["views"][v]["pitch_deg"], (0, 0), 0, n)   # wurden zu Kette (Kette von vorne sichtbar)
+        loc = g["loc"][g["mat"] == MAT["track"]]
+        out_ = (track_depth(loc[:, 0], loc[:, 1]) < -1.0).sum()   # feste Schwelle, unabhaengig von TRACK_TOL
+        if out_:
+            fails.append(f"Kette {v} {d}: {out_} Abtastungen ausserhalb der Kettenschleife als Kette markiert")
     for v, vv in cfg["views"].items():                             # gleiche Leinwand fuer alle Richtungen einer Ansicht
         shapes = {sprite(cfg, v, d).shape for d in vv["dirs_deg"][:3]}
         if len(shapes) != 1:
