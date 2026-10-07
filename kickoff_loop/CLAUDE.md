@@ -38,9 +38,22 @@ In dieser Reihenfolge:
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
 5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
-6. **F6 (7.10. abends)**: Übergang Papier → digital + Spark-Leuchten am Ende, Abschnitt „F6“ direkt hierunter.
+6. **F7 (7.10. spät)**: Übergang Papier → digital (nur nach außen) + Spark hinter dem Slash, Abschnitt „F7“ hierunter.
 
-## F6 (7.10. abends) · Übergang Papier → digital + Spark-Leuchten am Ende · **wartet auf Vadim**
+## F7 (7.10. spät) · **wartet auf Vadim** · ansehen: `Vorschau/F7_draft.mp4`
+
+Vadim zu F6: Papier „erst weniger zu sehen, dann ganz viel ist scheiße, nur nach außen wachsen, über mehrere Frames
+langsam“; Spark „nicht über die Schrift fliegen, hinter dem Slash bleiben, super klein, nur das Halo entstehen lassen,
+das sich durch die Größe verändert“. Umgesetzt:
+1. Kein Einlauf über das Foto mehr (paper_in/out weg): das Foto schneidet auf Weiß, das Digitalbild growt in
+   `paper_frames = 16` Bildern nur nach außen (Zweier). Selbsttest prüft: erstes Bild weiß, danach nur weniger Weiß.
+2. Spark fest bei 0.5/0.5 (hinter dem „/“ von 14.10. / 17:00), Spitzenradius 0.035, wächst über das ganze Ende
+   (ease-out), das Halo wächst mit (`orbit_flare_*` in `F7.toml`). Kein Weg mehr (F6: 0.5/0.52 → 0.5/0.35).
+Danach: gewähltes `[ending]` aus F7 nach `loop.toml`, `preview` ohne `--draft`, `--master`, Resolve
+(`kickoff_loop_resolve.py schnitt`, Medien liegen jetzt im Hauptcheckout statt im Worktree).
+`previz/review/` hat nur noch F1–F7 + O17, der Rest liegt unter `previz/archiv/review/alt/` (Videos in `~/Archive`).
+
+## F6 (7.10. abends) · Übergang Papier → digital + Spark-Leuchten am Ende · **überholt durch F7**
 
 Vadim zu F5: „richtig nice, nur kleine Sachen“. Vorschau `previz/review/F6/preview_draft.mp4` (`--draft`, 40 s Render).
 1. **Papier → digital** (statt hartem Schnitt bei 5.88 s; erledigt damit den geparkten „Disconnect“ aus HANDOFF_ENDE 1.5):

@@ -41,10 +41,14 @@ Jede Vorschau schreibt einen `report.txt` mit gemessenen Gates; ein Befund schl�
 
 ## Git
 
-Repo `vadimitri/claude`. Hintergrund-Jobs arbeiten in `.claude/worktrees/<name>` auf eigenem Branch. Render-Ausgaben sind
-gitignored (reproduzierbar aus Code + Config), Configs, Reports und kleine Referenzen nicht.
-Stand 30.9.: der Hauptcheckout hat die Umstellung auf `src/` + `kickoff.py` + `editor/` noch nicht committet
-(Snapshot davon: Commit 570c2f0 auf `claude/kickoff-loop`).
+Repo `vadimitri/claude`, gearbeitet wird **auf `main` im Hauptcheckout** `~/Movies/SPARK_Motion_Pack`
+(= `~/Developer/spark/motion-pack`, zoxide `kickoff`). Stand 7.10.: `claude/kickoff-loop` ist in `main` aufgegangen,
+alte Agenten-Branches als Tags `archiv/*`, alter Hauptcheckout + alte Runden in `~/Archive/motion-pack_2026-10-07/`.
+**Keine Worktrees für `kickoff_loop`**: Fotos, Druck, Cache, Audio und Resolve sind gitignored und liegen nur hier,
+ein Worktree hätte sie nicht (Vadim 7.10.: „sieben Ordner tief, die ganzen Agenten“).
+**Vorschauen**: jede `preview` legt ihr Video zusätzlich flach in `Vorschau/<Version>[_draft].mp4` (Hardlink, zoxide
+`vorschau`), auch aus einem Worktree. Den Pfad im Abschluss nennen.
+Render-Ausgaben sind gitignored (reproduzierbar aus Code + Config), Configs, Reports und kleine Referenzen nicht.
 
 ## Bekannte Schulden
 

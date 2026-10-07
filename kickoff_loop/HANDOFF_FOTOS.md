@@ -18,7 +18,8 @@ Stellschrauben: `loop.toml` `[photos]` und `[video] shake_*`. Branch `claude/kic
 | F3 | ein Weißabgleich + Belichtung fürs ganze Foto, Wand nie gedimmt | gut, „aber immer noch sehr viel verändert“ |
 | F4 | nur Papierbogen korrigiert (0.7), Wand roh, 19 + 45 drin, Handkamera 6 px / 0.3° | „viel zu viel Bewegung“ |
 | F5 | F4 mit Handkamera 1.5 px / 0.05° (Sprung je Bild Median 2.3 px, max 6.4 px) | „richtig nice, nur kleine Sachen“ |
-| **F6** | F5 + Übergang Papier → digital über den Druckrand + Spark-Leuchten am Ende (`CLAUDE.md` Abschnitt „F6“) | **offen** |
+| F6 | F5 + Übergang Papier → digital über den Druckrand + Spark-Leuchten am Ende | Papier rein+raus „scheiße“, Spark soll bleiben |
+| **F7** | F6, Papier nur nach außen (16 Bilder), Spark winzig fest hinter dem „/“ (`CLAUDE.md` Abschnitt „F7“) | **offen** |
 
 ## 2. Entscheidungen (Vadim 7.10.)
 

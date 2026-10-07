@@ -450,9 +450,8 @@ def check_orbit(cfg, beats_left):
             "orbit_flare_max_scale >= 1, orbit_flare_creep_per_beat >= 0, orbit_flare_peak 0..1, orbit_flare_r_frac > 0, "
             "orbit_flare_step_frames >= 1")
         xy = e["orbit_flare_xy"]
-        assert len(xy) == 2 and all(len(q) == 2 and all(0 <= v <= 1 for v in q) for q in xy), \
-            "[ending].orbit_flare_xy = [[x, y], [x, y]] (von, bis; Bruchteil des Bilds 0..1)"
-        e["_flare_span_beats"] = beats_left - e["orbit_flare_at_beats"]   # Weg des Sparks bis zum Videoende
+        assert len(xy) == 2 and all(0 <= v <= 1 for v in xy), "[ending].orbit_flare_xy = [x, y] (Bruchteil des Bilds 0..1)"
+        e["_flare_span_beats"] = beats_left - e["orbit_flare_at_beats"]   # der Spark waechst bis zum Videoende
         fc = e["orbit_flare_colors"]
         assert len(fc) >= 2 and all(isinstance(x, str) and len(x) == 7 and x[0] == "#" for x in fc), \
             "[ending].orbit_flare_colors = [\"#000000\", ..., \"#ffffff\"] (Rampe von dunkel nach hell, OKLab dazwischen)"
@@ -902,8 +901,9 @@ def flare_state(cfg, dt):
     Leuchteffekt neu verursacht, Orange-Feuerrot"): ab orbit_flare_at_beats waechst der Spark in orbit_flare_in_beats
     auf (ease-out), dreht sich, das Leuchten (ln-Massstab wie finale glow) waechst bis ln(orbit_flare_max_scale) und
     danach um orbit_flare_creep_per_beat weiter, damit das Ende nicht steht. Zeit auf orbit_flare_step_frames-Stufen
-    (posterized). Der Spark zieht ueber das ganze Ende von orbit_flare_xy[0] nach [1] (ease-out), die Schweife schwenken
-    mit. Vorher {} (Stil und Cache der Bilder davor bleiben unberuehrt)."""
+    (posterized). F7 (Vadim zu F6: "nicht ueber die Schrift fliegen, hinter dem Slash bleiben, super klein, nur das
+    Halo entstehen lassen, das sich durch die Groesse veraendert"): fester Ort orbit_flare_xy, der Spark waechst ueber das
+    ganze Ende bis orbit_flare_r_frac (ease-out). Vorher {} (Stil und Cache der Bilder davor bleiben unberuehrt)."""
     e, b = cfg["ending"], beat(cfg)
     if "orbit_flare_at_beats" not in e:
         return {}
@@ -915,9 +915,8 @@ def flare_state(cfg, dt):
     p = 1 - (1 - min(tb / e["orbit_flare_in_beats"], 1.0)) ** 2
     glow = p * math.log(e["orbit_flare_max_scale"]) + max(tb - e["orbit_flare_in_beats"], 0) * e["orbit_flare_creep_per_beat"]
     date_at = e.get("orbit_date_at_beats", e["orbit_close_at_beats"])
-    q = 1 - (1 - min(tb / e["_flare_span_beats"], 1.0)) ** 2               # Weg bis zum Videoende, bremst (ease-out)
-    (x0, y0), (x1, y1) = e["orbit_flare_xy"]
-    return dict(flare_xy=[round(x0 + q * (x1 - x0), 4), round(y0 + q * (y1 - y0), 4)], flare_r=round(p * e["orbit_flare_r_frac"], 4),
+    q = 1 - (1 - min(tb / e["_flare_span_beats"], 1.0)) ** 2               # waechst bis zum Videoende, bremst (ease-out)
+    return dict(flare_xy=list(e["orbit_flare_xy"]), flare_r=round(q * e["orbit_flare_r_frac"], 4),
                 flare_rot=round(tb * e["orbit_flare_spin_deg_per_beat"] % STAR_SYM_DEG, 3), flare_glow=round(glow, 4),
                 flare_peak=e["orbit_flare_peak"], flare_colors=list(e["orbit_flare_colors"]),
                 flare_date=round(_prog(dt, date_at, e.get("orbit_date_in_beats", 1.0), b), 3),

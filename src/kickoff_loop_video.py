@@ -230,22 +230,23 @@ def digital_offset(cfg):
 def paper_wipe(cfg, img, j):
     """Papier → digital (Vadim 7.10.: "erst in einen weissen Hintergrund, dann growt der Randeffekt raus, ueber ein paar
     Frames, posterized"): der Druckrand (KL.edge_fade: Weiss, Lichtabfall im Bayer-Korn, umlaufende Welle) aufs ganze
-    Ausgabebild, nur sein weisser Rand margin_cells laeuft. j = Timeline-Frame relativ zum Wechsel (negativ = Foto):
-    paper_in_frames lang waechst der Rand von aussen, bis das Bild weiss ist (letzte Stufe vor dem Wechsel), danach
-    paper_out_frames lang zurueck nach aussen, bis das Digitalbild frei ist. Stufen von paper_step_frames Bildern."""
+    Ausgabebild, nur sein weisser Rand margin_cells laeuft. j = Bild nach dem Wechsel: die erste Stufe ist ganz weiss,
+    danach waechst das Digitalbild in paper_frames Bildern nur nach aussen, bis es frei ist. Stufen von
+    paper_step_frames Bildern. F7 (Vadim zu F6: "erst weniger zu sehen, dann ganz viel ist scheisse, nur nach aussen
+    wachsen, ueber mehrere Frames langsam"): kein Einlauf mehr ueber das Foto, das schneidet auf Weiss."""
     v = cfg["video"]
-    n_in, n_out, step = v.get("paper_in_frames", 0), v.get("paper_out_frames", 0), v.get("paper_step_frames", 1)
-    if not -n_in <= j < n_out:
+    n, step = v.get("paper_frames", 0), v.get("paper_step_frames", 1)
+    if not 0 <= j < n:
         return img
-    img = np.asarray(img)                                           # PIL (Digitalteil) oder Array (Foto-Phase)
+    img = np.asarray(img)                                           # PIL-Bild des Digitalteils
     j -= j % step                                                   # posterized: Stufe haelt step Bilder
-    u = (j + n_in + step) / n_in if j < 0 else 1 - (j + step) / (n_out + step)   # 1 = ganz weiss
+    u = 1 - j / n                                                   # 1 = ganz weiss
     px = S.BASE["R"] * S.SIZES["9x16"][2]                           # Zellraster des Digitalteils (Bayer deckungsgleich)
     pr = dict(cfg["print"], fade_cells=v.get("paper_fade_cells", cfg["print"]["fade_cells"]))
     tail = pr["fade_cells"] * (1 + pr["wave_amp"]) * np.log(1 / pr["fade_min"]) / KL.GLOW_LIGHT_E   # weitester Schweif
     full = min(img.shape[:2]) / px / 2 + 1                          # ab hier ist alles weiss
     pr["margin_cells"] = 0.5 - tail + u * (full - 0.5 + tail)      # u = 0: auch der Schweif liegt ausserhalb des Bilds
-    return KL.edge_fade(img, px, pr, j + n_in, n_in + n_out)   # Welle laeuft im Uebergang einmal um
+    return KL.edge_fade(img, px, pr, j, n)                         # Welle laeuft im Uebergang einmal um
 
 
 def beat_s(cfg):
@@ -610,7 +611,7 @@ def _photo_job(args):
         out = np.ndarray((tl.zoom_end, H, W, 3), np.uint8, buffer=shm.buf)
         for t in ts:
             sc, *rest = camera(cfg, tl, t, h)
-            out[t] = paper_wipe(cfg, np.asarray(shoot(plate, sc, (W, H), *rest)), t - tl.zoom_end)
+            out[t] = np.asarray(shoot(plate, sc, (W, H), *rest))
         del out
     finally:
         shm.close()
@@ -743,24 +744,21 @@ def prune_segments(folder, keep=SEGMENT_KEEP):
 
 
 def paper_selftest(cfg):
-    """Papier → digital am Bild (paper_wipe): die letzte Foto-Stufe ist ganz weiss (kein Rest des Fotos am Schnitt),
-    jede Stufe davor und danach laesst Bild stehen und deckt etwas ab (Rand wandert, bleibt nicht haengen), ab
-    paper_out_frames ist das Digitalbild unberuehrt. Schlaegt an, wenn der Rand zu frueh fertig ist oder nie ganz weiss."""
+    """Papier → digital am Bild (paper_wipe): das erste Bild nach dem Wechsel ist ganz weiss, danach wird es nur
+    weniger (Rand waechst nach aussen, F7: nie erst zu und dann auf), jede Stufe deckt noch etwas ab (nicht zu frueh
+    fertig), ab paper_frames ist das Digitalbild unberuehrt."""
     v = cfg["video"]
-    n_in, n_out, step = v.get("paper_in_frames", 0), v.get("paper_out_frames", 0), v.get("paper_step_frames", 1)
-    if not n_in and not n_out:
-        return "Selbsttest Papier: aus (paper_in_frames = paper_out_frames = 0)"
+    n = v.get("paper_frames", 0)
+    if not n:
+        return "Selbsttest Papier: aus (paper_frames = 0)"
     W, H = v["size_px"]
     img = np.zeros((H, W, 3), np.uint8)
-    white = [float((paper_wipe(cfg, img, j) == 255).all(-1).mean()) for j in range(-n_in, n_out + 1)]
-    assert white[n_in - 1] == 1.0, f"Papier: letzte Foto-Stufe nur {white[n_in - 1]:.1%} weiss"
-    assert white[-1] == 0.0, f"Papier: ab paper_out_frames noch {white[-1]:.1%} weiss"
-    mid = white[:n_in - step] + white[n_in:-1]
-    assert all(0 < w < 1 for w in mid), f"Papier: Stufe ohne Rand oder ganz weiss mitten im Uebergang: {mid}"
-    assert white[:n_in] == sorted(white[:n_in]) and white[n_in:] == sorted(white[n_in:], reverse=True), \
-        "Papier: Rand laeuft nicht stetig rein bzw. raus"
-    return (f"Selbsttest ok (Papier: {n_in} Bilder rein bis ganz weiss, {n_out} raus bis frei, Weissanteil "
-            f"{' '.join(f'{w:.2f}' for w in white)})")
+    white = [float((paper_wipe(cfg, img, j) == 255).all(-1).mean()) for j in range(n + 1)]
+    assert white[0] == 1.0, f"Papier: erstes Bild nur {white[0]:.1%} weiss"
+    assert white[-1] == 0.0, f"Papier: ab paper_frames noch {white[-1]:.1%} weiss"
+    assert all(0 < w < 1 for w in white[v.get("paper_step_frames", 1):-1]), f"Papier: Stufe ohne Rand: {white}"
+    assert white == sorted(white, reverse=True), f"Papier: Rand waechst nicht nur nach aussen: {white}"
+    return f"Selbsttest ok (Papier: {n} Bilder nach aussen, Weissanteil {' '.join(f'{w:.2f}' for w in white)})"
 
 
 def segment_selftest(cfg):
@@ -1035,6 +1033,23 @@ def encoder(cfg):
 DRAFT_STEP = 2       # preview --draft: Digitalteil nur jedes 2. Bild rendern und halten (Zweier, 12 fps): halbe Renderzeit
 
 
+VORSCHAU = "Vorschau"   # flacher Ordner im Hauptcheckout (Vadim 7.10.: "sieben Ordner tief, braucht ewig, die Preview zu finden")
+
+
+def publish(path, version):
+    """Fertige Vorschau zusaetzlich als <Hauptcheckout>/Vorschau/<Version>[_draft].mp4 (Hardlink: dieselbe Datei, kein
+    Platz). Hauptcheckout ueber git-common-dir, so landet sie auch aus einem Worktree dort, wo Vadim nachsieht."""
+    git = subprocess.run(["git", "-C", KL.PROJECT, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                         capture_output=True, text=True).stdout.strip()
+    folder = os.path.join(os.path.dirname(git) if git else os.path.dirname(KL.PROJECT), VORSCHAU)
+    os.makedirs(folder, exist_ok=True)
+    dst = os.path.join(folder, version + os.path.basename(path)[len("preview"):])   # preview_draft.mp4 → F7_draft.mp4
+    if os.path.exists(dst):
+        os.remove(dst)
+    os.link(path, dst)
+    return dst
+
+
 def draft_name(cfg, name):
     """Ausgabedatei, im Entwurf mit _draft: preview.mp4 → preview_draft.mp4 (nie die Endversion ueberschreiben)."""
     if not cfg.get("_draft"):
@@ -1231,7 +1246,7 @@ def preview(cfg, posters, qr_ok, legib):
         ff = ffmpeg_writer(part, size, tfps, enc=encoder(cfg))
         for j in range(len(digital)):
             img, t = digital[j], tl.zoom_end + j
-            if j < cfg["video"].get("paper_out_frames", 0):                # Papier → digital: Rand growt raus
+            if j < cfg["video"].get("paper_frames", 0):                    # Papier → digital: Rand growt raus
                 img = Image.fromarray(paper_wipe(cfg, img, j))
             ff.stdin.write(np.asarray(img).tobytes())
             if gate:
@@ -1251,6 +1266,7 @@ def preview(cfg, posters, qr_ok, legib):
     stills = [(f"{marks[t]} {t / tfps:.2f}s", photo.image(t)) for t in sorted(marks) if t < tl.zoom_end] + stills
     lum, chroma = photo.lum + lum, photo.chroma + chroma
     concat_video([photo.path, part], wav, os.path.join(out, draft_name(cfg, "preview.mp4")))
+    shown = publish(os.path.join(out, draft_name(cfg, "preview.mp4")), os.path.basename(out))
     os.remove(part)
     os.remove(wav)                                             # steckt im Video
     if loop_job.is_alive():
@@ -1306,6 +1322,7 @@ def preview(cfg, posters, qr_ok, legib):
                 "Zoom-Check. Nicht zur Abnahme."] if draft else []),
              *([f"MASTER (--master): Encoder x264 {X264_PRESET} crf 16 statt Hardware-Encoder"] if cfg.get("_master") else []),
              f"Version {os.path.basename(out)} · {time.strftime('%Y-%m-%d %H:%M')} · {time.time() - t0:.0f} s Renderzeit",
+             f"Ansehen: {shown}",
              f"Loop: {n} Frames = {len(keys)} Aushaenge ({' '.join(str(i + 1) for i in keys)}) + {n - len(keys)} "
              f"Zwischenframes (nur Video), {n / top_fps:.2f} s pro Umlauf im schnellsten Tempo",
              f"Musik: {cfg['music']['file']}, Impact {cfg['music']['grid']['impact_s']:.2f} s (Drop), "
@@ -1374,8 +1391,7 @@ def export(cfg, posters):
     for t in range(tl.zoom_end):
         sc, roll, dx, dy = camera(cfg, tl, t, h)
         cam.append([round(sc / fit, 5), round(float(roll), 4)])
-        ff.stdin.write(paper_wipe(cfg, np.asarray(shoot(plates[tl.poster_at(t)], sc, size, roll, dx, dy)),
-                                  t - tl.zoom_end).tobytes())
+        ff.stdin.write(np.asarray(shoot(plates[tl.poster_at(t)], sc, size, roll, dx, dy)).tobytes())
     ff.stdin.close()
     ff.wait()
     song(cfg, tl, os.path.join(out, "song.wav"))
