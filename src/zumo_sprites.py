@@ -892,7 +892,8 @@ def export(cfg):
                  index="0 = transparent, 1..6 = value step 0..5 (ground -> ink), "
                        f"{ACCENT0}.. = LED accents {' '.join(ACCENTS)}",
                  sheet_layout="row = direction (dirs_deg order), column = frame",
-                 palettes={p: dict(zip(("steps", "accents"), palette(cfg, p))) for p in ex["palettes"]},
+                 palettes={p: {k: ["#%02X%02X%02X" % c for c in cs] for k, cs in zip(("steps", "accents"), palette(cfg, p))}
+                           for p in ex["palettes"]},
                  views={}, anims={a: dict(frames=aa["frames"], tread=aa["tread"]) for a, aa in anims.items()})
     for v, vv in views.items():
         h, w = spr[(v, vv["dirs_deg"][0], "drive", 0)].shape
