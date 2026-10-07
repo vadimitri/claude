@@ -74,6 +74,9 @@ FINALE_KEYS = ("orbit_zoom_peak_beats", "orbit_zoom_decay", "orbit_spin_stop_bea
                "orbit_words_out_frac", "orbit_words_flash_frac", "orbit_close_at_beats", "orbit_close_beats",
                "orbit_sparks", "orbit_wall_r_frac", "orbit_stop_r_frac", "orbit_stop_grow_frac",
                "orbit_zoom_max_per_frame")
+FLARE_KEYS = ("orbit_flare_at_beats", "orbit_flare_in_beats", "orbit_flare_xy", "orbit_flare_r_frac",
+              "orbit_flare_spin_deg_per_beat", "orbit_flare_max_scale", "orbit_flare_creep_per_beat", "orbit_flare_peak",
+              "orbit_flare_colors", "orbit_flare_step_frames")
 STOP_ON = 2          # O12: kleine Sterne wachsen nur alle 2 Videobilder einen Schritt (auf Zweiern, 12 fps wie Spider-Verse)
 STAR_SYM_DEG = 60.0  # der Stern hat 6 Zacken: alle 60 Grad steht er wieder gleich (gerade)
 SPIN_TAIL = 3        # Selbsttest Drehung: Bremsung in den letzten 3 bewegten Bildern ...
@@ -436,6 +439,23 @@ def check_orbit(cfg, beats_left):
         assert not bad, f"[ending].orbit_dissolve: Teile des Plakatsatzes qr | cta | title | date, nicht {bad}"
         assert e["orbit_close_at_beats"] + e["orbit_close_beats"] <= beats_left, \
             f"[ending] Finale: Abschluss endet nach dem Video ({beats_left:g} Beats nach dem Karussell-Ende)"
+    if any(k in e for k in FLARE_KEYS):                                   # 7.10.: weisser Spark hinter der Schrift
+        miss = [k for k in FLARE_KEYS if k not in e]
+        assert not miss, f"[ending] Spark-Leuchten braucht noch: {', '.join(miss)}"
+        assert "orbit_close_at_beats" in e, "[ending] Spark-Leuchten nur mit Finale (orbit_close_at_beats)"
+        assert e["orbit_flare_at_beats"] < beats_left and e["orbit_flare_in_beats"] > 0 \
+            and e["orbit_flare_max_scale"] >= 1 and e["orbit_flare_creep_per_beat"] >= 0 \
+            and 0 < e["orbit_flare_peak"] <= 1 and e["orbit_flare_r_frac"] > 0 and e["orbit_flare_step_frames"] >= 1, (
+            f"[ending] Spark-Leuchten: orbit_flare_at_beats < {beats_left:g} (Videoende), orbit_flare_in_beats > 0, "
+            "orbit_flare_max_scale >= 1, orbit_flare_creep_per_beat >= 0, orbit_flare_peak 0..1, orbit_flare_r_frac > 0, "
+            "orbit_flare_step_frames >= 1")
+        xy = e["orbit_flare_xy"]
+        assert len(xy) == 2 and all(len(q) == 2 and all(0 <= v <= 1 for v in q) for q in xy), \
+            "[ending].orbit_flare_xy = [[x, y], [x, y]] (von, bis; Bruchteil des Bilds 0..1)"
+        e["_flare_span_beats"] = beats_left - e["orbit_flare_at_beats"]   # Weg des Sparks bis zum Videoende
+        fc = e["orbit_flare_colors"]
+        assert len(fc) >= 2 and all(isinstance(x, str) and len(x) == 7 and x[0] == "#" for x in fc), \
+            "[ending].orbit_flare_colors = [\"#000000\", ..., \"#ffffff\"] (Rampe von dunkel nach hell, OKLab dazwischen)"
     e.update(orbit_at_beats=_beats_to(steps / per_beat, a), _orbit_derived=True)   # Bahnwechsel auf orbit_frame
     assert e["orbit_at_beats"] < beats_left, f"[ending]: Bahnwechsel nach {e['orbit_at_beats']:g} Beats, Video endet vorher"
     assert e["orbit_spin_speedup"] >= 1 and e["orbit_type_out_beats"] > 0 and e["orbit_cycle_beats"] >= 0, \
@@ -862,7 +882,7 @@ def finale(cfg, dt, os_):
                 clear=e.get("orbit_glow_clear_cells", GLOW_CLEAR_CELLS),
                 back=close if e.get("orbit_date_back") and not e.get("orbit_date_center") else 0.0,
                 fly_out=e.get("orbit_dissolve_out", False),
-                **corona_state(cfg, dt))
+                **corona_state(cfg, dt), **flare_state(cfg, dt))
 
 
 def corona_state(cfg, dt):
@@ -875,6 +895,33 @@ def corona_state(cfg, dt):
                 corona=round(_prog(dt, e["orbit_corona_at_beats"], e["orbit_corona_beats"], b), 3),
                 date_p=round(_prog(dt, date_at, e.get("orbit_date_in_beats", 1.0), b), 3),
                 date_scale=e.get("orbit_date_center", 1.0))
+
+
+def flare_state(cfg, dt):
+    """7.10. (Vadim zu F5: "bei Sekunde 8 kommt ein kleiner weisser Spark, der von hinten die Texte aufleuchtet und den
+    Leuchteffekt neu verursacht, Orange-Feuerrot"): ab orbit_flare_at_beats waechst der Spark in orbit_flare_in_beats
+    auf (ease-out), dreht sich, das Leuchten (ln-Massstab wie finale glow) waechst bis ln(orbit_flare_max_scale) und
+    danach um orbit_flare_creep_per_beat weiter, damit das Ende nicht steht. Zeit auf orbit_flare_step_frames-Stufen
+    (posterized). Der Spark zieht ueber das ganze Ende von orbit_flare_xy[0] nach [1] (ease-out), die Schweife schwenken
+    mit. Vorher {} (Stil und Cache der Bilder davor bleiben unberuehrt)."""
+    e, b = cfg["ending"], beat(cfg)
+    if "orbit_flare_at_beats" not in e:
+        return {}
+    fps, step = cfg["video"]["timeline_fps"], e["orbit_flare_step_frames"]
+    k = math.floor(dt * fps + PHASE_EPS)
+    tb = (k - k % step) / fps / b - e["orbit_flare_at_beats"]           # Beats seit dem Auftauchen, gestuft
+    if tb < 0:
+        return {}
+    p = 1 - (1 - min(tb / e["orbit_flare_in_beats"], 1.0)) ** 2
+    glow = p * math.log(e["orbit_flare_max_scale"]) + max(tb - e["orbit_flare_in_beats"], 0) * e["orbit_flare_creep_per_beat"]
+    date_at = e.get("orbit_date_at_beats", e["orbit_close_at_beats"])
+    q = 1 - (1 - min(tb / e["_flare_span_beats"], 1.0)) ** 2               # Weg bis zum Videoende, bremst (ease-out)
+    (x0, y0), (x1, y1) = e["orbit_flare_xy"]
+    return dict(flare_xy=[round(x0 + q * (x1 - x0), 4), round(y0 + q * (y1 - y0), 4)], flare_r=round(p * e["orbit_flare_r_frac"], 4),
+                flare_rot=round(tb * e["orbit_flare_spin_deg_per_beat"] % STAR_SYM_DEG, 3), flare_glow=round(glow, 4),
+                flare_peak=e["orbit_flare_peak"], flare_colors=list(e["orbit_flare_colors"]),
+                flare_date=round(_prog(dt, date_at, e.get("orbit_date_in_beats", 1.0), b), 3),
+                flare_date_scale=e.get("orbit_date_center", 1.0))
 
 
 def finale_words(cfg, dt):
@@ -1258,6 +1305,37 @@ def corona_layer(c, f):
         k = int(lum.argmax())
     u = KL.under(c)
     c.add("corona", g > GLOW_MIN, u + (c.lvl(k) - u) * g)
+
+
+def flare_layer(c, f):
+    """Weisser Spark hinter der Schrift (flare_state), malt ueber dem Schwarz des Abschlusses und unter dem Satz.
+    Das Leuchten ist dasselbe Verfahren wie glow_layer (gelobt, M1-M4 Distanz-Gluehen = "Sticker-Rand" verworfen):
+    SPARK, der mittige Datum-Block und der Spark selbst, GLOW_SAMPLES-mal vergroessert, aber um den Spark statt um die
+    Zoom-Mitte, also Lichtschweife vom Spark weg durch die Schrift. Eigene Palette der Ebene: orbit_flare_colors als
+    Rampe in OKLab auf die N+1 Stufen (Bayer dazwischen, keine flache Farbe); Schrift-Schweif hoechstens flare_peak,
+    der Spark selbst in der hellsten Stufe."""
+    import kickoff_loop as KL
+    X, Y = f["flare_xy"][0] * c.W, f["flare_xy"][1] * c.H
+    centre = (Y / c.px - 0.5, X / c.px - 0.5)
+    title = np.logical_or.reduce(KL.line_masks(c, KL.text_lines(c)["title"], centered=True))
+    cap, lead = date_cap(c, f["flare_date_scale"])
+    n = len(c.L["sub"])
+    date, _ = word_mask(c, list(c.L["sub"]), cap, lead, c.W / 2, c.H / 2 - (cap + (n - 1) * lead) / 2)
+    star = S.star_d(c, X, Y, f["flare_r"] * c.W, f["flare_rot"])[0] < 1
+    src = np.maximum.reduce([title * f["flare_peak"], date * f["flare_peak"] * f["flare_date"], star * 1.0])
+    g = src.astype(np.float32)
+    for j in range(1, GLOW_SAMPLES + 1):
+        sc = math.exp(f["flare_glow"] * j / GLOW_SAMPLES)
+        sy = np.round(centre[0] + (c.yy - centre[0]) / sc).astype(int)
+        sx = np.round(centre[1] + (c.xx - centre[1]) / sc).astype(int)
+        ok = (sy >= 0) & (sy < c.gh) & (sx >= 0) & (sx < c.gw)
+        hit = np.zeros_like(g)
+        hit[ok] = src[sy[ok], sx[ok]]
+        g = np.maximum(g, hit * (1 - j / (GLOW_SAMPLES + 1)))
+    stops = KL.to_oklab(S.hexpal_list(f["flare_colors"]))
+    t, x = np.arange(c.N + 1) / c.N, np.linspace(0, 1, len(stops))
+    c.layer_pal["flare"] = KL.from_oklab(np.stack([np.interp(t, x, stops[:, i]) for i in range(3)], -1)).astype(np.float32)
+    c.add("flare", g > GLOW_MIN, g)
 
 
 def word_layer(c, w, flash, hi):

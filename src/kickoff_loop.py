@@ -1376,6 +1376,7 @@ def main():
         print(cache_selftest(cfg))
         import kickoff_loop_video as V
         print(V.segment_selftest(cfg))                  # Foto-Segment-Cache der Vorschau
+        print(V.paper_selftest(cfg))                    # Papier → digital (Rand rein bis weiss, raus bis frei)
         if cfg["checks"]["flash_gate"]:
             print(V.flash_selftest(cfg))
     elif cmd == "print":

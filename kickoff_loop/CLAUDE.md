@@ -38,6 +38,30 @@ In dieser Reihenfolge:
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
 5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
+6. **F6 (7.10. abends)**: Übergang Papier → digital + Spark-Leuchten am Ende, Abschnitt „F6“ direkt hierunter.
+
+## F6 (7.10. abends) · Übergang Papier → digital + Spark-Leuchten am Ende · **wartet auf Vadim**
+
+Vadim zu F5: „richtig nice, nur kleine Sachen“. Vorschau `previz/review/F6/preview_draft.mp4` (`--draft`, 40 s Render).
+1. **Papier → digital** (statt hartem Schnitt bei 5.88 s; erledigt damit den geparkten „Disconnect“ aus HANDOFF_ENDE 1.5):
+   „erst in einen weißen Hintergrund, dann growt der Randeffekt raus, über ein paar Frames, posterized“. Umsetzung
+   `kickoff_loop_video.paper_wipe`: der Druckrand `KL.edge_fade` ([print]: Weiß, Lichtabfall im Bayer-Korn, Welle) aufs
+   ganze Ausgabebild, nur `margin_cells` läuft. 6 Foto-Bilder rein (⅓, ⅔, weiß), 8 Digital-Bilder raus, auf Zweiern;
+   Lichtabfall 40 statt 16 Zellen (sonst im Video kaum sichtbar). Stellschrauben `loop.toml [video] paper_*` (gilt für
+   jede Vorschau, 0/0 = harter Schnitt), auch in `export` (Resolve). Selbsttest `paper_selftest` (in `kickoff_loop.py test`).
+2. **Ende mit Bewegung**: „bei Sekunde 8 ein kleiner weißer Spark, der von hinten die Texte aufleuchtet, Leuchteffekt
+   neu, Orange-Feuerrot“. Umsetzung `kickoff_loop_end.flare_state` / `flare_layer` (Slot über dem Schwarz, unter der
+   Schrift, nach `corona_layer`): 6-Zack-Spark (weiß) wächst ab Beat 2.9 (8.0 s) in 1 Beat auf, dreht 12°/Beat, zieht
+   über das ganze Ende von hinter dem Datum-Block (0.5/0.52) in die Lücke unter SPARK (0.5/0.35), ease-out. Leuchten =
+   **dasselbe Verfahren wie das gelobte Zoom-Glühen** (`glow_layer`: Schrift 16-mal vergrößert), aber um den Spark:
+   Schweife laufen vom Spark weg durch SPARK und den Block und schwenken mit. Eigene Ebenen-Palette = P18 Lava, unten
+   #000, oben Weiß (`orbit_flare_colors`), Schrift-Schweif bis Stufe 0.7. Schlüssel `orbit_flare_*` in `F6.toml`.
+   Befund Standbilder: mittig 0.5/0.5 lag der Spark genau auf dem „/“ von 14.10. / 17:00 → Weg statt fester Lage.
+   Report „Grund #000 54.8 % (Spark-Leuchten)“ ist gewollt.
+- Offen: Vadims Urteil (Tempo/Länge des Übergangs, Lage/Weg/Größe des Sparks, Stärke `orbit_flare_peak`, ggf. Lila
+  statt Lava). Danach `[ending]` aus F6 nach `loop.toml`, `preview` ohne `--draft`, `--master`, Resolve.
+- Altfehler (nicht von F6, mit F5 und ohne F6-Code gleich): `kickoff_loop_end.py test` bricht in `words_selftest` ab
+  (`KeyError 'new'`, Begriffe sind seit O16 aus) → beim Aufräumen (HANDOFF_ENDE 4.2) mit dem Begriffe-Code löschen.
 
 ## Campus-Fotos (6.10., `src/kickoff_loop_photos.py`, `[photos]` in `loop.toml`) · **7.10.: 64/64, Vorschau F5, wartet auf Vadim** · Übergabe: `HANDOFF_FOTOS.md`
 

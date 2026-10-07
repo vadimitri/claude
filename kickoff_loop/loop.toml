@@ -228,6 +228,12 @@ shake_px = 1.5             # F4 (Vadim 7.10.: "weniger Stabilisierung, jeden Fra
                            # Sigma in Ausgabepixeln (1080 breit), auf +-2 Sigma begrenzt. 0 = ruhig wie F1-F3
 shake_rot_deg = 0.05       # ... und Zufallsdrehung je Bild (Sigma, Grad). F5: 0.3 → 0.05
 shake_fade_frac = 0.15     # Verwackeln laeuft ueber diesen Anteil der Fahrt zum Zoom-Ende auf 0 (Wechsel ins Digitale pixelgenau)
+# Papier → digital (F6, Vadim 7.10.: "erst in einen weissen Hintergrund, dann growt der Randeffekt raus, posterized"):
+# der Druckrand [print] (Weiss + Lichtabfall im Bayer-Korn + Welle) laeuft ueber das ganze Bild. 0 / 0 = harter Schnitt wie F5
+paper_in_frames = 6        # so viele Foto-Bilder vor dem Wechsel waechst der Rand von aussen rein, die letzte Stufe ist ganz weiss
+paper_out_frames = 8       # so viele Digital-Bilder danach growt er wieder raus, bis das Bild frei ist
+paper_step_frames = 2      # posterized: der Rand springt alle 2 Bilder (Zweier wie der Digitalteil im Draft)
+paper_fade_cells = 40      # Lichtabfall des Rands in Zellen (Druck: [print].fade_cells 16; im Video groesser, damit man ihn sieht)
 punch_frac = 0.0           # Stoss nach vorn auf jedem Drum-Hit (Vadim 2.10.: aus, 0) ([music].grid hits_s): Massstab +5 %, klingt ab
 punch_decay_beats = 0.25   # Abklingzeit des Stosses (Beats). Kurz = zackig, auf dem Schlag
 

@@ -17,7 +17,8 @@ Stellschrauben: `loop.toml` `[photos]` und `[video] shake_*`. Branch `claude/kic
 | F2 | 62/64, A3-Runde bevorzugt, sonst wie F1 | „sieht aus wie digital, Hintergrund immer verändert“ |
 | F3 | ein Weißabgleich + Belichtung fürs ganze Foto, Wand nie gedimmt | gut, „aber immer noch sehr viel verändert“ |
 | F4 | nur Papierbogen korrigiert (0.7), Wand roh, 19 + 45 drin, Handkamera 6 px / 0.3° | „viel zu viel Bewegung“ |
-| **F5** | F4 mit Handkamera 1.5 px / 0.05° (Sprung je Bild Median 2.3 px, max 6.4 px) | **offen** |
+| F5 | F4 mit Handkamera 1.5 px / 0.05° (Sprung je Bild Median 2.3 px, max 6.4 px) | „richtig nice, nur kleine Sachen“ |
+| **F6** | F5 + Übergang Papier → digital über den Druckrand + Spark-Leuchten am Ende (`CLAUDE.md` Abschnitt „F6“) | **offen** |
 
 ## 2. Entscheidungen (Vadim 7.10.)
 
@@ -58,8 +59,7 @@ Stellschrauben: `loop.toml` `[photos]` und `[video] shake_*`. Branch `claude/kic
 1. **Vadims Urteil zu F5**: Bewegung (`shake_px`, `shake_rot_deg`) und Stärke (`poster_match_frac`). 52 bestätigen.
 2. Die `aligned/*.png` sind mit dem Rand für F4-Wackeln gebaut (etwas größer als für F5 nötig, mittig, harmlos).
    Beim nächsten Foto-Lauf schrumpft er von selbst.
-3. Schnitt Foto → digital (5.88 s): mit natürlichen Fotos größerer Sprung (gedeckt → leuchtend). Steht als „Disconnect“
-   (geparkt) in `HANDOFF_ENDE.md` 1.5.
+3. ~~Schnitt Foto → digital (5.88 s)~~: F6 geht über Weiß (Druckrand rein, growt raus), kein harter Sprung mehr.
 4. Danach wie „Übergabe Video“ in `CLAUDE.md`: Ende (HANDOFF_ENDE), `preview` ohne `--draft`, `--master`, Resolve
    `kickoff_loop_resolve.py schnitt`.
 5. Report-Zeilen „Lesbarkeit ... 0/64 in Stufe A“ und „Finale 0.64 C“ sind bekannte Messfehler (HANDOFF_ENDE 4.3),

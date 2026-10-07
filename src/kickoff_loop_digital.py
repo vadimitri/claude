@@ -354,6 +354,9 @@ def zoom_type(c):
     if fin and fin.get("corona", 0) > 0:                                  # O18: Corona waechst unter der Schrift
         import kickoff_loop_end as KE
         KE.corona_layer(c, fin)
+    if fin and "flare_glow" in fin:                                       # 7.10.: weisser Spark + Feuer-Leuchten hinter
+        import kickoff_loop_end as KE                                     # der Schrift, ueber dem Schwarz
+        KE.flare_layer(c, fin)
     n0 = len(c.layers)
     if zm["type_out"] < 1:
         KL.type_layers(c)
