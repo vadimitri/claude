@@ -248,3 +248,32 @@ mm_per_px = 2.6
 head_scale = 1.35
 head_lift_mm = 3.0
 outline_value = 4
+
+# Sumo-Demo (uv run src/zumo_sprites_demo.py): zwei Zumos im Ring, zeigt die Sprites in einer Challenge-Animation.
+# Positionen = x des Drehpunkts relativ zur Ringmitte in logischen Pixeln; Kontakt der Schilde bei +-19 px (2.6 mm/px).
+# Frames bei 24 fps; Sprite-Frames laufen mit 12 fps (sprite_every = 2), das 8-Bit-Gefuehl.
+[demo]
+variant = "Z7"              # Sticker-Kontur: liest sich auf dem dunklen Maker-Night-Grund
+palette = "P1"              # Lila gehoert der Maker Night
+size_px = [480, 270]        # logisches Raster, x4 = 1920 x 1080 (R3)
+px = 4
+fps = 24
+sprite_every = 2
+ring_center_px = [240, 140]
+ring_rx_px = 92             # stilisiert (massstaeblich waeren 148 px: Ring 77 cm, dann sind die Zumos zu klein)
+ring_ry_frac = 0.5          # Iso 2:1 (pitch 30)
+ring_h_px = 9               # Ring ist eine Plattform (Mini-Sumo: 5 cm hoch), Kante sichtbar
+border_px = 3               # weisser Rand (Mini-Sumo: 2.5 cm)
+glow_cells = 70             # Lichtkegel auf dem Ring: exponentieller Abfall (Taste: kein Gauss-Plateau)
+ring_light = [1.0, 2.35]    # Stufe am Ringrand, in der Mitte (dazwischen Bayer)
+ground_light = 0.7          # Schein auf dem Boden direkt am Ring
+shadow_px = [19, 6]         # Schatten unter jedem Zumo (Radien)
+frames = 132
+keys_a = [[0, -66], [16, -66], [36, -19], [64, -19], [90, 50], [132, 50]]
+keys_b = [[0, 66], [16, 66], [36, 19], [64, 19], [90, 88], [100, 114], [132, 114]]
+fall_b = [[0, 0], [92, 0], [100, 11], [132, 11]]   # B faellt von der Plattform (y nach unten)
+anims_a = [[0, "idle"], [16, "drive"], [36, "push"], [92, "win"]]
+anims_b = [[0, "idle"], [16, "drive"], [36, "push"], [94, "ko"]]
+impact = [36, [5, 9, 8, 6, 4, 2]]   # Frame des Aufpralls, Radius des Spark-Sterns pro Frame danach
+shake_px = [[2, 0], [-1, 1], [1, 0]]  # Bildversatz ab dem Aufprall
+jitter_px = 1               # Gerangel waehrend push (beide zusammen)
