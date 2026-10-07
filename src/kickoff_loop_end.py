@@ -79,6 +79,9 @@ FLARE_KEYS = ("orbit_flare_at_beats", "orbit_flare_in_beats", "orbit_flare_xy", 
               "orbit_flare_colors", "orbit_flare_step_frames")
 PRE_KEYS = ("orbit_pre_at_beats", "orbit_pre_in_beats", "orbit_pre_out_at_beats", "orbit_pre_out_beats", "orbit_pre_colors",
             "orbit_pre_lines")   # F9: blauer Spark + Slogan vor dem roten (Vadim 7.10.), optional
+WAVE_KEYS = ("orbit_wave_after", "orbit_wave_pre_beats", "orbit_wave_pre_curve", "orbit_wave_rings", "orbit_wave_ring_width",
+             "orbit_wave_reach", "orbit_wave_pow", "orbit_wave_band")   # F10: Blau → Rot ueber die Ripple-Welle, optional
+WAVE_AFTER = ("behind", "same", "black")
 STOP_ON = 2          # O12: kleine Sterne wachsen nur alle 2 Videobilder einen Schritt (auf Zweiern, 12 fps wie Spider-Verse)
 STAR_SYM_DEG = 60.0  # der Stern hat 6 Zacken: alle 60 Grad steht er wieder gleich (gerade)
 SPIN_TAIL = 3        # Selbsttest Drehung: Bremsung in den letzten 3 bewegten Bildern ...
@@ -460,10 +463,22 @@ def check_orbit(cfg, beats_left):
         if any(k in e for k in PRE_KEYS):                                 # F9: blauer Spark + Slogan davor
             miss = [k for k in PRE_KEYS if k not in e]
             assert not miss, f"[ending] blauer Spark braucht noch: {', '.join(miss)}"
-            assert e["orbit_pre_at_beats"] + e["orbit_pre_in_beats"] <= e["orbit_pre_out_at_beats"] \
-                and e["orbit_pre_out_at_beats"] + e["orbit_pre_out_beats"] <= e["orbit_flare_at_beats"] \
+            wave = e.get("orbit_wave_after")
+            if any(k in e for k in WAVE_KEYS):                            # F10: Welle statt Zusammenfallen + Schwarz
+                miss = [k for k in WAVE_KEYS if k not in e]
+                assert not miss and wave in WAVE_AFTER, \
+                    f"[ending] Ripple-Welle braucht noch: {', '.join(miss) or 'orbit_wave_after = behind | same | black'}"
+                pc = e["orbit_wave_pre_curve"]
+                assert pc[0][0] == 0 and pc[-1][0] == 1 and all(len(k) == 3 for k in pc), \
+                    "[ending].orbit_wave_pre_curve = [[0, r, glow], ..., [1, r, glow]] (Anteil der Vorphase, Faktoren)"
+                assert e["orbit_pre_at_beats"] + e["orbit_pre_in_beats"] <= e["orbit_pre_out_at_beats"] - e["orbit_wave_pre_beats"], \
+                    "[ending] Ripple: blauer Spark muss vor der Vorphase (orbit_wave_pre_beats) ganz da sein"
+            ok_after = (e["orbit_flare_at_beats"] == e["orbit_pre_out_at_beats"]) if wave in ("behind", "same") else \
+                e["orbit_pre_out_at_beats"] + e["orbit_pre_out_beats"] <= e["orbit_flare_at_beats"]
+            assert e["orbit_pre_at_beats"] + e["orbit_pre_in_beats"] <= e["orbit_pre_out_at_beats"] and ok_after \
                 and e["orbit_pre_in_beats"] > 0 and e["orbit_pre_out_beats"] > 0, (
-                "[ending] blauer Spark: at + in <= out_at, out_at + out <= orbit_flare_at_beats (Schwarz dazwischen), in/out > 0")
+                "[ending] blauer Spark: at + in <= out_at, out_at + out <= orbit_flare_at_beats (Schwarz dazwischen; "
+                "Welle behind/same: orbit_flare_at_beats = orbit_pre_out_at_beats), in/out > 0")
             assert e["orbit_pre_lines"] and all(isinstance(x, str) for x in e["orbit_pre_lines"]), \
                 "[ending].orbit_pre_lines = [\"ZEILE\", ...] (Slogan, Zeilen mittig wie der Datumsblock)"
         fc = e["orbit_flare_colors"]
@@ -940,8 +955,28 @@ def flare_state(cfg, dt):
         return dict(xy=list(e["orbit_flare_xy"]), r=round(q * e["orbit_flare_r_frac"] * (1 - out), 4),
                     rot=round(tb * e["orbit_flare_spin_deg_per_beat"] % STAR_SYM_DEG, 3), glow=round(glow * (1 - out), 4),
                     peak=e["orbit_flare_peak"], colors=list(colors), lines=lines, text=round(text * (1 - out), 3))
-    lights, off = [], 0.0
-    if "orbit_pre_at_beats" in e:
+    lights, off, wave = [], 0.0, None
+    if "orbit_wave_after" in e:                                            # F10: Ripple-Welle statt Zusammenfallen
+        a, o, ob = e["orbit_pre_at_beats"], e["orbit_pre_out_at_beats"], e["orbit_pre_out_beats"]
+        u, after = (tq - o) / ob, e["orbit_wave_after"]
+        uw = (dt / b - o) / ob                                             # Front jedes Bild (smooth), nicht auf Zweiern
+        kr, kg = pre_curve(e["orbit_wave_pre_curve"], (tq - o) / e["orbit_wave_pre_beats"] + 1)
+        if a <= tq and u < 1 and uw < 1:
+            lt = light(min(tq, o) - a, o - a, 0.0, e["orbit_pre_colors"], list(e["orbit_pre_lines"]),
+                       _prog(dt, a, e["orbit_pre_in_beats"], b))
+            lt.update(r=round(lt["r"] * kr * (u < 0), 4), glow=round(lt["glow"] * kg * (1 - smooth(u)), 4),
+                      mask="outside" if u >= 0 else None)                 # Spark gibt die Welle ab, Licht nimmt sie mit
+            lights.append(lt)
+        if 0 <= uw < 1:
+            rot0 = (o - a) * e["orbit_flare_spin_deg_per_beat"] % STAR_SYM_DEG
+            wave = dict(xy=list(e["orbit_flare_xy"]), rot=round(rot0, 3), after=after, band=e["orbit_wave_band"],
+                        front=round(e["orbit_wave_reach"] * uw ** e["orbit_wave_pow"], 4),
+                        amp=round(1 - smooth((uw - 0.75) / 0.25), 3), rings=e["orbit_wave_rings"],
+                        width=e["orbit_wave_ring_width"],
+                        colors=list(e["orbit_pre_colors" if after == "black" else "orbit_flare_colors"]),
+                        r0=round(e["orbit_flare_r_frac"] * kr, 4))
+        off = round(float(u >= 1) * (1 - date_p), 3) if after == "black" else 0.0
+    elif "orbit_pre_at_beats" in e:
         a, o, ob = e["orbit_pre_at_beats"], e["orbit_pre_out_at_beats"], e["orbit_pre_out_beats"]
         out = smooth((tq - o) / ob)
         if a <= tq and out < 1:
@@ -953,10 +988,42 @@ def flare_state(cfg, dt):
         ob = e.get("orbit_flare_out_beats", 0)
         span = ob - step / fps / b                                         # gestuft: im letzten Bild ganz weg
         out = smooth((tq - e["_flare_end_beats"] + ob) / span) if ob else 0.0
-        lights.append(light(tb, e["_flare_span_beats"], out, e["orbit_flare_colors"], None, date_p))
+        lt = light(tb, e["_flare_span_beats"], out, e["orbit_flare_colors"], None, date_p)
+        if wave and wave["after"] == "behind":
+            lt["mask"] = "inside"                                          # Rot steht schon hinter der Welle
+        if wave and wave["after"] == "same":                               # derselbe Spark: rot ab der Groesse des blauen
+            lt["r"] = round(max(lt["r"], wave["r0"] * (1 - out)), 4)
+        lights.append(lt)
     if not lights and not off:
         return {}
-    return dict(flares=lights, title_off=off, flare_date_scale=e.get("orbit_date_center", 1.0))
+    return dict(flares=lights, title_off=off, flare_date_scale=e.get("orbit_date_center", 1.0), wave=wave)
+
+
+def pre_curve(keys, x):
+    """F10 Vorphase vor der Welle: (Faktor Spark-Radius, Faktor Leuchten) bei Anteil x der Vorphase, smoothstep
+    zwischen den Schluesseln [x, r, glow] (zusammenziehen / bleiben / erst aufgluehen). Vor der Vorphase (x < 0) 1, 1."""
+    if x <= 0:
+        return 1.0, 1.0
+    x = min(x, 1.0)
+    for (x0, r0, g0), (x1, r1, g1) in zip(keys, keys[1:]):
+        if x <= x1:
+            w = smooth((x - x0) / (x1 - x0))
+            return r0 + (r1 - r0) * w, g0 + (g1 - g0) * w
+    return keys[-1][1], keys[-1][2]
+
+
+def wave_metric(c, wv):
+    """Sternfoermiger Abstand vom Spark (Ausrichtung des Sparks), auf das Bild normiert (1 = entferntestes Pixel), wie
+    motionpack._ripple (pack/gif/dots/ripple_spark.gif, Vadim: "der Spark rippelt"). Einmal je Bild gerechnet."""
+    if getattr(c, "_wave_m", None) is None:
+        m = S.star_d(c, wv["xy"][0] * c.W, wv["xy"][1] * c.H, 1.0, wv["rot"])[0]
+        c._wave_m = (m / m.max()).astype(np.float32)
+    return c._wave_m
+
+
+def wave_passed(c, wv):
+    """Zellen, ueber die die Welle schon gelaufen ist: Kante im Bayer-Korn (Breite band), Zerfall im Korn."""
+    return (wv["front"] - wave_metric(c, wv)) / wv["band"] > S.tile(S.bayer(4), (c.gh, c.gw))
 
 
 def pre_words(cfg, dt):
@@ -970,8 +1037,10 @@ def pre_words(cfg, dt):
     out = _prog(dt, e["orbit_pre_out_at_beats"], e["orbit_pre_out_beats"], b)
     if grow <= 0 or out >= 1:
         return []
+    if "orbit_wave_after" in e:                                           # F10: die Welle loest ihn im Korn auf
+        out = 0.0
     return [dict(date=True, lines=list(e["orbit_pre_lines"]), seed=-2, scale=e.get("orbit_date_center", 1.0),
-                 grow=round(grow * (1 + fl), 3), fade=1.0, out=round(out * (1 + fl), 3))]
+                 grow=round(grow * (1 + fl), 3), fade=1.0, out=round(out * (1 + fl), 3), layer="slogan")]
 
 
 def finale_words(cfg, dt):
@@ -1368,6 +1437,10 @@ def flare_layer(c, f):
     import kickoff_loop as KL
     title = np.logical_or.reduce(KL.line_masks(c, KL.text_lines(c)["title"], centered=True))
     title &= S.tile(S.bayer(4), (c.gh, c.gw)) >= f.get("title_off", 0.0)
+    wv = f.get("wave")
+    passed = wave_passed(c, wv) if wv else None
+    if wv and wv["after"] == "black":                                     # SPARK geht mit der Welle
+        title &= ~passed
     for i, lt in enumerate(f["flares"]):
         X, Y = lt["xy"][0] * c.W, lt["xy"][1] * c.H
         centre = (Y / c.px - 0.5, X / c.px - 0.5)
@@ -1385,10 +1458,24 @@ def flare_layer(c, f):
             hit = np.zeros_like(g)
             hit[ok] = src[sy[ok], sx[ok]]
             g = np.maximum(g, hit * (1 - j / (GLOW_SAMPLES + 1)))
-        stops = KL.to_oklab(S.hexpal_list(lt["colors"]))
-        t, x = np.arange(c.N + 1) / c.N, np.linspace(0, 1, len(stops))
-        c.layer_pal[f"flare{i}"] = KL.from_oklab(np.stack([np.interp(t, x, stops[:, k]) for k in range(3)], -1)).astype(np.float32)
+        if lt.get("mask"):                                                # F10: Blau vor der Welle, Rot dahinter
+            g = g * (passed if lt["mask"] == "inside" else ~passed)
+        c.layer_pal[f"flare{i}"] = ramp(c, lt["colors"])
         c.add(f"flare{i}", g > GLOW_MIN, g)
+    if wv:                                                                # F10: Ripple-Ring (Front + Echos) wie die GIF
+        m = wave_metric(c, wv)
+        v = sum(a * np.exp(-((m - (wv["front"] - k)) / wv["width"]) ** 2) for k, a in wv["rings"]) * wv["amp"]
+        v = np.clip(v, 0, 1).astype(np.float32)
+        c.layer_pal["wave"] = ramp(c, wv["colors"])
+        c.add("wave", v > GLOW_MIN, v)
+
+
+def ramp(c, colors):
+    """Ebenen-Palette: Farben als Rampe in OKLab auf die N+1 Stufen (Bayer dazwischen, keine flache Farbe)."""
+    import kickoff_loop as KL
+    stops = KL.to_oklab(S.hexpal_list(colors))
+    t, x = np.arange(c.N + 1) / c.N, np.linspace(0, 1, len(stops))
+    return KL.from_oklab(np.stack([np.interp(t, x, stops[:, k]) for k in range(3)], -1)).astype(np.float32)
 
 
 def word_layer(c, w, flash, hi):
@@ -1436,7 +1523,7 @@ def word_layer(c, w, flash, hi):
     t_in, t_out = rng.random((2, c.gh, c.gw))
     a_in, a_out = (w["grow"] - t_in) / flash, (w["out"] - t_out) / flash     # 0..1 = leuchtet gerade auf
     on = mk & (a_in >= 0) & (a_out < 1)
-    c.add("new", on, np.where((a_in < 1) | (a_out >= 0), hi, body))
+    c.add(w.get("layer", "new"), on, np.where((a_in < 1) | (a_out >= 0), hi, body))   # F10: Slogan eigene Ebene (Welle)
     K._EXTRA["new_on"] = on
 
 
@@ -1748,14 +1835,17 @@ def selftest(cfg):
 
 
 def pre_selftest(cfg):
-    """F9 am fertigen Bild: Blau zuendet vor dem vollen Schwarz (Vadim zu F8: "Glow zu spaet"), leuchtet blau ohne Rot,
-    dazwischen ist das Bild ganz schwarz (auch SPARK weg), dann Rot, und im letzten Bild ist das Rot wieder weg.
-    Gegenprobe: SPARK bleibt im Schwarz stehen (title_off 0) muss als "nicht schwarz" auffallen."""
+    """F9/F10 am fertigen Bild: Blau zuendet vor dem vollen Schwarz (Vadim zu F8: "Glow zu spaet"), leuchtet blau ohne
+    Rot, im letzten Bild ist das Rot wieder weg. F9 und F10 black: dazwischen ganz schwarz (auch SPARK weg), Gegenprobe
+    SPARK bleibt (title_off 0) muss auffallen. F10 (Ripple-Welle): mitten in der Welle Blau und Rot zugleich (behind/
+    same) und nach der Welle kein Blau mehr; Gegenprobe Front steht (0) muss mitten in der Welle mehr Blau zeigen."""
     import kickoff as K
     import kickoff_loop_video as V
+    import kickoff_loop_end as KE                       # das Modul, das digital_style rendert (nicht __main__)
     e, b = cfg["ending"], beat(cfg)
+    wave = e.get("orbit_wave_after")
+    o, ob = e["orbit_pre_out_at_beats"], e["orbit_pre_out_beats"]
     last = e["_flare_end_beats"] - 1 / cfg["video"]["timeline_fps"] / b
-    gap = (e["orbit_pre_out_at_beats"] + e["orbit_pre_out_beats"] + e["orbit_flare_at_beats"]) / 2
 
     def img(x):
         return np.asarray(K.frame_of(V.digital_style(cfg, x * b), "9x16")).astype(int)
@@ -1763,22 +1853,42 @@ def pre_selftest(cfg):
     def tint(a):                                       # Anteil deutlich blauer / roter Pixel
         r, g, bl = a[..., 0], a[..., 1], a[..., 2]
         return float((bl > r + 60).mean()), float((r > bl + 60).mean())
+
+    def patched(fn, x):                                # Bild mit veraendertem flare_state (Gegenprobe)
+        keep = KE.flare_state
+        KE.flare_state = lambda c, dt: fn(keep(c, dt))
+        try:
+            return img(x)
+        finally:
+            KE.flare_state = keep
     early = tint(img(e["orbit_close_at_beats"]))[0]
-    blue, red0 = tint(img(e["orbit_pre_out_at_beats"] - 0.25))
-    dark = int(img(gap).max())
+    blue, red0 = tint(img(o - e.get("orbit_wave_pre_beats", 0) - 0.25))
     red = tint(img(e["orbit_flare_at_beats"] + e["orbit_flare_in_beats"] + 0.5))[1]
     end = tint(img(last))[1]
-    import kickoff_loop_end as KE                       # das Modul, das digital_style rendert (nicht __main__)
-    keep = KE.flare_state
-    KE.flare_state = lambda c, dt: {**keep(c, dt), "title_off": 0.0} if keep(c, dt) else {}
-    try:
-        bites = int(img(gap).max()) > 8
-    finally:
-        KE.flare_state = keep
-    good = early > 0.005 and blue > 0.05 and red0 < 0.001 and dark <= 8 and red > 0.05 and end < 0.001 and bites
-    return good, (f"Blau/Schwarz/Rot: {'ok' if good else 'FEHLER'} (Blau am Abschluss-Beginn {early:.1%}, Blau {blue:.1%} "
-                  f"Rot {red0:.1%}, Luecke max {dark}, Rot {red:.1%}, letztes Bild Rot {end:.2%}; Gegenprobe SPARK im "
-                  f"Schwarz: {'schlaegt an' if bites else 'TEST BLIND'})")
+    good = early > 0.005 and blue > 0.05 and red0 < 0.001 and red > 0.05 and end < 0.001
+    txt = f"Blau am Abschluss-Beginn {early:.1%}, Blau {blue:.1%} Rot {red0:.1%}, Rot {red:.1%}, letztes Bild Rot {end:.2%}"
+    stop = (lambda f: {**f, "wave": {**f["wave"], "front": 0.0}} if f.get("wave") else f)   # Gegenprobe: Front steht
+    if wave in (None, "black"):
+        gap = (o + ob + e["orbit_flare_at_beats"]) / 2 if e["orbit_flare_at_beats"] > o + ob else o + ob - 0.02
+        dark = int(img(gap).max())
+        if wave:                                       # F10 black: Welle raeumt alles weg (auch SPARK)
+            bites = int(patched(stop, gap).max()) > 8
+            probe = "Front steht"
+        else:
+            bites = int(patched(lambda f: {**f, "title_off": 0.0} if f else {}, gap).max()) > 8
+            probe = "SPARK im Schwarz"
+        good &= dark <= 8 and bites
+        txt += f", Luecke max {dark}; Gegenprobe {probe}: {'schlaegt an' if bites else 'TEST BLIND'}"
+    if wave in ("behind", "same"):
+        mid = o + 0.25 * ob
+        bm, rm = tint(img(mid))
+        after_blue = tint(img(o + ob + 0.05))[0]
+        b0 = tint(patched(stop, mid))[0]
+        bites = b0 > 1.1 * bm
+        good &= rm > 0.002 and after_blue < 0.001 and bites
+        txt += (f"; Welle {wave}: Mitte Blau {bm:.1%} Rot {rm:.1%}, danach Blau {after_blue:.2%}; Gegenprobe Front steht: "
+                f"Blau {b0:.1%} {'schlaegt an' if bites else 'TEST BLIND'}")
+    return good, f"Blau/Rot: {'ok' if good else 'FEHLER'} ({txt})"
 
 
 def words_selftest(cfg):

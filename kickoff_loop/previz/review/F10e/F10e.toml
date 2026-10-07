@@ -1,0 +1,178 @@
+# F10e = F9a + Ripple-Welle Blau → Rot. Davor: bleibt wie er ist (hold). Danach: derselbe Spark wird rot (same).
+#  Raster F10a-i: a-c behind, d-f same, g-i black; je shrink / hold / charge.
+# F9a = F8 + Vadim 7.10. zu F8: vor dem roten Ende ein blauer Spark mit Slogan auf Schwarz (frueher als F8: ab 7.5 s),
+#  dann alles schwarz, dann der rote Spark mit SPARK + KICK-OFF/Datum/Ort, das Rot geht am Ende weg, der Ton mit.
+#  Varianten F9a-f unterscheiden sich nur im Slogan (orbit_pre_lines): HARDWARE / HACKATHONS / INFINITE / CURIOSITY
+# F8 = F7 + Vadim 7.10. zu F7 ("Uebergang Papier → digital noch viel schlechter"): erst waechst das Papierweiss in den
+#  letzten 12 Foto-Bildern ueber die Wand (alles weiss ausser dem Plakat), dann laeuft der digitale Loop sofort weiter,
+#  im Plakatrechteck mit dem Druckrand, und das Rechteck waechst in 12 Bildern weich raus (Rand wird dabei breiter).
+#  Kein blankes Weiss mehr. Stellschrauben loop.toml [video] paper_*. Ende wie F7.
+# F7 = F6 + Vadim 7.10. zu F6:
+#  1. Papier: "erst weniger zu sehen, dann ganz viel ist scheisse, nur nach aussen wachsen, ueber mehrere Frames langsam"
+#     → kein Einlauf ueber das Foto mehr, Schnitt auf Weiss, das Digitalbild growt in 16 Bildern raus (loop.toml paper_frames).
+#  2. Spark: "nicht ueber die Schrift fliegen, hinter dem Slash bleiben, super klein, nur das Halo entstehen lassen" →
+#     fest bei 0.5/0.5 (hinter dem "/" von 14.10. / 17:00), Spitzenradius 0.035, waechst bis zum Schluss (Halo veraendert sich mit).
+# F6 = F5 + Vadim 7.10. zu F5 ("richtig nice, nur kleine Sachen"):
+#  1. Papier → digital: kein harter Schnitt mehr. Der Druckrand waechst in 4 Bildern ins Weiss und growt in 8 Bildern wieder
+#     raus (posterized, Zweier). Stellschrauben: loop.toml [video] paper_* (gilt fuer jede Vorschau).
+#  2. Ende: "Motion beim schwarzen Ende" → ab ~8 s (Beat 2.9) kommt ein kleiner weisser Spark hinter der Schrift, das
+#     Leuchten (Verfahren wie das Zoom-Gluehen, aber um den Spark) entsteht neu in Orange-Feuerrot (P18 Lava + Weiss)
+#     und waechst bis zum Schluss langsam weiter. Schluessel orbit_flare_* am Ende von [ending].
+# F5 = F4 mit viel subtilerer Handkamera (Vadim 7.10. zu F4: "viel zu viel Bewegung"): loop.toml [video] shake_px 6 → 1.5, shake_rot_deg 0.3 → 0.05. Fotos wie F4.
+# F4 = F3 + Vadim 7.10.: Handkamera ([video] shake_px 6 / shake_rot_deg 0.3, laeuft zum Zoom-Ende aus), Bearbeitung nur auf dem Papierbogen (wall_edit false, poster_match_frac 0.7, Maske an der Papierkante), Wahl 2/9/15/52, 19 per Ecken (Litfasssaeule), 45 als Montage in IMG_1104, Platte mit Drehungsrand (keine schwarzen Ecken). 64/64 Fotos.
+# F3 = F2 mit wenig Farbbearbeitung (Vadim 7.10.: "sieht aus wie digital", "Hintergrund immer veraendert"): loop.toml [photos] poster_match_frac 0 (ein Weissabgleich + Belichtung fuers ganze Foto), wall_min_gain 1.0 (Wand nie abgedunkelt). F2: 1.0 / 0.5.
+# F2 = F1 + Campus-Fotos vom 7.10. (A3-Runde IMG_1143-1334, bevorzugt per [photos].prefer_from). Ende = O17 unveraendert.
+# F1 = O17 + echte Campus-Fotos (6.10., kickoff_loop_photos.py): 29/64 Plakate als Foto, Rest Simulation.
+# Nur zum Ansehen der Foto-Phase, das Ende ist O17 unveraendert.
+# O17 = O16 + Vadim 6.10. ("kein Fade to Black, die Sparks werden dunkler"): Grund + Schrift bleiben in ihrer
+# Colorway, nur die Sternpixel dunkeln von Plakat zu Plakat ab; der Anflug auf die Kamera laeuft bis der dunkle Stern
+# das Bild fuellt, erst dann kippt der kleine Rest auf Schwarz.
+# O16 = O15 + Vadim 6.10.: keine Begriffe, kein Tauchen in einen Stern. Der Standard-Loop laeuft digital weiter (2
+# Umlaeufe), die Colorways werden zum Ende hin dunkler (OKLab Richtung Schwarz), die letzten ~4 Sparks kippen auf
+# Schwarz, dort entstehen KICK-OFF/Datum/Ort gross mittig (SPARK bleibt). QR + KICK-OFF fliegen am Anfang des Loops weg.
+# O15 = O14 + Vadim 6.10.: Begriffe mittig (mit Gluehen), Stern dreht weiter in Stufen (posterized): je Stufe
+# (1/3 Beat) neue Pose + Stil + Colorway + Begriff statt Wechsel in jedem Bild; Begriffe kuerzer, frueher ins Dunkle;
+# beim Dunkelwerden entstehen KICK-OFF/Datum/Ort gross in der Mitte.
+# O14 = O13 + Vadim 6.10.: Spark + Colorway wechseln jedes Bild (Reise mit kleinen Schritten durch alle 64), Schrift
+# in derselben Colorway; Begriffe im Takt (alle paar Bilder) oben links an der Stelle von KICK-OFF/Datum; KICK-OFF/Datum
+# gehen mit dem QR; zum Abschluss kommen KICK-OFF / 14.10. 17:00 / D-SCHOOL zurueck.
+# O13 = O12a + Vadims Urteil 3.10. zu O12 ("12er-Reihe veraltet"): Effekte laufen hinter Titel und QR weiter (kein heller
+# QR-Hof, keine ausgesparte Titel-/QR-Zone; "das Problem hatten wir schon dreimal"), QR zerfaellt mit dem Momentum des
+# Sterns ab dem Eintauchen, Begriffe frueher, keine kleinen Sterne: der grosse Stern bleibt gross und wechselt je Begriff
+# (Stil + Colorway der Farbreise), kein Rand zwischen Gluehen und SPARK/KICK-OFF (Halo bleibt).
+# O12a = O11a + Vadims Urteil 2.10. zu O11: Vortex subtiler; Zoom-Idee geparkt: der Stern, in den die Kamera taucht,
+# waechst auf und steht ab orbit_wall_at_beats als Hintergrund, in der Mitte je Begriff ein kleiner Stern (eigener Stil +
+# Colorway aus der Farbreise), waechst stufig auf Zweiern, kein Zoom. Takt 1 Beat je Stern + Begriff, Begriff hart mit dem
+# Stern. O12b: 3/4 Beat, Begriff pixelt ein und aus.
+# O11a = O10a + Vadims Urteil 2.10. zu O10: sparkle bleibt, kein Abdunkeln je Puppe, die Puppen laufen farbig in der
+# Farbreise weiter, nur der Abschluss kippt auf Schwarz; Schrift + Gluehen in fester Colorway (kein harter Wechsel),
+# Gluehen haelt Abstand zur Schrift; Matrjoschka beginnt mit dem Stern, in den die Kamera taucht (kein Schnitt auf S33);
+# Drehung laeuft ohne Ruck aus; Zoom gleichmaessiger; Vortex-Runde in die Mitte; mehr Begriffe, schneller (erst 1 je
+# Beat, dann 2), jeder pixelt ein und aus; NEW SEMESTER weg, Schluss = Plakatsatz. O11b: gleich, konstant 2 je Beat.
+# O10 = O9 + Vadims Urteil 2.10. zu O9 (Uebergabe O10): Begriffe mittig, jede Puppe eine eigene Colorway (dunkler bis
+# Schwarz), Endbild blankes Schwarz mit heller Schrift, Pixel-Effekt statt Kristall (Versionen a/b, Tempo), Kerning P-A
+# (styles.KERN), Kippen je Zeile ueberall, Loop/Zoom ruhiger, Weg zur Bildmitte mit Ease-out, Puppen leicht gedreht.
+# Versionen: O10a.toml (= diese, sparkle), O10b (ripple), O10c (Begriff zoomt mit), Tempo-Bogen words.png.
+# O9 = O8 + Vadims Urteil 2.10. (Uebergabe O9): JOIN US geht mit dem QR, Begriffe pro Beat kristallisieren an der
+# QR-Stelle, Zoom durch alle Sparks (Matrjoschka aus verschiedenen Sternen, Rate gedeckelt), Gluehen bleibt, KICK-OFF/Datum
+# kippen je Zeile. Video 6 Takte (17.6 s) statt 5, damit 10 Begriffe + Schluss passen.
+# O8 = Vadims O7/test.toml + Finale (Vadim 2.10.: "Matrjoschka soll sich nicht drehen, langsamer werden, gerade bleiben";
+# kein neuer Titel, kein QR auf einer Karte, kein laufender Verlauf ("nur Linien, die sich hochziehen"); Titel + Untertitel
+# bleiben und gluehen, damit man sieht, wie stark wir reinzoomen; nur der QR loest sich nach vorn in Pixel auf, dann
+# NEW SEMESTER, NEW PROJECTS; das Abdimmen in den Grund schliesst das Video ab). Zeiten in Beats ab dem Karussell-Ende.
+
+[ending]
+orbit_frame_sparks = false
+orbit_words_left = false     # O15: Begriffe mittig
+orbit_date_back = true
+orbit_words_on = false     # O16: keine Begriffe
+orbit_darken = 0.85        # O17: Sternpixel bis zum Abschluss in OKLab auf 15 %
+orbit_darken_pow = 1.0     # O17: gleichmaessig dunkler
+orbit_date_in_beats = 1.0  # F10 same
+orbit_date_center = 1.6     # O15: KICK-OFF/Datum/Ort x1.6 mittig beim Dunkelwerden
+orbit_frame_step_beats = 0.3333333333333333   # O15: Stufe = Begriff (~2 Wechsel/s statt 24)
+orbit_frame_step_deg = 20.0  # O15: Stern dreht je Stufe 20 Grad weiter
+orbit_frame_tour_stride = 3  # O15: 3 Schritte der Farbreise je Stufe (21 Stufen ~ alle 64 Colorways)       # O14: KICK-OFF/Datum/Ort pixeln zum Abschluss zurueck
+orbit_fx_free = true          # O13: Effekte laufen im Finale hinter Titel + QR, kein heller QR-Hof
+orbit_glow_clear_cells = 0    # O13: kein Rand zwischen Gluehen und Schrift (vorher GLOW_CLEAR_CELLS)
+carousel_bars = 2
+runout_bars = 0
+runout_hold_beats = 0.0
+length_bars = 4.5   # F9: +1 Takt fuer Blau → Schwarz → Rot (Video 13.2 s statt 10.3 s)
+card_on = false            # keine Endkarte: der Plakatsatz bleibt
+orbit_path = "dive"
+orbit_frame = 1
+orbit_loops = 1.0                # O17: 1 Umlauf (2: Zoomrate am Wechsel x0.09, Bahn-Check FEHLER)
+orbit_loop_speedup = 1.3   # O17: wie O13 (1.0 laesst den Stern im Anflug aus dem Bild laufen)
+orbit_dive_lead_frames = 7
+orbit_dive_core_shrink = 20.0
+orbit_throw_speedup = 8.0
+orbit_dive_drift_pow = 0.5
+orbit_dive_target = [0.5, 0.5]    # Vadims test.toml: mittig
+orbit_dive_target_ease = 1.5      # Weg in die Mitte, Tempo v0 (1 - u^p)^2 (O11 2): laenger, weicher
+orbit_dive_vortex_deg = 120.0     # O12: Vortex subtiler (O11 360: "zu stark, sieht weird aus")
+orbit_dive_shutter_frac = 0.0     # O9: Sterne wechseln, keine Ringe, die flackern (Zoomrate gedeckelt)
+orbit_spin_speedup = 1            # ohne Finale: Drehung legt nicht zu
+orbit_cycle_beats = 1.73         # (Dive mit Matrjoschka: Farbe/Stern stehen ab dem Eintauchen, die Puppen laufen weiter)
+orbit_type_morph = false          # kein Morph in eine Karte
+orbit_type_out_at_beats = 99.0    # Satz zerfaellt nie (steht bis zum Schluss)
+orbit_type_out_beats = 1.0
+orbit_flow_at_beats = 1.0
+orbit_flow_in_beats = 1.0
+orbit_flow_steps = 1.0
+orbit_flow_per_beat = 0.0         # Verlauf laeuft nicht (Vadim: "funktioniert nicht, nur Linien von unten nach oben")
+# Finale
+orbit_zoom_max_per_frame = 1.2    # O11: Deckel x1.2 pro Bild (O10 1.3, O9 1.5) ...
+orbit_zoom_peak_beats = 2.5       # ... bis hier ...
+orbit_zoom_decay = 0.88           # ... dann x0.88 pro Beat (O10 0.7: "erst zu schnell, dann zu langsam"); Rate faellt bis
+                                  # Beat 17 auf 1/6 statt 1/260, ~18 Puppen. Bahn-Check clean
+orbit_sparks = ["S48d", "S23", "S54c", "S47", "S50", "S14", "S24", "S31", "S19d", "S31e", "S18d", "S31g", "S58b",
+                "S48e", "S26", "S60d", "S59b", "S56", "S57b"]   # Puppen nach S33: alle Sterne aus [styles].cycle, je einmal
+orbit_wall_r_frac = 4.0    # O17: dunkler Stern deckt das Bild ab Beat 3.75 ganz (2: erst ab 5)
+# (O12)         # O12: Zoom saettigt weich, der Stern endet bei 4 x Bildbreite und steht als Hintergrund
+orbit_stop_r_frac = 0.0    # O13: keine kleinen Sterne, der grosse wechselt je Begriff
+# (O12)        # ... kleiner Stern je Begriff in der Mitte, Radius 0.22 x Bildbreite ...
+orbit_stop_grow_frac = 0.15       # ... waechst ueber seinen Slot um 15 %, auf Zweiern
+orbit_spin_stop_beats = 3.0       # Drehung laeuft ab dem Wurf in ~3 Beats aus, Tempo (1 - u)^2: ohne Ruck (O10 2, linear) ...
+orbit_spin_rest_deg = 0.0         # ... und steht gerade (0 Grad + Vielfache von 60)
+orbit_glow_frames = 2.0           # Zoom-Gluehen: Schweif = Zoom in 2 Bildern (O9: haelt den Hoechstwert bis zum Abschluss) ...
+orbit_glow_max_scale = 1.6        # ... hoechstens x1.6 um die Zoom-Mitte (sonst fuellt der Schweif die Seite)
+orbit_dissolve = ["qr", "cta", "date"]   # O14: KICK-OFF/Datum gehen mit dem QR
+orbit_dissolve_at_beats = 0.0   # O16: QR + KICK-OFF fliegen am Anfang des Digital-Loops weg
+# (O12)    # QR zerfaellt ab hier (Stern steht schon gerade) ...
+orbit_dissolve_beats = 1.0       # O13: zerfaellt, waehrend der Stern auf die Kamera waechst (O12 1.5)
+# (O12)       # ... in so vielen Beats ...
+orbit_dissolve_scale = 6.0        # ... die naechsten Splitter wachsen bis x6 (fliegen auf die Kamera)
+# Begriffe an der QR-Stelle (Vadim 2.10.: "Robotics, Drones, Autonomous Robots, Robotfights, Sensorik, Elektronik und so
+# weiter"; 3D PRINTING, SOLDERING = Vorschlag aus den Spark-Workshops, weitere: PCB DESIGN, FIRMWARE). Je Begriff eine
+# Liste Zeilen, der letzte bleibt stehen. 8 Begriffe passen in 6 Takte (Beat 5-12), NEW SEMESTER ab Beat 13.
+orbit_words = [["ROBOTICS"], ["DRONES"], ["AUTONOMOUS", "ROBOTS"], ["ROBOT FIGHTS"], ["SENSORS"], ["ELECTRONICS"],
+               ["3D PRINTING"], ["SOLDERING"], ["LASER CUTTING"], ["CNC MILLING"], ["PROTOTYPING"], ["WORKSHOPS"],
+               ["HARDWARE TOURS"], ["FACTORY VISITS"], ["PRODUCT DESIGN"], ["3D MODELLING"], ["DESIGN"], ["THINKING"],
+               ["DESIGN THINKING"], ["JAZZ"], ["HACKATHONS"]]   # O11: Vadims Liste + LASER CUTTING .. WORKSHOPS (Vorschlag)
+orbit_words_at_beats = 0.0
+# (O12)       # erster Stern + Begriff
+orbit_words_slots = [[21, 0.01]]   # O16: Begriffe aus (orbit_words_on)
+orbit_words_in_frac = 0.0         # O12a: hart mit dem Stern (0 = kein Einpixeln) ...
+orbit_words_fade_frac = 0.0       # ... gleich in der Tinte ...
+orbit_words_out_frac = 0.0        # ... und weg mit dem Stern
+orbit_words_flash_frac = 0.25     # jeder Pixel leuchtet beim Ein- und Auspixeln so lange (Anteil der Phase) in der hellsten Stufe
+orbit_close_at_beats = 2.5   # O17: dunkler Stern deckt das Bild ab Beat 2.5 ganz, dann der kleine Rest auf Schwarz
+orbit_close_beats = 0.25
+# F6: weisser Spark + Feuer-Leuchten auf dem Schwarz (Vadim 7.10.: "bei Sekunde 8 ein kleiner weisser Spark, der von
+# hinten die Texte aufleuchtet, Leuchteffekt neu, Orange-Feuerrot wie kurz davor beim schwarzen Spark")
+orbit_flare_at_beats = 4.5          # F10 same
+orbit_flare_in_beats = 1.0          # Spark waechst auf, Leuchten entsteht (ease-out) in so vielen Beats
+orbit_flare_xy = [0.5, 0.5]         # F7: fest hinter dem "/" von 14.10. / 17:00 (Bruchteil des Bilds)
+orbit_flare_r_frac = 0.035          # F7: super klein (F6 0.09); waechst bis zum Schluss auf diesen Spitzenradius (x Bildbreite)
+orbit_flare_spin_deg_per_beat = 12.0  # Drehung des Sparks
+orbit_flare_max_scale = 1.6         # Schweif bis x1.6 um den Spark (wie orbit_glow_max_scale) ...
+orbit_flare_creep_per_beat = 0.06   # ... und danach je Beat so viel weiter (ln-Massstab): das Ende steht nie still
+orbit_flare_peak = 0.7              # Leuchten an der Schrift: Stufe der Rampe (0.6 Orange, 0.8 Gold, 1 = Weiss des Sparks)
+orbit_flare_colors = ["#000000", "#3A0A05", "#9E1B0A", "#FF4A12", "#FFB21F", "#FFFFFF"]   # P18 Lava, unten #000, oben Weiss
+orbit_flare_step_frames = 2         # posterized: Spark + Leuchten springen alle 2 Bilder
+orbit_date_at_beats = 5.0           # F10 same
+orbit_flare_out_beats = 1.5         # F9: das Rot geht in den letzten 1.5 Beats weg (Spark + Leuchten), der Ton mit; Schrift bleibt
+# F9: blauer Spark davor (Vadim 7.10.: "schwarzer Screen, ein Spark, klein, hell in Blau, mit den Begriffen ... dann
+# geht der blaue Spark, alles wird schwarz, dann kommt noch einer"; zu F8: "Glow am Ende zu spaet" → ab 2.25 statt 2.9)
+orbit_pre_at_beats = 2.25           # 7.53 s: zuendet, waehrend der dunkle Stern das Bild fuellt (Schwarz voll ab 7.9 s)
+orbit_pre_in_beats = 1.0            # Spark waechst auf, Slogan pixelt ein
+orbit_pre_out_at_beats = 4.5        # F10: Ripple-Welle startet (9.19 s)
+orbit_pre_out_beats = 2.0          # F10: Welle laeuft 2 Beats (Ring nach ~1.5 aus dem Bild)
+orbit_pre_colors = ["#000000", "#020A2E", "#0A1F8F", "#1E5BFF", "#6FC8FF", "#E6F7FF"]   # Blau, unten #000, Spark eisblau-hell
+orbit_pre_lines = ["HARDWARE", "HACKATHONS", "INFINITE", "CURIOSITY"]
+
+orbit_wave_after = "same"        # behind = Rot steht hinter der Welle | same = derselbe Spark wird rot | black = Welle raeumt, neuer Spark
+orbit_wave_pre_beats = 0.5         # Vorphase des blauen Sparks vor der Welle
+orbit_wave_pre_curve = [[0, 1, 1], [1, 1, 1]]   # [Anteil, Faktor Radius, Faktor Leuchten], smoothstep dazwischen (bleibt wie er ist)
+orbit_wave_rings = [[0.0, 1.0], [0.09, 0.6], [0.18, 0.35], [0.27, 0.2]]   # wie ripple_spark.gif: Front + 3 Echos [Abstand, Staerke]
+orbit_wave_ring_width = 0.035       # Ringbreite (Anteil des weitesten Abstands, Stern-Metrik)
+orbit_wave_reach = 1.35             # Front am Ende (1 = entferntestes Pixel; > 1, damit die Echos auch raus sind)
+orbit_wave_pow = 1.0                # Front gleichmaessig (0.8 wie die GIF war im Video zu schnell am Text)
+orbit_wave_band = 0.15              # Zerfallskante hinter der Front im Bayer-Korn (0.06: Text in ~4 Bildern weg)
+
+[endcard]
+end_mode = "orbit"
+burst_on = false
+impact_on = false
+

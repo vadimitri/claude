@@ -367,6 +367,16 @@ def zoom_type(c):
     if fin:
         import kickoff_loop_end as KE
         KE.finale_layers(c, fin, n0)
+        wv = fin.get("wave")
+        if wv:                                                            # F10: die Welle loest den Slogan im Korn auf,
+            passed = KE.wave_passed(c, wv)                                # behind: Datum nur hinter ihr, black: SPARK geht
+            hide = {"slogan": passed, "new": ~passed if wv["after"] == "behind" else None,
+                    "title": passed if wv["after"] == "black" else None}
+            for j in range(n0, len(c.layers)):
+                name, a, v, flat, D = c.layers[j]
+                if hide.get(name) is not None:
+                    keep = ~hide[name]
+                    c.layers[j] = (name, a * styles.up(keep.astype(np.float32), c.px), np.where(keep, v, np.nan), flat, D)
         if fin.get("title_off", 0) > 0:                                   # F9: SPARK pixelt mit dem blauen Spark aus und
             for j in range(n0, len(c.layers)):                            # mit dem Datum wieder ein (Bayer-Korn)
                 name, a, v, flat, D = c.layers[j]
@@ -378,7 +388,7 @@ def zoom_type(c):
             dim = thr < fin["close"]
             for j in range(n0, len(c.layers)):
                 name, a, v, flat, D = c.layers[j]
-                if name in ("title", "date", "new"):
+                if name in ("title", "date", "new", "slogan"):
                     c.layers[j] = (name, a, np.where(dim & ~np.isnan(v), hi, v), None, D)
         if fin.get("corona_mode") == "finsternis" and fin["corona"] > 0:   # O18: schwarze Schrift, nur die Corona zeigt sie
             c.layer_pal["dim"] = np.zeros_like(c.pal)                     # (SPARK kippt im Korn mit der Corona, der Block

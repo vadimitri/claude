@@ -38,10 +38,33 @@ In dieser Reihenfolge:
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
 5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
+8. **F10 (8.10. nachts)**: Blau → Rot über die Ripple-Welle, 9 Varianten gestapelt in Resolve, Abschnitt „F10“.
 7. **F9 (7.10. nachts)**: blauer Spark + Slogan vor dem roten Ende, Abschnitt „F9“ hierunter. Musik schieben: Resolve
    `kickoff_loop_resolve.py song <variante.toml>` (Timeline „<Version> + Song“).
 6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
    weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
+
+## F10 (8.10. nachts) · **wartet auf Vadim** · Resolve-Timeline „F10a-F10i + Song“, Bogen `Vorschau/F10_abcdefghi.png`
+
+Vadim zu F9: „der Wechsel von Blau zu Rot mit Animation: der Spark ist ganz klein, dann rippelt er, dadurch wird das
+Leuchten weniger, der Text zerfällt, es entsteht direkt der neue; verschiedene Versionen, in Resolve übereinander“.
+Rückfragen beantwortet: Ripple = `pack/gif/dots/ripple_spark.gif` (`motionpack._ripple`: Sternfront + 3 Echos, bremst),
+Text löst sich im Korn auf, davor und danach je alle drei → Raster 3 × 3:
+| | davor zieht sich zusammen | bleibt | glüht erst auf |
+|---|---|---|---|
+| **Rot hinter der Welle** (behind) | F10a | F10b | F10c |
+| **derselbe Spark wird rot** (same) | F10d | F10e | F10f |
+| **kurz schwarz, neuer Spark** (black) | F10g | F10h | F10i |
+Umsetzung (`orbit_wave_*`, `kickoff_loop_end`: `flare_state` → `wave`, `pre_curve`, `wave_metric`, `wave_passed`, Ring in
+`flare_layer`, Masken in `kickoff_loop_digital.zoom_type`): Vorphase ½ Beat ab 4.0, Welle ab Beat 4.5 = 9.19 s über
+2 Beats (Front jedes Bild, nicht auf Zweiern), Stern-Metrik in der Lage des Sparks, normiert aufs Bild; blaues Licht nur
+vor der Front, Slogan (eigene Ebene `slogan`) zerfällt dahinter im Bayer-Korn (`orbit_wave_band`); behind: Rot + Datum
+nur hinter der Front; same: Rot ab der Größe des blauen Sparks, Datum ab 5.0; black: Welle (blau) nimmt auch SPARK mit,
+Rot ab 6.5. Befund Standbilder: Welle wie die GIF (Dauer 1 Beat, u^0.8) nahm den Text in ~4 Bildern weg → 2 Beats, u^1.
+Selbsttest `pre_selftest` je Familie grün (behind/same: Mitte Blau + Rot, danach kein Blau; black: Lücke schwarz;
+Gegenprobe „Front steht“ schlägt an), F8 weiter bitgleich. Resolve: `song` nimmt mehrere TOMLs, eine Spur je Variante,
+die erste oben (V9 = F10a … V1 = F10i), Song frei auf A1.
+Offen: Vadims Wahl (Spuren in Resolve an/aus), Slogan (siehe F9).
 
 ## F9 (7.10. nachts) · **Slogan offen** · ansehen: `Vorschau/F9a_draft.mp4`, Bögen `Vorschau/F9_slogans.png`, `F9a_ablauf.png`
 
@@ -711,7 +734,7 @@ bei sheet/preview/end die einzige im Ordner.
 | `uv run src/kickoff_loop.py grounds [review/I1/I1.toml ..]` | blanker Grund (ohne Stern/Satz) je Variante, erste Zeile loop.toml → `previz/variants/grounds.png` | ~3 s |
 | `uv run src/kickoff_loop.py test [N..]` | Selbsttest am fertigen Bild (+ Bahn, Blitz) | ~5 s |
 | `uv run --with numpy --with pillow --with scipy --with qrcode --with scikit-image --with opencv-python-headless python src/lab_spark.py test` | Selbsttest Sterne (Hand-Schraffur) | ~20 s |
-| `uv run src/kickoff_loop_resolve.py song <variante.toml>` | Timeline „<Version> + Song“ im Schnitt-Projekt: Vorschau (V1, nur Bild) + ganzer IGOR-Song (A1, frei schiebbar, Songzeit auf dem ersten Bild), Marker an den Clips | ~10 s |
+| `uv run src/kickoff_loop_resolve.py song <variante.toml> [...]` | Timeline „<Version> + Song“ im Schnitt-Projekt (mehrere: je eine Spur, erste oben): Vorschau (V1, nur Bild) + ganzer IGOR-Song (A1, frei schiebbar, Songzeit auf dem ersten Bild), Marker an den Clips | ~10 s |
 | `uv run src/kickoff_loop_resolve.py schnitt` | Resolve-Projekt `SPARK_Kickoff_Schnitt`: Timeline „Schnitt" = Loop (9:16, Wechsel auf IGORs Raster, F1 auf 22.435 s) + IGOR-Song, verknüpft, 9 Marker; „Referenz" = `resolve/schnitt/ref/*`. Erneut aufrufen = neue Medien, Timeline bleibt (Resolve verlinkt neu) | ~3 min |
 | `uv run src/kickoff_loop.py preview [review/X/X.toml]` | ohne Argument neue Version `previz/vNNN/`, mit Variante in ihren Ordner (Video, Bögen, Report, Config-Kopie). `--master`: x264 statt Hardware-Encoder (Endabnahme) | nichts/nur Ende geändert ~9 / ~11 s, Stern geändert ~21 s, kalt ~30 s |
 | `uv run src/kickoff_loop.py preview review/X/X.toml --draft` | Entwurf: Digitalteil auf Zweiern, kein Zoom-Check → `*_draft.mp4/.png`, `report_draft.txt` (Kopfzeile DRAFT); teilt das Foto-Segment mit der Endversion | Ende geändert ~9 s |
