@@ -161,7 +161,8 @@ OLED_GLASS = (-9.5, 14.5, 34.5, 35.6, 16.6)
 SENSOR_BAR = (46.1, 47.4, 28.7, 37.2, 25.0)
 EAR = (41.5, 45.6, 27.2, 37.2, 24.7, 32.0)    # IR-LED-Halter vorne links/rechts (x0 x1 y0 y1 |z|0 |z|1)
 LENS = (45.6, 52.5, 33.0, 2.4, 28.0)         # Front-IR-LED: x0 x1, Hoehe, Radius, |z|
-BLADE = ((49.6, 0.5), (58.4, 37.3), 1.0, 49.0)   # Schild: Unterkante, Oberkante (x, y), Dicke, halbe Breite
+BLADE = ((58.4, 0.5), (49.6, 37.3), 1.0, 49.0)   # Schild als Keil: Unterkante vorne, Oberkante am Roboter (x, y), Dicke,
+                                                 # halbe Breite. CAD: Unterkante x 57.8..58.9 (Vadim 7.10.: war vertauscht)
 USB = (-37.6, -29.4, 26.1, 29.3, 2.5, 11.5)
 SPROCKET_FACE_Z = (44.0, 47.1)               # Ritzel-Aussenscheibe (|z|), dahinter Chassis-Seitenwand bei |z| 35
 
@@ -516,7 +517,9 @@ def sprite(cfg, view, dir_deg, anim="drive", frame=0):
     if r["despeckle"]:
         val = despeckle(val, opaque)
     out = np.where(opaque, val + 1, 0).astype(np.uint8)
-    out = stamp_eyes(cfg, out, win, g, view, dir_deg, face)
+    EYES.clear()
+    if cfg["eyes"]["show"]:
+        out = stamp_eyes(cfg, out, win, g, view, dir_deg, face)
     out = stamp_leds(cfg, out, depth, g, leds)
     if r["outline"]:
         o = out > 0
@@ -831,7 +834,7 @@ def selftest(cfg):
             fails.append(f"Loop {v} {d}: Frame {n} weicht in {(a0 != an).sum()} px von Frame 0 ab")
         if (a0 != a1).sum() < 10:
             fails.append(f"Kette {v} {d}: Frame 0 -> 1 aendert nur {(a0 != a1).sum()} px")
-    for d in (0, 45, 180, 270):                                    # alter Fehler: Augen uebereinander bei Fahrt seitwaerts
+    for d in (0, 45, 180, 270) if cfg["eyes"]["show"] else ():    # alter Fehler: Augen uebereinander bei Fahrt seitwaerts
         sprite(cfg, "tq", d, "idle", 0)
         rows = eye_rows()
         if len(rows) != 2 or abs(rows[0] - rows[1]) > 0.5:
