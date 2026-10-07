@@ -1,0 +1,247 @@
+# Zumo-Sprites: alle Gestaltungswerte. Logik steht in src/zumo_sprites.py, Handbuch in zumo_sprites/CLAUDE.md.
+# Werte (Stufen) 0..5 = Wertraum des Systems (Grund -> Tinte), Farbe kommt erst ueber die Palette.
+
+[source]
+glb = "~/Movies/ZumoWire/zumo.glb"   # nur fuer `mesh` (STEP -> glb macht ~/Movies/ZumoWire/zumo_wire.py)
+
+[render]
+model = "toy"               # "toy" = vereinfachtes Modell mit STEP-Massen (saubere Formen), "cad" = echtes STEP-Mesh
+mm_per_px = 2.0             # Massstab: 2 mm echter Zumo pro Sprite-Pixel -> Draufsicht ~50 px
+supersample = 6             # Abtastungen pro Pixel und Achse (36 pro Pixel) fuer Kanten und Materialwahl
+coverage_frac = 0.45        # ab diesem Anteil getroffener Abtastungen ist ein Pixel deckend
+light = [-0.5, 0.6, 0.7]    # Lichtrichtung im Bild (rechts, oben, zur Kamera): oben links vorne, fest fuer alle Ansichten.
+                            # So: Deckel hell, Seite zur Kamera mittel, rechte Flanke Schatten (drei lesbare Flaechen in 3/4)
+bands = [0.15, 0.62]        # n.L-Schwellen: darunter Schatten, darueber Licht (Cel-Shading, drei Baender)
+line_mm = 5.0               # Tiefensprung zum Nachbarn, ab dem der hintere Pixel eine Innenlinie (Stufe 0) wird
+outline = true              # 1 px Kontur um die Silhouette
+outline_value = 0           # Stufe der Kontur: 0 = dunkel (klassisch), 3..5 = Sticker-Kontur fuer dunkle Gruende
+despeckle = true            # Einzelpixel, die zu keinem Nachbarn passen, nehmen den haeufigsten Nachbarwert an
+margin_px = 3               # Rand um den Sprite (Kontur + Hopser bis 2 px)
+track_band_mm = 4.5         # Kette optisch so dick (echte Kette ~1 mm im CAD, mit Stollen ~4 mm): liest sich als Band
+hide = ["part", "screw"]    # Materialien, die nicht gerendert werden (SMD-Bauteile, Schrauben: nur Rauschen bei 2 mm/px)
+min_island_px = 3           # Material-Flecken kleiner als das gehen im Umfeld auf
+island_keep = ["screen", "lens", "cap", "bolt", "usb"]   # ... ausser diese (kleine Akzente sind gewollt)
+cavity_mm = 4.0             # Vertiefung: so viel tiefer als der naechste Punkt im Umkreis -> eine Stufe dunkler
+cavity_px = 2               # Umkreis dafuer (Radius in Pixeln)
+thin = {steel = 0.12}       # Mindestdeckung pro Material: 1 mm Schild von der Seite bleibt als 1-px-Linie stehen
+rim = true                  # Lichtkante: Pixel, deren Nachbar oben/links tiefer liegt oder frei ist, eine Stufe heller
+
+# Ansichten: pitch = Blick von oben (0 = Seite, 90 = Draufsicht), dirs = Fahrtrichtung im Bild (0 = rechts, 90 = weg/oben,
+# 270 = zur Kamera). 3/4 mit pitch 30 und dirs in 45-Grad-Schritten ist zugleich echtes 2:1-Iso.
+[views.top]
+pitch_deg = 90
+dirs_deg = [0, 22.5, 45, 67.5, 90, 112.5, 135, 157.5, 180, 202.5, 225, 247.5, 270, 292.5, 315, 337.5]
+[views.tq]
+pitch_deg = 30
+dirs_deg = [0, 45, 90, 135, 180, 225, 270, 315]
+[views.side]
+pitch_deg = 0
+dirs_deg = [0, 180]
+[views.front]
+pitch_deg = 12
+dirs_deg = [270, 90]
+
+# Materialien: [Schatten, Mitte, Licht] als Stufen 0..5
+# Schwarze Teile leben in 0..3 (3 nur als Lichtkante), Stahl und Silber in 3..5, das OLED-Gesicht in 5.
+[materials]
+track = [1, 2, 3]
+sprocket = [1, 2, 3]
+plastic = [1, 1, 2]
+pcb = [1, 2, 2]
+part = [1, 2, 2]
+screw = [2, 3, 4]
+cap = [2, 3, 4]
+usb = [3, 4, 4]
+bolt = [3, 4, 5]
+steel = [3, 4, 5]
+screen = [0, 0, 0]
+oled = [2, 3, 3]
+sensor = [1, 2, 2]
+lens = [3, 4, 4]
+motor = [0, 1, 2]
+slot = [0, 0, 0]
+
+# Spielzeug-Modell: Grundformen mit den Massen aus dem STEP, plus Uebertreibung fuers Suesse
+[toy]
+head_scale = 1.0            # OLED-Kopf skalieren (1 = echt, 1.3 = Chibi)
+head_lift_mm = 0.0          # Kopf anheben (Abstandshalter werden laenger: "Hals")
+track_band_mm = 4.5         # Kettenstaerke inkl. Stollen
+rim_mm = 3.0                # Ritzel-Felge
+hub_mm = 4.5                # Ritzel-Nabe (Radius)
+spoke_mm = 3.5              # Speichenbreite
+bolt_mm = 2.2               # silberner Achsbolzen (Radius)
+slots = 10                  # Schlitzreihe im Schild
+slot_w_mm = 4.0
+slot_pitch_mm = 7.0
+slot_y_mm = [7.0, 10.0]     # Hoehe der Schlitze (von, bis)
+caps_xz_mm = [[-16.8, -27.3], [-19.3, -15.7]]   # Elkos auf der Platine (zwei von acht: genug fuer Charakter)
+
+# Gewicht bei der Mehrheitswahl pro Pixel: kleine, wichtige Teile setzen sich gegen grosse Flaechen durch
+[vote]
+screen = 2.5
+cap = 1.4
+bolt = 1.6
+lens = 1.6
+
+# Verlauf ueber die Hoehe eines Materials (Stufe unten, Stufe oben), gerastert mit Bayer 4x4 wie im ganzen System (D3)
+[dither]
+steel = [3.0, 4.9]          # Schild: unten Stahl, oben fast weiss (gebuerstetes Blech, Licht von oben)
+
+[tread]
+pitch_px = 4                # Stollenabstand in Sprite-Pixeln (ab 3 px liest das Auge eine Laufrichtung, 2 px flimmert)
+groove_px = 1               # davon Rille (eine Stufe dunkler)
+step_px = 1                 # Vorschub pro Frame: 8 Frames x 1 px = 2 Stollen, nahtlos
+
+[eyes]
+offset_x_frac = 0.0         # Augenmitte relativ zur Bildschirmmitte, Anteil der Bildschirmtiefe (+ = nach vorne)
+spacing_frac = 0.42         # Augenabstand als Anteil der Bildschirmbreite
+min_rows_tall = 5           # so viele Bildschirmzeilen braucht die hohe Augenform, sonst flach
+
+# Gesichter: Stempel fuer das linke Auge (rechtes = gespiegelt), '#' = an. tall bei grossem, flat bei flachem Bildschirm.
+[faces.neutral]
+tall = ["##", "##", "##"]
+flat = ["##", "##"]
+[faces.blink]
+tall = ["..", "..", "##"]
+flat = ["..", "##"]
+[faces.happy]
+tall = [".#.", "#.#"]
+flat = [".#.", "#.#"]
+[faces.angry]
+tall = ["#..", "##.", "###"]
+flat = ["##.", "###"]
+[faces.dizzy]
+tall = ["#.#", ".#.", "#.#"]
+flat = ["#.#", ".#."]
+[faces.sleep]
+tall = ["###"]
+flat = ["###"]
+[faces.love]
+tall = ["#.#", "###", ".#."]
+flat = ["###", ".#."]
+
+# LEDs: Lage auf der Platine (x vorne, z rechts, mm), Reihenfolge = Zeichen in den Mustern unten
+[leds]
+pos_mm = [[34.0, -19.0], [34.0, -2.0], [34.0, 14.0], [-25.0, -14.0], [-25.0, 3.0], [-25.0, 19.0]]
+height_mm = 26.6
+
+# Animationen (12 fps, 8 Frames = 0.67 s Loop): tread = Kette links/rechts (1 vor, -1 zurueck, 0 steht),
+# faces/leds/bob_px pro Frame (kuerzere Listen wiederholen sich). LED-Zeichen: r g b y m c w = Farbe, . = aus.
+# bob_px: ganzer Sprite hoch (negativ) fuer Hopser; hoechstens margin_px - 1.
+[anims.drive]               # vorwaerts: Ketten laufen, Ritzel drehen
+frames = 8
+tread = [1, 1]
+faces = ["neutral"]
+leds = ["mryb.g"]
+bob_px = [0]
+[anims.reverse]             # rueckwaerts, Warnblinker
+frames = 8
+tread = [-1, -1]
+faces = ["neutral"]
+leds = ["yyy...", "yyy...", "yyy...", "yyy...", "......", "......", "......", "......"]
+bob_px = [0]
+[anims.turn_left]           # auf der Stelle links drehen (Ketten gegenlaeufig)
+frames = 8
+tread = [-1, 1]
+faces = ["neutral"]
+leds = ["mryb.g"]
+bob_px = [0]
+[anims.turn_right]
+frames = 8
+tread = [1, -1]
+faces = ["neutral"]
+leds = ["mryb.g"]
+bob_px = [0]
+[anims.idle]                # steht, blinzelt, LEDs atmen
+frames = 8
+tread = [0, 0]
+faces = ["neutral", "neutral", "neutral", "neutral", "neutral", "blink", "neutral", "neutral"]
+leds = ["mryb.g", "mryb.g", "mry.bg", "mry.bg"]
+bob_px = [0]
+[anims.push]                # Sumo: volle Kraft, boeser Blick, rotes Blinken
+frames = 8
+tread = [1, 1]
+faces = ["angry"]
+leds = ["rrrrrr", "rrrrrr", "......", "......"]
+bob_px = [0, 0, -1, 0]
+[anims.win]                 # gewonnen: Freudensprung, Regenbogen-LEDs
+frames = 8
+tread = [0, 0]
+faces = ["happy"]
+leds = ["rygbcm", "ygbcmr", "gbcmry", "bcmryg", "cmrygb", "mrygbc", "rygbcm", "ygbcmr"]
+bob_px = [0, -1, -2, -2, -1, 0, 0, 0]
+[anims.ko]                  # rausgeschoben: Spiralaugen, rot blinkend
+frames = 8
+tread = [0, 0]
+faces = ["dizzy"]
+leds = ["r.r.r.", ".r.r.r"]
+bob_px = [0]
+[anims.sleep]               # Pause: Augen zu, langsames Atmen
+frames = 8
+tread = [0, 0]
+faces = ["sleep"]
+leds = ["......"]
+bob_px = [0, 0, 0, 0, -1, -1, -1, -1]
+[anims.love]                # Maker-Night-Herz
+frames = 8
+tread = [0, 0]
+faces = ["love", "love", "love", "love", "love", "love", "blink", "love"]
+leds = ["mmmmmm", "mmmmmm", "m.m.m.", ".m.m.m"]
+bob_px = [0, 0, -1, -1, 0, 0, 0, 0]
+
+[palettes.natural]          # Echtfarben: schwarzer Zumo, Stahl, weisses OLED
+steps = ["#0B0A12", "#24233A", "#3F3F5E", "#6A6E92", "#AEB7D0", "#F3F6FF"]
+accents = {r = "#FF3B4E", g = "#3DFF7A", b = "#3B9BFF", y = "#FFB31F", m = "#FF4FD8", c = "#3BF0FF", w = "#FFFFFF"}
+
+[palettes.value]            # Wertraum fuer Figma (Spark Lens): exakte Stufen k/5, Farbe macht der Shader
+steps = ["#000000", "#333333", "#666666", "#999999", "#CCCCCC", "#FFFFFF"]
+accents = {r = "#FFFFFF", g = "#FFFFFF", b = "#FFFFFF", y = "#FFFFFF", m = "#FFFFFF", c = "#FFFFFF", w = "#FFFFFF"}
+
+[export]
+dir = "~/vault/Files/03 Work/Spark/Assets/Zumo Sprites"   # pro Variante ein Unterordner (Z4/ ...)
+palettes = ["natural", "value", "P1"]   # Sprite-Sheets in diesen Paletten (Namen aus [palettes] oder P-Codes)
+seq_palettes = ["natural", "value"]     # zusaetzlich als PNG-Sequenzen (Resolve, After Effects)
+gif_palette = "natural"                 # GIFs fuer Galerie, Slack, Telegram
+scale = 4                   # Vergroesserung (nearest) der Sequenzen und @4x-Sheets: 4 px = Raster R3 bei 1080p
+fps = 12
+
+[sheet]
+zoom = 6                    # Vergroesserung im Kontaktbogen (nearest)
+palettes = ["natural", "P1", "P17"]
+grounds = ["#2B2A36", "#E9E6F2"]   # mittlerer + heller Grund, um Kontur und Lesbarkeit zu pruefen
+variant_views = [["tq", 270], ["tq", 315], ["tq", 45], ["top", 90], ["top", 22.5], ["side", 0], ["front", 270]]
+variant_looks = [["natural", "#E9E6F2"], ["natural", "#2B2A36"], ["P1", "#0A0711"]]
+
+# Varianten zum Vergleichen (uv run src/zumo_sprites.py variants): ueberschreiben Werte aus [render]/[toy]/[eyes].
+# Codes sind stabil: nie umnummerieren, verworfene nie neu vergeben.
+[variants.Z1]
+label = "CAD 2 mm/px"
+model = "cad"
+[variants.Z2]
+label = "Spielzeug 2 mm/px"
+model = "toy"
+[variants.Z3]
+label = "Chibi 2 mm/px"
+head_scale = 1.3
+head_lift_mm = 3.0
+[variants.Z4]
+label = "Chibi 2.6 mm/px"
+mm_per_px = 2.6
+head_scale = 1.35
+head_lift_mm = 3.0
+[variants.Z5]
+label = "Mini 3.2 mm/px"
+mm_per_px = 3.2
+head_scale = 1.4
+head_lift_mm = 3.0
+[variants.Z6]
+label = "Gross 1.5 mm/px"
+mm_per_px = 1.5
+head_scale = 1.2
+head_lift_mm = 2.0
+[variants.Z7]
+label = "Z4 + Sticker-Kontur"
+mm_per_px = 2.6
+head_scale = 1.35
+head_lift_mm = 3.0
+outline_value = 4
