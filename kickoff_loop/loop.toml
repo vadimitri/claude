@@ -275,8 +275,11 @@ fit_robust_de = 0.03       # Cauchy-Breite in dE OK: Punkte weit darueber (Spieg
 blend_cells = 8            # Plakat-Korrektur → Wand-Korrektur (nur Grauachse) ueber so viele Zellen ausserhalb des Plakats
 wall_feather_cells = 12    # Wand-Abdunkeln auf surround_luma laeuft vom Plakatrand ueber so viele Zellen ein (Plakat ~290 breit).
                            # Befund 6.10.: 40 gab einen weissen Ring ums Plakat (Papierrand + Wand dort ungedimmt), 12 nicht
-wall_min_gain = 0.5        # Wand hoechstens auf diesen Faktor abdunkeln. Befund 6.10.: die Fotos sind fast alle heller als
-                           # surround_luma, 0.35 wirkte nach Abend, 0.5 natuerlich (Bogen photos/ in der Session)
+wall_min_gain = 1.0        # Wand hoechstens auf diesen Faktor abdunkeln. Befund 6.10.: die Fotos sind fast alle heller als
+                           # surround_luma, 0.35 wirkte nach Abend, 0.5 natuerlich (Bogen photos/ in der Session).
+                           # F3 (Vadim 7.10.: "der Hintergrund ist immer so veraendert"): 1.0 = nie abdunkeln; F2 = 0.5
+poster_match_frac = 0.0    # Plakat-Farbe an den Render angleichen: 1 = volle 3x3-Matrix (F2, "sieht aus wie digital"),
+                           # 0 = nur ein Weissabgleich + Belichtung fuers ganze Foto (F3), dazwischen gemischt
 wall_wb_max = 1.25         # Weissabgleich der Wand: Kanalfaktoren hoechstens so weit auseinander (aus der Grauachse des Plakats)
 wall_black_max = 0.02      # Schwarzpunkt der Wand hoechstens so weit verschieben (lineares Licht)
 wall_knee = 0.7            # Lichter der Wand ab hier (lineares Licht) weich gegen 1 statt hart ausgefressen

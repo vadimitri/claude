@@ -37,10 +37,10 @@ In dieser Reihenfolge:
    (x264). Lieferung: `*.mp4` (Master), `*_share.mp4`, ProRes für Resolve (`resolve`).
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
-5. **Campus-Fotos: 62/64** (Abschnitt „Campus-Fotos“ unten), Vorschau F2. Offen: 19 + 45 nachdrucken/fotografieren,
+5. **Campus-Fotos: 62/64** (Abschnitt „Campus-Fotos“ unten), Vorschau F3 (wenig Bearbeitung; F2 = wie digital). Offen: 19 + 45 nachdrucken/fotografieren,
    Vadims Wahl im Auswahl-Bogen → `[photos].pick`.
 
-## Campus-Fotos (6.10., `src/kickoff_loop_photos.py`, `[photos]` in `loop.toml`) · **7.10.: 62/64, Vorschau F2, wartet auf Vadim**
+## Campus-Fotos (6.10., `src/kickoff_loop_photos.py`, `[photos]` in `loop.toml`) · **7.10.: 62/64, Vorschau F3 (wenig Bearbeitung), wartet auf Vadim**
 
 **Stand 7.10.** A3-Runde (IMG_1143–1334, Ordner `~/Movies/116_1001`, nur JPG kopiert) dazu: 362 Fotos, 62/64 mit Foto,
 40 davon aus der A3-Runde. Vadim: „wenn es schon existiert, die neue Version nehmen“ → `prefer_from = "IMG_1143"`
@@ -52,12 +52,17 @@ verschiedenen Fotos (15 am 7.10.), je Gruppe das beste, auto rot umrandet; Vadim
 der Wand trennt Serienbild und andere Szene nicht (0.33–0.68 vs 0–0.69), Median-ΔE OK der weichgezeichneten Wand schon
 (0.005–0.05 vs 0.07–0.14) → `variant_de = 0.07`. Nicht-Plakat-Fotos der A3-Runde (Personen, Weg, Auto) bleiben
 „nicht zugeordnet“, ebenso IMG_1208/1265/1307/1328 (Plakate ohne QR im Bild, alle schon anders abgedeckt).
+**F3 (7.10.)** Vadim zu F2: „sieht ja schon so aus als wäre es digital“, „der Hintergrund ist immer so verändert“ →
+`poster_match_frac = 0` (keine Plakat-Matrix: ein Weißabgleich + Belichtung aus der Grauachse fürs ganze Foto) und
+`wall_min_gain = 1.0` (Wand nie abgedunkelt; F2 lag überall bei x0.5). Plakat-dE gegen digital jetzt 0.03–0.14 statt
+0.01–0.05 (gewollt: Druckfarben). Zurück zu F2: 1.0 / 0.5, dann Fotos + Vorschau neu. Am Schnitt Foto → digital (5.88 s,
+ohnehin anderes Plakat) ist der Sprung in F3 etwas größer (gedecktes Foto → leuchtend digital), siehe Disconnect (geparkt).
 
 Vadim 6.10.: alles in A4 + A3 gedruckt, aufgehängt, mit der R8 fotografiert; Fotos in Reihenfolge, für die Vorschau
 skaliert, Farben wie digital, nichts (kaum) überbelichtet; fehlende Plakate bleiben Simulation.
 - **Neue Fotos:** SD-Karte → `photos/raw/` (`rsync -a --include='IMG_*.JPG' --exclude='*' /Volumes/Canon/DCIM/<ordner>/
   kickoff_loop/photos/raw/`), dann `uv run src/kickoff_loop_photos.py` (~1 min, Erkennung je Foto gemerkt in
-  `photos/detect.json`), dann `preview review/F2/F2.toml --draft`. Ausgabe `photos/aligned/NN.png` (fertig gegradet,
+  `photos/detect.json`), dann `preview review/F3/F3.toml --draft`. Ausgabe `photos/aligned/NN.png` (fertig gegradet,
   `photo_plate` gradet echte Fotos nicht mehr nach), Bögen `photos/plates.png` (alle 64 wie im Video) und
   `photos/colors.png` (Plakat im Foto | digital), `photos/report.txt`. Foto je Plakat erzwingen: `[photos].pick`.
 - **Erkennen:** Marken (`marks.detect`) für 141/170; ohne Treffer QR + Vergleich mit allen 64 Renders + ECC (`identify`):

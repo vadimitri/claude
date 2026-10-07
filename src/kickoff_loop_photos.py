@@ -70,7 +70,7 @@ def check(cfg):
     assert ph, "loop.toml: Abschnitt [photos] fehlt"
     need = ["fit_edge_cells", "fit_blur_cells", "fit_gammas", "fit_robust_de", "blend_cells", "wall_feather_cells",
             "wall_knee", "wall_min_gain", "wall_wb_max", "wall_black_max", "pick_cover_weight", "pick", "prefer_from",
-            "variant_de", "number"]
+            "variant_de", "number", "poster_match_frac"]
     miss = [k for k in need if k not in ph]
     assert not miss, f"loop.toml [photos]: es fehlt {miss}"
     assert 0 < ph["wall_knee"] < 1, "[photos].wall_knee: Knie der Lichter-Schulter, zwischen 0 und 1 (lineares Licht)"
@@ -230,10 +230,13 @@ def grade(plate, f, rect, cfg):
     """Platte (uint8) → fertige Platte: im Plakat die volle Korrektur, aussen nur die Grauachse (gray_axis) mit
     Lichter-Schulter; weicher Uebergang ueber blend_cells. Die Wand wird danach mit einem Faktor s <= 1 auf
     surround_luma abgedunkelt (wie kickoff_loop_video.grade, nur nie heller, nie unter wall_min_gain und nie das
-    Plakat: s laeuft ueber wall_feather_cells von 1 am Plakat auf s). Zurueck: (Platte, s)."""
+    Plakat: s laeuft ueber wall_feather_cells von 1 am Plakat auf s). Zurueck: (Platte, s).
+    poster_match_frac mischt die volle Korrektur im Plakat ein (1 = wie digital, 0 = das ganze Foto bekommt nur die
+    Grauachse: ein Weissabgleich + Belichtung fuer alles, wie eine normale Fotokorrektur; Vadim 7.10.: "sieht aus
+    wie digital", "der Hintergrund ist immer so veraendert")."""
     ph, q = cfg["photos"], KL.PREVIEW_CELL_PX
     u, v = gray_axis(f, ph["wall_wb_max"], ph["wall_black_max"])
-    mc = _ring(plate.shape[:2], rect, ph["blend_cells"] * q)
+    mc = ph["poster_match_frac"] * _ring(plate.shape[:2], rect, ph["blend_cells"] * q)
     me = _ring(plate.shape[:2], rect, ph["wall_feather_cells"] * q)
     hole = np.ones(plate.shape[:2], bool)
     x0, y0, w, h = rect
@@ -518,6 +521,7 @@ def selftest():
     wie der Render aussehen (dE < 0.02; Gegenprobe: das rohe Foto liegt weit daneben), die Wand auf surround_luma."""
     cfg = KL.load()
     check(cfg)
+    cfg = dict(cfg, photos=dict(cfg["photos"], poster_match_frac=1.0, wall_min_gain=0.5))  # volle Korrektur pruefen
     poster = KL.frame(cfg, 20)
     L = lin(poster)
     pr = 0.03 + 0.85 * (0.85 * L + 0.15 * (L @ KL.LUMA)[..., None])
@@ -539,6 +543,14 @@ def selftest():
             abs(s - cfg["photos"]["wall_min_gain"]) < 1e-3 and wall > cfg["video"]["surround_luma"])
         ok &= d < 0.02 and hit
         res.append(f"Wand {grey}: Plakat dE {d:.3f}, Wand {wall:.3f} x{s:.2f} ({want} {'ok' if hit else 'FEHLER'})")
+    # Wenig Bearbeitung (poster_match_frac 0, keine Abdunklung): ein Weissabgleich fuer das ganze Foto, eine graue
+    # Platte bleibt einheitlich (kein Plakat-Fleck, kein Ring). Gegenprobe volle Korrektur: nicht einheitlich
+    lite = dict(cfg, photos=dict(cfg["photos"], poster_match_frac=0.0, wall_min_gain=1.0))
+    grey = np.full((h + 2 * pad, w + 2 * pad, 3), 120, np.uint8)
+    spread = [int(np.ptp(grade(grey, f, (pad, pad, w, h), c)[0].reshape(-1, 3), axis=0).max()) for c in (lite, cfg)]
+    flat = spread[0] == 0 and spread[1] > 0
+    ok &= flat
+    res.append(f"wenig Bearbeitung {'ok' if flat else 'FEHLER'} (Spanne {spread[0]}, voll {spread[1]})")
     # Auswahl: neue Charge schlaegt die alte (auch mit schlechterem NCC), gleiche Wand = eine Gruppe, andere = zweite
     wa, wb = np.full((90, 60, 3), 60, np.uint8), np.full((90, 60, 3), (200, 170, 120), np.uint8)
     mk = lambda name, wall, ncc: dict(path=f"{name}.JPG", n=1, ncc=ncc, cover=1.0, thumb=wall, rect=(15, 20, 30, 50))
