@@ -46,6 +46,11 @@ ID_MIN_NCC = 0.5                  # ... beste Korrelation muss darueber liegen (
 ID_MIN_GAP = 0.1                  # ... und so weit vor der zweitbesten (sonst ist die Nummer geraten)
 EXPO_STEP_PX = 8                  # Belichtung der Wand: auf jedem 8. Pixel gemessen (Mittelwert reicht)
 EXPO_BISECT = 20                  # Halbierungen fuer den Wand-Faktor
+PRINT_TO_PLATE = 3                # Montage: print/NN.png (3504 x 4956) = 3 x Plakat in der Platte (1168 x 1652)
+MONTAGE_BLUR_PX = (0, 0.5, 1, 1.5, 2, 3, 4)   # Montage: Schaerfe des echten Plakats aus diesen Gauss-Sigmas (Plattenpixel)
+MONTAGE_LIGHT_CELLS = 30          # Montage: Lichtverlauf = Foto / Modell, so weich (~1/9 Plakatbreite: Verlauf, keine Details)
+SHEET_MAX_CELLS = 12              # Papierkante: Druckerrand hoechstens so breit (A3 ~4-6 mm = 4-6 Zellen, A4 verkleinert mehr)
+SHEET_MIN_STEP = 0.04             # ... schwaecherer Sprung (dE OK) = keine Kante sichtbar (Rahmen, Rand verdeckt): Kante am Plakat
 THUMB = 12                        # Kandidaten-Vorschau: Platte 2446 x 4348 / 12 = 204 x 362 (Auswahl-Bogen, Wandvergleich)
 WALL_BLUR_PX = 12                 # Wandvergleich auf der Vorschau weichzeichnen (~36 Zellen): Parallaxe derselben Wand (Plakat in
                                   # der Hand, Hintergrund wandert) zaehlt nicht, Licht + Farbe der Umgebung schon
@@ -70,9 +75,11 @@ def check(cfg):
     assert ph, "loop.toml: Abschnitt [photos] fehlt"
     need = ["fit_edge_cells", "fit_blur_cells", "fit_gammas", "fit_robust_de", "blend_cells", "wall_feather_cells",
             "wall_knee", "wall_min_gain", "wall_wb_max", "wall_black_max", "pick_cover_weight", "pick", "prefer_from",
-            "variant_de", "number", "poster_match_frac"]
+            "variant_de", "number", "poster_match_frac", "wall_edit", "composite", "corners"]
     miss = [k for k in need if k not in ph]
     assert not miss, f"loop.toml [photos]: es fehlt {miss}"
+    bad = [k for k in ph["corners"] if k not in ph["number"]]
+    assert not bad, f"[photos].corners {bad}: braucht auch eine Nummer in [photos].number"
     assert 0 < ph["wall_knee"] < 1, "[photos].wall_knee: Knie der Lichter-Schulter, zwischen 0 und 1 (lineares Licht)"
     return ph
 
@@ -82,8 +89,9 @@ def check(cfg):
 def _key(p, cfg):
     """Cache-Schluessel je Foto: Datei + erzwungene Nummer ([photos].number), eine neue Zuordnung erkennt neu."""
     st = os.stat(p)
-    n = cfg["photos"]["number"].get(os.path.splitext(os.path.basename(p))[0])
-    return f"{os.path.basename(p)}:{st.st_size}:{int(st.st_mtime)}" + (f":n{n}" if n else "")
+    name = os.path.splitext(os.path.basename(p))[0]
+    n, c = cfg["photos"]["number"].get(name), cfg["photos"]["corners"].get(name)
+    return f"{os.path.basename(p)}:{st.st_size}:{int(st.st_mtime)}" + (f":n{n}" if n else "") + (f":c{c}" if c else "")
 
 
 def _poster_cells(photo, H, grid):
@@ -102,7 +110,7 @@ def _ncc(a, b):
 def identify(photo, cfg, n=None):
     """Fallback ohne Marken: grobe Lage aus dem QR (kickoff_loop_marks.coarse), Nummer = bester Render im Vergleich
     bei 1 px pro Zelle, Lage fein per ECC am ganzen Render (marks.polish). dict wie marks.detect oder dict(error=).
-    n: Nummer steht fest ([photos].number), nur die Lage wird gesucht, ohne Abstand zum zweitbesten Render."""
+    n: Nummer steht fest ([photos].number), nur die Lage wird gesucht, ohne Schwellen."""
     import cv2
     import kickoff_loop_marks as M
     q = KL.PREVIEW_CELL_PX
@@ -120,7 +128,7 @@ def identify(photo, cfg, n=None):
     if best is None:
         return dict(error="kein QR gefunden (grobe Lage fehlt)")
     cc, cc2, i, H = best
-    if cc < ID_MIN_NCC or (n is None and cc - cc2 < ID_MIN_GAP):
+    if n is None and (cc < ID_MIN_NCC or cc - cc2 < ID_MIN_GAP):    # n fest: Vadim weiss es (19 gewoelbt: NCC klein)
         return dict(error=f"ohne Marken keine sichere Nummer (Render {i + 1}: {cc:.2f}, naechster {cc2:.2f})")
     H, pcc, took = M.polish(photo, H, renders[i])
     return dict(n=i + 1, z=0.0, z2=0.0, H=H, fields=0, polish_cc=pcc, polished=took, by="number" if n else "render",
@@ -130,8 +138,14 @@ def identify(photo, cfg, n=None):
 def _detect(p):
     import kickoff_loop_marks as M
     cfg = KL.load()
-    n = cfg["photos"]["number"].get(os.path.splitext(os.path.basename(p))[0])
+    name = os.path.splitext(os.path.basename(p))[0]
+    n, corners = cfg["photos"]["number"].get(name), cfg["photos"]["corners"].get(name)
     try:
+        if corners:                                           # Lage von Hand: Ecken der Druckflaeche (19, gewoelbt)
+            import cv2
+            gw, gh = (d // KL.PREVIEW_CELL_PX for d in KL.S.SIZES[KL.PREVIEW][:2])
+            H = cv2.getPerspectiveTransform(np.float32([[0, 0], [gw, 0], [gw, gh], [0, gh]]), np.float32(corners))
+            return _key(p, cfg), dict(n=n, H=H.tolist(), by="corners")
         photo = M.load_photo(p)
         r = identify(photo, cfg, n) if n else M.detect(photo, cfg)
         if "error" in r and not n:
@@ -226,17 +240,19 @@ def _ring(shape, rect, px):
     return t * t * (3 - 2 * t)
 
 
-def grade(plate, f, rect, cfg):
+def grade(plate, f, rect, cfg, q=KL.PREVIEW_CELL_PX):
     """Platte (uint8) → fertige Platte: im Plakat die volle Korrektur, aussen nur die Grauachse (gray_axis) mit
     Lichter-Schulter; weicher Uebergang ueber blend_cells. Die Wand wird danach mit einem Faktor s <= 1 auf
     surround_luma abgedunkelt (wie kickoff_loop_video.grade, nur nie heller, nie unter wall_min_gain und nie das
     Plakat: s laeuft ueber wall_feather_cells von 1 am Plakat auf s). Zurueck: (Platte, s).
     poster_match_frac mischt die volle Korrektur im Plakat ein (1 = wie digital, 0 = das ganze Foto bekommt nur die
     Grauachse: ein Weissabgleich + Belichtung fuer alles, wie eine normale Fotokorrektur; Vadim 7.10.: "sieht aus
-    wie digital", "der Hintergrund ist immer so veraendert")."""
-    ph, q = cfg["photos"], KL.PREVIEW_CELL_PX
-    u, v = gray_axis(f, ph["wall_wb_max"], ph["wall_black_max"])
+    wie digital", "der Hintergrund ist immer so veraendert"). q: Pixel je Zelle (Vorschau: / THUMB)."""
+    ph = cfg["photos"]
+    if not ph["wall_edit"]:
+        return grade_poster_only(plate, f, rect, ph["poster_match_frac"], q), 1.0
     mc = ph["poster_match_frac"] * _ring(plate.shape[:2], rect, ph["blend_cells"] * q)
+    u, v = gray_axis(f, ph["wall_wb_max"], ph["wall_black_max"])
     me = _ring(plate.shape[:2], rect, ph["wall_feather_cells"] * q)
     hole = np.ones(plate.shape[:2], bool)
     x0, y0, w, h = rect
@@ -270,11 +286,77 @@ def grade(plate, f, rect, cfg):
     return out, s
 
 
+def sheet(plate, rect, q=KL.PREVIEW_CELL_PX):
+    """Papierbogen um das Plakat (x0, y0, w, h): der Druckerrand ist dasselbe Blatt, seine Kante eine echte Kante im
+    Foto. Je Seite: Profil nach aussen (Median ueber die mittleren 80 % der Seite, OKLab), Kante = staerkster Sprung
+    bis SHEET_MAX_CELLS. Seite ohne sichtbare Kante (schwaecher als SHEET_MIN_STEP: Papier so hell wie die Wand) bekommt
+    die Breite der Gegenseite (der Druck liegt mittig auf dem Blatt), sonst den Median der gefundenen, sonst 0 (Rahmen).
+    Befund 7.10.: 21 oben Papier = Wand (Sprung 0.012), Kante am Plakat gab eine harte Stufe rohes / korrigiertes Papier."""
+    x0, y0, w, h = rect
+    n, k = max(int(SHEET_MAX_CELLS * q), 3), max(int(round(q / 2)), 1)    # Suchweite, halbe Sprungbreite (Pixel)
+    sides = (plate[y0 - n:y0, x0 + w // 10:x0 + w - w // 10][::-1],                # oben, nach aussen geordnet
+             plate[y0 + h:y0 + h + n, x0 + w // 10:x0 + w - w // 10],              # unten
+             plate[y0 + h // 10:y0 + h - h // 10, x0 - n:x0][:, ::-1].transpose(1, 0, 2),   # links
+             plate[y0 + h // 10:y0 + h - h // 10, x0 + w:x0 + w + n].transpose(1, 0, 2))    # rechts
+    out = []
+    for strip in sides:
+        prof = np.median(oklab(lin(strip)), axis=1)                           # je Abstand eine Farbe
+        step = np.linalg.norm(prof[2 * k:] - prof[:-2 * k], axis=1)           # Sprung zwischen d - k und d + k
+        top = np.flatnonzero(step >= step.max() - 1e-6) if len(step) else []   # scharfe Kante: Plateau, dessen Mitte
+        out.append(int((top[0] + top[-1]) / 2 + k + 0.5) if len(step) and step.max() >= SHEET_MIN_STEP else None)
+    seen = [d for d in out if d is not None]
+    t, b, l, r = (d if d is not None else out[i ^ 1] if out[i ^ 1] is not None else int(np.median(seen)) if seen else 0
+                  for i, d in enumerate(out))                             # Reihenfolge oben, unten, links, rechts: i ^ 1 = Gegenseite
+    return x0 - l, y0 - t, w + l + r, h + t + b
+
+
+def grade_poster_only(plate, f, rect, frac, q=KL.PREVIEW_CELL_PX):
+    """[photos].wall_edit = false (F4, Vadim 7.10.: "die Edits auf dem Plakat, den Rest des Fotos natuerlich, ohne dass
+    man eine Maske sieht", "super erkennbar, Saturation stimmt, aber natuerlicher"): Wand bleibt das Kamera-JPG, der
+    ganze Papierbogen (Plakat + Druckerrand, sheet) bekommt die Plakat-Matrix zu frac. Die Maskenkante liegt auf der
+    Papierkante, einer echten Kante im Foto (1 Zelle weich, nach innen), deshalb sieht man keine Maske.
+    Befund 7.10.: Korrektur relativ zum Foto-Weiss (Matrix, dann zurueck durch ihre Grauachse) kippt bunte Plakate
+    (16 schwarz, 35 gelbgruen, 59 rot: Grauachse schlecht bestimmt), aufs gemessene Papierweiss skaliert wird es trueb."""
+    x0, y0, w, h = sheet(plate, rect, q)
+    e = max(int(round(q)), 1)
+    mc = frac * _ring(plate.shape[:2], (x0 + e, y0 + e, w - 2 * e, h - 2 * e), e)
+    out = np.empty_like(plate)
+    for y in range(0, plate.shape[0], STRIP):
+        sl = slice(y, y + STRIP)
+        x, m = lin(plate[sl]), mc[sl][..., None]
+        out[sl] = srgb(m * np.clip(x ** f["g"] @ f["A"] + f["b"], 0, None) + (1 - m) * x)
+    return out
+
+
+def montage(plate, rect, host, n, cfg):
+    """Plakat n in das Foto von Plakat host gesetzt (Vadim 7.10.: 45 nicht nachfotografieren, "Hintergrund, der schon
+    benutzt ist, realistisch reinschneiden"): der Druck von n (print/NN.png, mit Druckrand, 3 x Plattengroesse) durch die
+    am Foto gemessene Druck- + Kamera-Abbildung (fit_color von host, umgekehrt), dazu Lichtverlauf und Schaerfe des
+    echten Plakats im Foto. Wand und Papierrand bleiben das Foto. Rauschen nicht nachgebaut (JPG der R8 ist entrauscht)."""
+    x0, y0, pw, ph_ = rect
+    crop = plate[y0:y0 + ph_, x0:x0 + pw]
+    f = fit_color(crop, KL.frame(cfg, host - 1), cfg)
+    Ai = np.linalg.inv(f["A"])
+
+    def shot(k):                                              # Druck von k, wie dieses Foto ihn zeigen wuerde (linear)
+        im = Image.open(os.path.join(KL.PROJECT, "print", f"{k:02d}.png")).convert("RGB").reduce(PRINT_TO_PLATE)
+        return np.clip((lin(im) - f["b"]) @ Ai, 0, None) ** (1 / f["g"])
+    seen, pred = lin(crop) @ KL.LUMA, shot(host) @ KL.LUMA
+    m = inner_mask(crop.shape, cfg)
+    sig = max(MONTAGE_BLUR_PX, key=lambda s: _ncc(seen[m], gaussian_filter(pred, s)[m]))
+    big = MONTAGE_LIGHT_CELLS * KL.PREVIEW_CELL_PX
+    light = np.clip(gaussian_filter(seen, big) / np.maximum(gaussian_filter(pred, big), 1e-4), 0.5, 2.0)
+    new = np.stack([gaussian_filter(c, sig) if sig else c for c in shot(n).transpose(2, 0, 1)], -1) * light[..., None]
+    out = plate.copy()
+    out[y0:y0 + ph_, x0:x0 + pw] = srgb(new)
+    return out
+
+
 # ---------------------------------------------------------------- Kandidaten, Auswahl, Ausgabe
 
 def _plate(photo, H, cfg):
     """Entzerrte Platte wie marks.aligned, aber Rand gespiegelt statt wiederholt (wiederholte Randpixel = Streifen).
-    Zurueck: (Platte, Anteil der Platte, der im Foto liegt, Plakat-Rechteck x0, y0, w, h)."""
+    Zurueck: (Platte, Anteil des Startausschnitts, der im Foto liegt, Plakat-Rechteck x0, y0, w, h)."""
     import cv2
     import kickoff_loop_video as V
     pw, ph = KL.S.SIZES[KL.PREVIEW][:2]
@@ -287,26 +369,28 @@ def _plate(photo, H, cfg):
                                 borderMode=cv2.BORDER_REFLECT_101)
     inside = cv2.warpPerspective(np.ones(photo.shape[:2], np.uint8), T, (PW, PH),
                                  flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP, borderValue=0)
-    return plate, float(inside.mean()), (x0, y0, pw, ph)
+    W, H_ = (int(np.ceil(d / V.scales(cfg, ph)[0])) for d in cfg["video"]["size_px"])   # Startausschnitt, ungedreht:
+    cx, cy = (PW - W) // 2, (PH - H_) // 2                    # Abdeckung wie vor dem Drehungsrand der Platte (7.10.),
+    return plate, float(inside[cy:cy + H_, cx:cx + W].mean()), (x0, y0, pw, ph)   # sonst kippt die abgenommene Wahl
 
 
 def _candidate(args):
     """Ein erkanntes Foto → Kennzahlen (Passung, Abdeckung, Farbausgleich), ohne die Platte zu behalten."""
     import kickoff_loop_marks as M
-    p, n, H = args
+    p, n, H, host = args
     cfg = KL.load()
     plate, cover, (x0, y0, pw, ph_) = _plate(M.load_photo(p), H, cfg)
+    if host:
+        plate = montage(plate, (x0, y0, pw, ph_), host, n, cfg)
     poster = KL.frame(cfg, n - 1)
     crop = plate[y0:y0 + ph_, x0:x0 + pw]
     m = inner_mask(poster.shape, cfg)
     g = [gaussian_filter(x.astype(np.float32) @ KL.LUMA, M.ALIGN_BLUR_PX) for x in (crop, poster)]
     clip = float(((crop.max(-1) >= 250) & (poster.max(-1) < 240) & m).sum() / m.sum())
     fit = fit_color(crop, poster, cfg)
-    ph = cfg["photos"]                                        # Vorschau so gegradet wie im Video, Abstaende / THUMB
-    small = dict(cfg, photos=dict(ph, blend_cells=ph["blend_cells"] / THUMB, wall_feather_cells=ph["wall_feather_cells"] / THUMB))
     thumb, _ = grade(np.asarray(Image.fromarray(plate).reduce(THUMB)), fit, (x0 // THUMB, y0 // THUMB, pw // THUMB,
-                                                                             ph_ // THUMB), small)
-    return dict(path=p, n=n, H=H, ncc=_ncc(*g), cover=cover, clip=clip, fit=fit, thumb=thumb,
+                     ph_ // THUMB), cfg, KL.PREVIEW_CELL_PX / THUMB)          # Vorschau so gegradet wie im Video
+    return dict(path=p, n=n, H=H, host=host, ncc=_ncc(*g), cover=cover, clip=clip, fit=fit, thumb=thumb,
                 rect=(x0 // THUMB, y0 // THUMB, pw // THUMB, ph_ // THUMB))
 
 
@@ -410,6 +494,8 @@ def _build(args):
     c = args
     cfg = KL.load()
     plate, _, rect = _plate(M.load_photo(c["path"]), c["H"], cfg)
+    if c["host"]:
+        plate = montage(plate, rect, c["host"], c["n"], cfg)
     out, s = grade(plate, c["fit"], rect, cfg)
     path = V.aligned_photo(c["n"] - 1)
     Image.fromarray(out).save(path)
@@ -480,6 +566,8 @@ def report(det, cands, chosen, built, cfg, groups, miss):
                  f"{b['burnt'] * 100:5.2f} %       {b['s']:.2f}   ({len(per[k])})")
     new = sum(c["rank"][0] for c in chosen.values())
     L += ["", f"Aus der Charge ab {cfg['photos']['prefer_from']}: {new}/{len(chosen)}",
+          "Montage (Druck ins Foto eines anderen Plakats): " + (", ".join(
+              f"{k} in {_name(c)} (zeigt {c['host']})" for k, c in sorted(chosen.items()) if c["host"]) or "keine"),
           "Ohne Foto (print/nachdruck.pdf): " + (" ".join(f"{k}" for k in miss) or "keins"),
           "Deutlich verschiedene Fotos (photos/auswahl.png, auto = erstes): "
           + ("; ".join(f"{k}: " + " ".join(_name(c) for c in g) for k, g in sorted(groups.items())) or "keine"), "",
@@ -497,7 +585,12 @@ def main():
     check(cfg)
     det = detect_all(paths, cfg)
     with Pool(WORKERS) as pool:
-        cands = pool.map(_candidate, [(p, r["n"], r["H"]) for p, r in det.items() if "n" in r], chunksize=1)
+        todo = [(p, r["n"], r["H"], None) for p, r in det.items() if "n" in r]
+        for n, name in cfg["photos"]["composite"].items():   # Montage: Plakat n ins Foto name (zeigt Plakat host)
+            hit = [(p, r) for p, r in det.items() if os.path.basename(p) == name + ".JPG" and "n" in r]
+            assert hit, f"[photos].composite {n} = {name}: Foto fehlt oder ist keinem Plakat zugeordnet"
+            todo.append((hit[0][0], int(n), hit[0][1]["H"], hit[0][1]["n"]))
+        cands = pool.map(_candidate, todo, chunksize=1)
     chosen = pick(cands, cfg)
     out = os.path.join(DIR, "aligned")
     os.makedirs(out, exist_ok=True)
@@ -521,7 +614,7 @@ def selftest():
     wie der Render aussehen (dE < 0.02; Gegenprobe: das rohe Foto liegt weit daneben), die Wand auf surround_luma."""
     cfg = KL.load()
     check(cfg)
-    cfg = dict(cfg, photos=dict(cfg["photos"], poster_match_frac=1.0, wall_min_gain=0.5))  # volle Korrektur pruefen
+    cfg = dict(cfg, photos=dict(cfg["photos"], poster_match_frac=1.0, wall_min_gain=0.5, wall_edit=True))  # wie F2
     poster = KL.frame(cfg, 20)
     L = lin(poster)
     pr = 0.03 + 0.85 * (0.85 * L + 0.15 * (L @ KL.LUMA)[..., None])
@@ -551,6 +644,26 @@ def selftest():
     flat = spread[0] == 0 and spread[1] > 0
     ok &= flat
     res.append(f"wenig Bearbeitung {'ok' if flat else 'FEHLER'} (Spanne {spread[0]}, voll {spread[1]})")
+    # Nur das Plakat (wall_edit false, F4): Papierkante gefunden (Rand 6 Zellen hell um das Plakat auf dunkler Wand;
+    # Gegenprobe ohne Rand: Kante am Plakat), Wand ausserhalb des Bogens bitgleich, Plakat wie bei voller Korrektur
+    mw = 6 * KL.PREVIEW_CELL_PX
+    plate = np.full((h + 2 * pad, w + 2 * pad, 3), 60, np.uint8)
+    plate[pad - mw:pad + h + mw, pad - mw:pad + w + mw] = 235
+    plate[pad:pad + h, pad:pad + w] = shot
+    same = plate.copy()
+    same[:pad - mw] = 235                                                 # oben Wand = Papier: Kante unsichtbar
+    found, none = sheet(plate, (pad, pad, w, h)), sheet(np.where(plate == 235, 60, plate).astype(np.uint8), (pad, pad, w, h))
+    hidden = sheet(same, (pad, pad, w, h))
+    o4 = grade(plate, f, (pad, pad, w, h), dict(cfg, photos=dict(cfg["photos"], wall_edit=False, poster_match_frac=1.0)))[0]
+    wall = np.ones(plate.shape[:2], bool)
+    wall[pad - mw:pad + h + mw, pad - mw:pad + w + mw] = False
+    want = (pad - mw, pad - mw, w + 2 * mw, h + 2 * mw)
+    edges = lambda r: (r[0], r[1], r[0] + r[2], r[1] + r[3])
+    p4 = (max(abs(a - b) for r in (found, hidden) for a, b in zip(edges(r), edges(want))) <= 2 and none == (pad, pad, w, h)
+          and (o4[wall] == plate[wall]).all() and de(o4[pad:pad + h, pad:pad + w]) < 0.02)
+    ok &= p4
+    res.append(f"nur Plakat {'ok' if p4 else 'FEHLER'} (Bogen {found}, Kante oben unsichtbar {hidden}, Soll {want}, "
+               f"ohne Rand {none})")
     # Auswahl: neue Charge schlaegt die alte (auch mit schlechterem NCC), gleiche Wand = eine Gruppe, andere = zweite
     wa, wb = np.full((90, 60, 3), 60, np.uint8), np.full((90, 60, 3), (200, 170, 120), np.uint8)
     mk = lambda name, wall, ncc: dict(path=f"{name}.JPG", n=1, ncc=ncc, cover=1.0, thumb=wall, rect=(15, 20, 30, 50))

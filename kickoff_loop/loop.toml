@@ -223,6 +223,10 @@ end_cell_px = 4            # Zoom-Ende: 1 Plakatzelle = 4 Ausgabepixel (R3) → 
 # Frame, auf welchem Frame es anfaengt, ergibt sich daraus.
 zoom_stepped = false       # true = Kamera springt nur mit den Plakaten (reines Stop-Motion), false = faehrt fluessig
 roll_deg = -4.0            # Kamera rollt gleichmaessig von hier auf 0° (waagerecht am Zoom-Ende). Mehr Bewegung, kein Wackeln
+shake_px = 6.0             # F4 (Vadim 7.10.: "weniger Stabilisierung, jeden Frame minimal versetzt"): Zufallsversatz je Bild,
+                           # Sigma in Ausgabepixeln (1080 breit), auf +-2 Sigma begrenzt. 0 = ruhig wie F1-F3
+shake_rot_deg = 0.3        # ... und Zufallsdrehung je Bild (Sigma, Grad)
+shake_fade_frac = 0.15     # Verwackeln laeuft ueber diesen Anteil der Fahrt zum Zoom-Ende auf 0 (Wechsel ins Digitale pixelgenau)
 punch_frac = 0.0           # Stoss nach vorn auf jedem Drum-Hit (Vadim 2.10.: aus, 0) ([music].grid hits_s): Massstab +5 %, klingt ab
 punch_decay_beats = 0.25   # Abklingzeit des Stosses (Beats). Kurz = zackig, auf dem Schlag
 
@@ -278,18 +282,29 @@ wall_feather_cells = 12    # Wand-Abdunkeln auf surround_luma laeuft vom Plakatr
 wall_min_gain = 1.0        # Wand hoechstens auf diesen Faktor abdunkeln. Befund 6.10.: die Fotos sind fast alle heller als
                            # surround_luma, 0.35 wirkte nach Abend, 0.5 natuerlich (Bogen photos/ in der Session).
                            # F3 (Vadim 7.10.: "der Hintergrund ist immer so veraendert"): 1.0 = nie abdunkeln; F2 = 0.5
-poster_match_frac = 0.0    # Plakat-Farbe an den Render angleichen: 1 = volle 3x3-Matrix (F2, "sieht aus wie digital"),
-                           # 0 = nur ein Weissabgleich + Belichtung fuers ganze Foto (F3), dazwischen gemischt
+poster_match_frac = 0.7    # Plakat-Farbe an den Render angleichen: 1 = volle 3x3-Matrix (F2, "sieht aus wie digital"),
+                           # 0 = keine (F3: nur ein Weissabgleich + Belichtung fuers ganze Foto), dazwischen gemischt.
+                           # F4 0.7: Vadim 7.10. "super erkennbar, Saturation stimmt, aber nicht super krass klar"
+wall_edit = false          # false (F4, Vadim 7.10. "Edits auf dem Plakat, Rest natuerlich, keine sichtbare Maske"): Wand = Kamera-
+                           # JPG, nur der Papierbogen (Plakat + Druckerrand bis zur Papierkante) wird korrigiert
+                           # (kickoff_loop_photos.grade_poster_only). true: F2/F3 (Wand bearbeitet, abgedunkelt)
+composite = {45 = "IMG_1104"}   # Plakat → Foto eines anderen Plakats, in das sein Druck montiert wird (Vadim 7.10.: 45 nicht
+                           # nachfotografieren). IMG_1104 = 9 im dunklen Rahmen an der Holztuer, frei seit 9 = IMG_0982
 wall_wb_max = 1.25         # Weissabgleich der Wand: Kanalfaktoren hoechstens so weit auseinander (aus der Grauachse des Plakats)
 wall_black_max = 0.02      # Schwarzpunkt der Wand hoechstens so weit verschieben (lineares Licht)
 wall_knee = 0.7            # Lichter der Wand ab hier (lineares Licht) weich gegen 1 statt hart ausgefressen
 pick_cover_weight = 0.5    # Auswahl: NCC minus dieses Gewicht x Anteil der Platte, den das Foto nicht abdeckt
-pick = {}                  # je Plakat ein bestimmtes Foto erzwingen, z. B. {9 = "IMG_1101"} (sonst das beste)
+pick = {2 = "IMG_1184", 9 = "IMG_0982", 15 = "IMG_1016", 52 = "IMG_1333"}   # je Plakat ein bestimmtes Foto erzwingen
+                           # (sonst das beste). Vadim 7.10. nach photos/auswahl.png; 52 "die andere Version" = Riffelblech
 prefer_from = "IMG_1143"   # Vadim 7.10.: Fotos ab diesem Namen (A3-Runde 7.10., bessere Fotos) schlagen die aelteren, wo es sie gibt
 variant_de = 0.07          # Auswahl-Bogen photos/auswahl.png: Wand-Abstand (Median dE OK) darueber = deutlich anderes Foto.
                            # Befund 7.10.: Serienbilder derselben Szene 0.005-0.05, andere Wand/Licht 0.07-0.14
-number = {IMG_1303 = 46, IMG_1304 = 46, IMG_1305 = 46, IMG_1306 = 46}   # Nummer je Foto erzwingen, wo Marken + Render-
-                           # Vergleich unsicher sind. 7.10.: 46 in der Kueche (Druck magenta statt lila, Render 0.73 / naechster 0.65)
+number = {IMG_1303 = 46, IMG_1304 = 46, IMG_1305 = 46, IMG_1306 = 46, IMG_1027 = 19}
+corners = {IMG_1027 = [[1056, 1828], [2756, 1784], [2791, 4233], [1104, 4277]]}   # Lage von Hand: Ecken der Druckflaeche
+                           # (Fotopixel nach EXIF-Drehung: oben links, oben rechts, unten rechts, unten links), wo der QR
+                           # nicht reicht. 7.10.: 19 an der Litfasssaeule (gewoelbt), Ecken per Gelb-Segmentierung, geprueft
+                           # Nummer je Foto erzwingen, wo Marken + Render-Vergleich unsicher sind. 7.10.: 46 in der Kueche (Druck magenta statt lila, Render
+                           # 0.73 / naechster 0.65); 19 an der Litfasssaeule, gewoelbt, Vadim: "einfach verzerren, sieht keiner"
 
 [marks]
 # Druckmarken: unsichtbares Muster im Druck (nur `print`, nie im Video), traegt Frame-Nummer + Lage, damit

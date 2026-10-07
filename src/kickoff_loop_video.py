@@ -35,6 +35,7 @@ RED_SAT_FRAC = 0.8                   # WCAG 2.2 / ISO 9241-391: Zustand "gesaett
 RED_MIN_UV = 0.2                     # ... und ein Rot-Uebergang braucht mehr als 0.2 Abstand in der CIE-1976-Farbtafel
 SRGB_XYZ = np.array([[0.4124, 0.3576, 0.1805], [0.2126, 0.7152, 0.0722], [0.0193, 0.1192, 0.9505]], np.float32)  # D65
 WHITE_UV = (0.1978, 0.4683)          # u', v' von D65: Schwarz hat keine Farbart, gilt als unbunt
+SHAKE_CLIP = 2.0                     # Verwackeln: Zufall je Bild auf +-2 Sigma begrenzt (so viel Rand hat die Platte)
 PLATE_ROWS = 512                     # simulated_plate: Filmkorn in Streifen dieser Hoehe (Speicher; das Bild bleibt gleich,
                                      # Generator.normal zieht in Streifen dieselbe Folge wie am Stueck)
 
@@ -92,12 +93,15 @@ def scales(cfg, poster_h):
 
 
 def camera(cfg, tl, t, poster_h):
-    """Kamera im Timeline-Frame t (nur Foto-Phase): (Massstab, Rollwinkel in Grad).
+    """Kamera im Timeline-Frame t (nur Foto-Phase): (Massstab, Rollwinkel in Grad, Versatz x, y in Ausgabepixeln).
 
     Grundfahrt exponentiell ohne Kurve (jeder Frame vergroessert um denselben Faktor, Vadim 30.9.: "kontinuierlich"),
     der letzte Karussell-Frame erreicht genau den Endmassstab. Dazu, damit das Bild lebt (Vadim 30.9.: "zu wenig
     Bewegung"): ein gleichmaessiges Rollen (roll_deg, endet waagerecht, der Wechsel ins Digitale bleibt pixelgenau) und
-    auf jedem Schlag aus tl.punches ein kurzer Stoss nach vorn, der mit punch_decay_beats abklingt."""
+    auf jedem Schlag aus tl.punches ein kurzer Stoss nach vorn, der mit punch_decay_beats abklingt. Verwackeln (Vadim
+    7.10.: "weniger Stabilisierung, jeden Frame minimal versetzt, menschlicher"): je Bild Zufallsversatz shake_px und
+    -drehung shake_rot_deg (Sigma, auf SHAKE_CLIP begrenzt, Saat = Bildnummer), laeuft ueber shake_fade_frac der Fahrt
+    zum Zoom-Ende aus (Wechsel ins Digitale bleibt pixelgenau)."""
     v = cfg["video"]
     s0, s1 = scales(cfg, poster_h)
     tz = tl.change_before(t) if v["zoom_stepped"] else t      # Kamera springt nur, wenn das Plakat wechselt
@@ -107,16 +111,25 @@ def camera(cfg, tl, t, poster_h):
         u = KE.camera_u(cfg, tl, tz)
     fps, b = v["timeline_fps"], beat_s(cfg)
     kick = sum(np.exp(-(t - p) / fps / (v["punch_decay_beats"] * b)) for p in tl.punches if p <= t < tl.zoom_end - 1)
-    return s0 * (s1 / s0) ** u * (1 + v["punch_frac"] * kick), v["roll_deg"] * (1 - u)
+    f = min(1.0, (1 - u) / v["shake_fade_frac"])
+    jx, jy, jr = np.clip(np.random.default_rng(t).normal(size=3), -SHAKE_CLIP, SHAKE_CLIP) * f
+    return (s0 * (s1 / s0) ** u * (1 + v["punch_frac"] * kick), v["roll_deg"] * (1 - u) + jr * v["shake_rot_deg"],
+            jx * v["shake_px"], jy * v["shake_px"])
 
 
 # ---------------------------------------------------------------- Platten (Fotos bzw. Simulation)
 
 def plate_size(cfg, poster):
-    """Die Platte muss den ganzen Anfangsausschnitt abdecken, plus Luft fuer den Versatz."""
-    W, H = cfg["video"]["size_px"]
+    """Die Platte muss den ganzen Anfangsausschnitt abdecken, auch gedreht (roll_deg + Verwackeln) und versetzt
+    (shake_px), plus Luft fuer den Versatz der Simulation. Rand je Seite m, gesamt gerade: Plattenmitte und damit das
+    pixelgenaue Zoom-Ende bleiben. Befund 7.10.: ohne Drehungs-Rand waren die ersten ~12 Bilder in den Ecken schwarz."""
+    v = cfg["video"]
+    W, H = v["size_px"]
     s0, _ = scales(cfg, poster.shape[0])
-    margin = 4 * cfg["simulation"]["jitter_px"]
+    a = np.radians(abs(v["roll_deg"]) + SHAKE_CLIP * v["shake_rot_deg"])
+    grow = max(W * np.cos(a) + H * np.sin(a) - W, W * np.sin(a) + H * np.cos(a) - H) / 2   # gedrehter Ausschnitt
+    m = int(np.ceil((grow + SHAKE_CLIP * v["shake_px"]) / s0))
+    margin = 4 * cfg["simulation"]["jitter_px"] + 2 * m
     return int(np.ceil(W / s0)) + margin, int(np.ceil(H / s0)) + margin
 
 
@@ -191,17 +204,17 @@ def photo_plate(cfg, poster, k):
     return simulated_plate(cfg, poster, k)
 
 
-def shoot(plate, s, size, roll=0.0):
-    """Kameraausschnitt: Plattenmitte, Massstab s (Plattenpixel → Ausgabepixel), um roll Grad gedreht.
-    Bei s = 1, roll = 0 und ganzzahliger Lage ist das eine 1:1-Kopie, deshalb ist das Zoom-Ende pixelgenau."""
+def shoot(plate, s, size, roll=0.0, dx=0.0, dy=0.0):
+    """Kameraausschnitt: Plattenmitte, Massstab s (Plattenpixel → Ausgabepixel), um roll Grad gedreht, Bild um dx, dy
+    Ausgabepixel versetzt. Bei s = 1, roll = dx = dy = 0 und ganzzahliger Lage ist das eine 1:1-Kopie, deshalb ist das
+    Zoom-Ende pixelgenau."""
     W, H = size
+    cx, cy = plate.width / 2 - dx / s, plate.height / 2 - dy / s
     if not roll:
-        cx, cy = plate.width / 2, plate.height / 2
         box = (cx - W / 2 / s, cy - H / 2 / s, cx + W / 2 / s, cy + H / 2 / s)
         return plate.resize(size, Image.LANCZOS, box=box)
     a = np.radians(roll)
     c, sn = np.cos(a) / s, np.sin(a) / s                     # Ausgabepixel → Plattenpixel (Drehung um die Bildmitte)
-    cx, cy = plate.width / 2, plate.height / 2
     data = (c, sn, cx - c * W / 2 - sn * H / 2, -sn, c, cy + sn * W / 2 - c * H / 2)
     return plate.transform(size, Image.AFFINE, data, Image.BICUBIC)
 
@@ -575,8 +588,8 @@ def _photo_job(args):
     try:
         out = np.ndarray((tl.zoom_end, H, W, 3), np.uint8, buffer=shm.buf)
         for t in ts:
-            sc, roll = camera(cfg, tl, t, h)
-            out[t] = np.asarray(shoot(plate, sc, (W, H), roll))
+            sc, *rest = camera(cfg, tl, t, h)
+            out[t] = np.asarray(shoot(plate, sc, (W, H), *rest))
         del out
     finally:
         shm.close()
@@ -718,8 +731,8 @@ def segment_selftest(cfg):
     k = tl.poster_at(0)
     poster = KL.frame(cfg, k)
     assert poster.shape[0] == S.SIZES[KL.PREVIEW][1], "photo_key rechnet die Kamera mit falscher Plakathoehe"
-    sc, roll = camera(cfg, tl, 0, poster.shape[0])
-    ran = KL._traced_sources(lambda: shoot(photo_plate(cfg, poster, k), sc, tuple(cfg["video"]["size_px"]), roll))
+    sc, *rest = camera(cfg, tl, 0, poster.shape[0])
+    ran = KL._traced_sources(lambda: shoot(photo_plate(cfg, poster, k), sc, tuple(cfg["video"]["size_px"]), *rest))
     miss = ran - set(KL._import_closure(PHOTO_SOURCES))
     assert not miss, f"Foto-Segment-Schluessel: {sorted(miss)} laufen beim Bauen, fehlen in PHOTO_SOURCES"
     assert "kickoff_loop_video.py" in ran, "Segment-Selbsttest blind: Platten-Code nicht getract"
@@ -1315,9 +1328,9 @@ def export(cfg, posters):
     ff.wait()
     cam, ff = [], prores(os.path.join(out, "camera.mov"))
     for t in range(tl.zoom_end):
-        sc, roll = camera(cfg, tl, t, h)
+        sc, roll, dx, dy = camera(cfg, tl, t, h)
         cam.append([round(sc / fit, 5), round(float(roll), 4)])
-        ff.stdin.write(np.asarray(shoot(plates[tl.poster_at(t)], sc, size, roll)).tobytes())
+        ff.stdin.write(np.asarray(shoot(plates[tl.poster_at(t)], sc, size, roll, dx, dy)).tobytes())
     ff.stdin.close()
     ff.wait()
     song(cfg, tl, os.path.join(out, "song.wav"))

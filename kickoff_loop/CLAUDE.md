@@ -37,10 +37,9 @@ In dieser Reihenfolge:
    (x264). Lieferung: `*.mp4` (Master), `*_share.mp4`, ProRes für Resolve (`resolve`).
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
-5. **Campus-Fotos: 62/64** (Abschnitt „Campus-Fotos“ unten), Vorschau F3 (wenig Bearbeitung; F2 = wie digital). Offen: 19 + 45 nachdrucken/fotografieren,
-   Vadims Wahl im Auswahl-Bogen → `[photos].pick`.
+5. **Campus-Fotos: 64/64** (Abschnitt „Campus-Fotos“ unten), Vorschau F4 (Bearbeitung nur auf dem Papier, Handkamera).
 
-## Campus-Fotos (6.10., `src/kickoff_loop_photos.py`, `[photos]` in `loop.toml`) · **7.10.: 62/64, Vorschau F3 (wenig Bearbeitung), wartet auf Vadim**
+## Campus-Fotos (6.10., `src/kickoff_loop_photos.py`, `[photos]` in `loop.toml`) · **7.10.: 64/64, Vorschau F4, wartet auf Vadim**
 
 **Stand 7.10.** A3-Runde (IMG_1143–1334, Ordner `~/Movies/116_1001`, nur JPG kopiert) dazu: 362 Fotos, 62/64 mit Foto,
 40 davon aus der A3-Runde. Vadim: „wenn es schon existiert, die neue Version nehmen“ → `prefer_from = "IMG_1143"`
@@ -57,12 +56,24 @@ der Wand trennt Serienbild und andere Szene nicht (0.33–0.68 vs 0–0.69), Med
 `wall_min_gain = 1.0` (Wand nie abgedunkelt; F2 lag überall bei x0.5). Plakat-dE gegen digital jetzt 0.03–0.14 statt
 0.01–0.05 (gewollt: Druckfarben). Zurück zu F2: 1.0 / 0.5, dann Fotos + Vorschau neu. Am Schnitt Foto → digital (5.88 s,
 ohnehin anderes Plakat) ist der Sprung in F3 etwas größer (gedecktes Foto → leuchtend digital), siehe Disconnect (geparkt).
+**F4 (7.10., aktuell)** Vadim zu F3: „Edits auf dem Plakat, Rest natürlich, keine sichtbare Maske, super erkennbar,
+Saturation stimmt, nicht super krass klar“ + „weniger Stabilisierung, jeden Frame minimal versetzt“. 64/64 Fotos.
+- `wall_edit = false`: Wand = Kamera-JPG; nur der Papierbogen (Plakat + Druckerrand) bekommt die Plakat-Matrix zu
+  `poster_match_frac = 0.7`. Maskenkante = Papierkante (`sheet`: stärkster Sprung je Seite bis 12 Zellen; unsichtbare
+  Kante → Breite der Gegenseite). Verworfen: Korrektur relativ zur Grauachse der Matrix (16 schwarz, 35 gelbgrün, 59 rot),
+  aufs Papierweiß skaliert (trüb), Kante am Plakat (harte Stufe rohes/korrigiertes Papier bei 16/21).
+- Wahl: `pick` 2 = IMG_1184, 9 = IMG_0982, 15 = IMG_1016, 52 = IMG_1333 (Riffelblech = „die andere Version“), Rest wie
+  Bogen. 19 = IMG_1027 per `[photos].corners` (Ecken der Druckfläche, Gelb-Segmentierung), 45 = Montage
+  `composite = {45 = "IMG_1104"}` (Druck durch die umgekehrte Farbabbildung des Fotos, Licht + Schärfe des echten Plakats).
+- Kamera: `[video] shake_px 6 / shake_rot_deg 0.3` je Bild (Saat = Bildnummer), läuft über `shake_fade_frac` zum
+  Zoom-Ende aus. `plate_size` hat jetzt Rand für Rollen + Wackeln (vorher schwarze Ecken in den ersten ~12 Bildern,
+  auch in F1–F3); Abdeckung in der Auswahl weiter über den ungedrehten Startausschnitt (sonst kippte die Wahl).
 
 Vadim 6.10.: alles in A4 + A3 gedruckt, aufgehängt, mit der R8 fotografiert; Fotos in Reihenfolge, für die Vorschau
 skaliert, Farben wie digital, nichts (kaum) überbelichtet; fehlende Plakate bleiben Simulation.
 - **Neue Fotos:** SD-Karte → `photos/raw/` (`rsync -a --include='IMG_*.JPG' --exclude='*' /Volumes/Canon/DCIM/<ordner>/
   kickoff_loop/photos/raw/`), dann `uv run src/kickoff_loop_photos.py` (~1 min, Erkennung je Foto gemerkt in
-  `photos/detect.json`), dann `preview review/F3/F3.toml --draft`. Ausgabe `photos/aligned/NN.png` (fertig gegradet,
+  `photos/detect.json`), dann `preview review/F4/F4.toml --draft`. Ausgabe `photos/aligned/NN.png` (fertig gegradet,
   `photo_plate` gradet echte Fotos nicht mehr nach), Bögen `photos/plates.png` (alle 64 wie im Video) und
   `photos/colors.png` (Plakat im Foto | digital), `photos/report.txt`. Foto je Plakat erzwingen: `[photos].pick`.
 - **Erkennen:** Marken (`marks.detect`) für 141/170; ohne Treffer QR + Vergleich mit allen 64 Renders + ECC (`identify`):
