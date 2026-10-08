@@ -75,9 +75,12 @@ def check(cfg):
     assert ph, "loop.toml: Abschnitt [photos] fehlt"
     need = ["fit_edge_cells", "fit_blur_cells", "fit_gammas", "fit_robust_de", "blend_cells", "wall_feather_cells",
             "wall_knee", "wall_min_gain", "wall_wb_max", "wall_black_max", "pick_cover_weight", "pick", "prefer_from",
-            "variant_de", "number", "poster_match_frac", "wall_edit", "composite", "corners"]
+            "variant_de", "number", "poster_match_frac", "wall_edit", "composite", "corners", "aligned_dir",
+            "poster_mode", "poster_light_frac", "poster_tint_frac", "poster_fade_cells", "shot_wb_frac",
+            "shot_expo_frac", "shot_paper_luma", "shot_chroma", "shot_contrast"]
     miss = [k for k in need if k not in ph]
     assert not miss, f"loop.toml [photos]: es fehlt {miss}"
+    assert ph["poster_mode"] in ("rgb", "light"), "[photos].poster_mode: rgb (F4/F5) | light (MC: Licht aus dem Foto)"
     bad = [k for k in ph["corners"] if k not in ph["number"]]
     assert not bad, f"[photos].corners {bad}: braucht auch eine Nummer in [photos].number"
     assert 0 < ph["wall_knee"] < 1, "[photos].wall_knee: Knie der Lichter-Schulter, zwischen 0 und 1 (lineares Licht)"
@@ -249,6 +252,8 @@ def grade(plate, f, rect, cfg, q=KL.PREVIEW_CELL_PX):
     Grauachse: ein Weissabgleich + Belichtung fuer alles, wie eine normale Fotokorrektur; Vadim 7.10.: "sieht aus
     wie digital", "der Hintergrund ist immer so veraendert"). q: Pixel je Zelle (Vorschau: / THUMB)."""
     ph = cfg["photos"]
+    if ph["poster_mode"] == "light":
+        return grade_light(plate, f, rect, ph, q), 1.0
     if not ph["wall_edit"]:
         return grade_poster_only(plate, f, rect, ph["poster_match_frac"], q), 1.0
     mc = ph["poster_match_frac"] * _ring(plate.shape[:2], rect, ph["blend_cells"] * q)
@@ -325,6 +330,74 @@ def grade_poster_only(plate, f, rect, frac, q=KL.PREVIEW_CELL_PX):
         sl = slice(y, y + STRIP)
         x, m = lin(plate[sl]), mc[sl][..., None]
         out[sl] = srgb(m * np.clip(x ** f["g"] @ f["A"] + f["b"], 0, None) + (1 - m) * x)
+    return out
+
+
+_M2I, _M1I = np.linalg.inv(KL._M2), np.linalg.inv(KL._M1)
+LOOK_PIVOT_L = 0.6                # S-Kurve dreht um Mittelgrau: sRGB 128 = linear 0.216 = OKLab L 0.6
+
+
+def unlab(lab):
+    """OKLab → linear (Umkehrung von oklab)."""
+    return np.clip(lab @ _M2I.T, 0, None) ** 3 @ _M1I.T
+
+
+def _inset(shape, rect, px):
+    """0 auf dem Plakatrand und ausserhalb, steigt nach innen mit smoothstep ueber px Pixel auf 1."""
+    x0, y0, w, h = rect
+    ys, xs = np.arange(shape[0], dtype=np.float32), np.arange(shape[1], dtype=np.float32)
+    dy = np.minimum(ys - y0, y0 + h - 1 - ys)[:, None]
+    dx = np.minimum(xs - x0, x0 + w - 1 - xs)[None, :]
+    t = np.clip(np.minimum(dx, dy) / max(px, 1), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def paper_white(plate, rect, f, ph, q=KL.PREVIEW_CELL_PX):
+    """Papierweiss im Foto (linear): Median des unbedruckten Druckerrands zwischen Bogenkante (sheet) und Druck, die
+    Graukarte in jedem Foto. Ohne sichtbaren Rand (Rahmen): was die Plakat-Matrix auf Weiss abbildet (gray_axis).
+    Befund 8.10.: das Papier ist im Foto nie neutral (06 im Schatten blaeulich, 01 hinter Glas beige, 20 lila, 44
+    ausgefressen weiss): die Kamera hat die Szene abgeglichen, nicht das Papier."""
+    sx, sy, sw, sh = sheet(plate, rect, q)
+    x0, y0, w, h = rect
+    e = max(int(round(q)), 1)
+    m = np.zeros(plate.shape[:2], bool)
+    m[sy + e:sy + sh - e, sx + e:sx + sw - e] = True
+    m[y0:y0 + h, x0:x0 + w] = False
+    if m.any():
+        return np.median(lin(plate[m]), 0)
+    u, v = gray_axis(f, ph["wall_wb_max"], ph["wall_black_max"])
+    return np.clip(u + v, 1e-3, 1) ** (1 / f["g"])
+
+
+def grade_light(plate, f, rect, ph, q=KL.PREVIEW_CELL_PX):
+    """[photos].poster_mode = "light" (MC, Vadim 8.10.: die Match Cuts sehen aus wie "digital reingecutted").
+    Befund am Bogen: rgb (F4/F5) uebernimmt Weiss und Schwarz vom Render, das Plakat ist heller und kontrastreicher
+    als alles andere im Foto (Leuchtkasten), und der mitkorrigierte Papierrand kippt (20 rosa). Hier:
+    1. Plakat: Farbton + Buntheit Richtung digital (poster_match_frac), die Helligkeit bleibt die des Fotos
+       (poster_light_frac 0: Licht, Schatten, Spiegelung, Papierkontrast echt; 1: wie digital). Die digitale Farbe
+       bekommt den Farbstich des Lichts im Foto (Papierweiss, poster_tint_frac). Laeuft vom Plakatrand ueber
+       poster_fade_cells nach innen ein (dort druckt der Lichtabfall ohnehin ins Papier), der Papierrand bleibt roh.
+    2. Ganzes Foto ohne Maske (alles im Bild bekommt dasselbe, wie ein Grade je Einstellung): Weissabgleich und
+       Belichtung am Papierweiss (shot_wb_frac, shot_expo_frac → shot_paper_luma: die Plakate sind ueber die Schnitte
+       gleich hell), Buntheit shot_chroma, S-Kurve shot_contrast."""
+    pw = paper_white(plate, rect, f, ph, q)
+    y = float(pw @ KL.LUMA)
+    tint = (pw / y) ** ph["poster_tint_frac"]
+    gain = (y / pw) ** ph["shot_wb_frac"] * (ph["shot_paper_luma"] / y) ** ph["shot_expo_frac"]
+    m = _inset(plate.shape[:2], rect, ph["poster_fade_cells"] * q)
+    out = np.empty_like(plate)
+    for r in range(0, plate.shape[0], STRIP):
+        sl = slice(r, r + STRIP)
+        x = lin(plate[sl])
+        mm = m[sl][..., None]
+        lift = (lambda v: shoulder(v, ph["wall_knee"])) if (gain > 1).any() else (lambda v: v)   # aufhellen ohne
+        lb = oklab(lift(x * gain))                                         # Ausfressen (Befund 8.10.: 31 Himmel weiss)
+        lt = oklab(lift(np.clip(x ** f["g"] @ f["A"] + f["b"], 0, None) * tint * gain))
+        L = lb[..., :1] + mm * ph["poster_light_frac"] * (lt[..., :1] - lb[..., :1])
+        ab = lb[..., 1:] + mm * ph["poster_match_frac"] * (lt[..., 1:] * L / np.maximum(lt[..., :1], 1e-4) - lb[..., 1:])
+        L = np.clip(L, 0, 1)
+        L = L + ph["shot_contrast"] * (L - LOOK_PIVOT_L) * 4 * L * (1 - L)   # Enden 0 und 1 bleiben stehen
+        out[sl] = srgb(unlab(np.concatenate([L, ab * ph["shot_chroma"]], -1)))
     return out
 
 
@@ -488,16 +561,16 @@ def reprint(cfg, chosen):
 
 
 def _build(args):
-    """Gewaehltes Foto → aligned/NN.png + Vorschaubilder fuer die Boegen."""
+    """Gewaehltes Foto → <aligned_dir>/NN.png + Vorschaubilder fuer die Boegen. args = (Kandidat, Config-Pfad)."""
     import kickoff_loop_marks as M
     import kickoff_loop_video as V
-    c = args
-    cfg = KL.load()
+    c, cfg_path = args
+    cfg = KL.load(cfg_path)
     plate, _, rect = _plate(M.load_photo(c["path"]), c["H"], cfg)
     if c["host"]:
         plate = montage(plate, rect, c["host"], c["n"], cfg)
     out, s = grade(plate, c["fit"], rect, cfg)
-    path = V.aligned_photo(c["n"] - 1)
+    path = V.aligned_photo(cfg, c["n"] - 1)
     Image.fromarray(out).save(path)
     x0, y0, pw, ph = rect
     crop = out[y0:y0 + ph, x0:x0 + pw]
@@ -576,13 +649,8 @@ def report(det, cands, chosen, built, cfg, groups, miss):
     return "\n".join(L)
 
 
-def main():
-    args = sys.argv[1:]
-    if args[:1] == ["test"]:
-        sys.exit(selftest())
-    paths = [p for a in args for p in sorted(glob.glob(a)) or [a]] or sorted(glob.glob(os.path.join(DIR, "raw", "*.JPG")))
-    cfg = KL.load()
-    check(cfg)
+def choose(paths, cfg):
+    """Erkennen, Kandidaten bewerten, je Plakat ein Foto. Zurueck: (Erkennung, Kandidaten, Wahl)."""
     det = detect_all(paths, cfg)
     with Pool(WORKERS) as pool:
         todo = [(p, r["n"], r["H"], None) for p, r in det.items() if "n" in r]
@@ -591,13 +659,48 @@ def main():
             assert hit, f"[photos].composite {n} = {name}: Foto fehlt oder ist keinem Plakat zugeordnet"
             todo.append((hit[0][0], int(n), hit[0][1]["H"], hit[0][1]["n"]))
         cands = pool.map(_candidate, todo, chunksize=1)
-    chosen = pick(cands, cfg)
-    out = os.path.join(DIR, "aligned")
+    return det, cands, pick(cands, cfg)
+
+
+def build(chosen, cfg):
+    """Gewaehlte Fotos → photos/<aligned_dir>/NN.png (vorher leeren: nur die gewaehlten bleiben, Rest = Simulation)."""
+    out = os.path.join(DIR, cfg["photos"]["aligned_dir"])
     os.makedirs(out, exist_ok=True)
-    for f in glob.glob(os.path.join(out, "*.png")):               # nur die gewaehlten bleiben (Rest = Simulation)
+    for f in glob.glob(os.path.join(out, "*.png")):
         os.remove(f)
     with Pool(WORKERS) as pool:
-        built = {b["n"]: b for b in pool.map(_build, list(chosen.values()), chunksize=1)}
+        return {b["n"]: b for b in pool.map(_build, [(c, cfg["_src"]) for c in chosen.values()], chunksize=1)}
+
+
+def grade_variants(paths, cfg, tomls):
+    """Match-Cut-Varianten (MC, 8.10.): dieselbe Wahl wie loop.toml, je Review-TOML ein eigener Grade nach
+    photos/<aligned_dir>/ (+ plates.png, colors.png dort), die abgenommenen photos/aligned/ bleiben unberuehrt.
+    Wahl und Farbmessung haengen nur an loop.toml ([photos] pick/fit_*), deshalb einmal fuer alle."""
+    _, _, chosen = choose(paths, cfg)
+    for t in tomls:
+        vc = KL.load(t)
+        check(vc)
+        assert vc["photos"]["aligned_dir"] != cfg["photos"]["aligned_dir"], \
+            f"{t}: [photos].aligned_dir muss ein eigener Ordner sein (sonst ueberschreibt die Variante photos/aligned/)"
+        built = build(chosen, vc)
+        out = os.path.join(DIR, vc["photos"]["aligned_dir"])
+        sheets(vc, built, out)
+        print(f"{t}: {len(built)} Platten → {out}")
+
+
+def main():
+    args = sys.argv[1:]
+    if args[:1] == ["test"]:
+        sys.exit(selftest())
+    tomls = [a for a in args if a.endswith(".toml")]          # Varianten: Erkennen + Auswahl einmal, Grade je Variante
+    args = [a for a in args if not a.endswith(".toml")]
+    paths = [p for a in args for p in sorted(glob.glob(a)) or [a]] or sorted(glob.glob(os.path.join(DIR, "raw", "*.JPG")))
+    cfg = KL.load()
+    check(cfg)
+    if tomls:
+        return grade_variants(paths, cfg, tomls)
+    det, cands, chosen = choose(paths, cfg)
+    built = build(chosen, cfg)
     sheets(cfg, built, DIR)
     groups = variants(cands, chosen, cfg)
     choice_sheet(groups, DIR)
@@ -664,6 +767,23 @@ def selftest():
     ok &= p4
     res.append(f"nur Plakat {'ok' if p4 else 'FEHLER'} (Bogen {found}, Kante oben unsichtbar {hidden}, Soll {want}, "
                f"ohne Rand {none})")
+    # Fotolicht (poster_mode light, MC 8.10.): Helligkeit im Plakat bleibt die des Fotos, Farbe wie digital bei der
+    # Helligkeit des Fotos, Papierrand + Wand bitgleich; ohne Korrektur (MC1) ganzes Bild bitgleich (±1 Rundung).
+    # Gegenprobe rgb (F5): Helligkeit wie digital = der Leuchtkasten
+    lc = dict(cfg, photos=dict(cfg["photos"], poster_mode="light", poster_match_frac=1.0, poster_light_frac=0.0,
+                               poster_tint_frac=1.0, shot_wb_frac=0.0, shot_expo_frac=0.0, shot_chroma=1.0,
+                               shot_contrast=0.0))
+    ol = grade(plate, f, (pad, pad, w, h), lc)[0]
+    raw0 = grade(plate, f, (pad, pad, w, h), dict(lc, photos=dict(lc["photos"], poster_match_frac=0.0)))[0]
+    lab_in, lab_l, lab_r = (oklab(lin(x[pad:pad + h, pad:pad + w]))[m] for x in (plate, ol, o4))
+    want_ab = oklab(L)[m][:, 1:] * lab_in[:, :1] / np.maximum(oklab(L)[m][:, :1], 1e-4)
+    dl, dr = float(np.median(np.abs(lab_l[:, 0] - lab_in[:, 0]))), float(np.median(np.abs(lab_r[:, 0] - lab_in[:, 0])))
+    dab = float(np.median(np.linalg.norm(lab_l[:, 1:] - want_ab, axis=1)))
+    pl = (dl < 0.005 and dab < 0.01 and dr > 0.03 and (ol[wall] == plate[wall]).all()
+          and int(np.abs(raw0.astype(int) - plate).max()) <= 1)
+    ok &= pl
+    res.append(f"Fotolicht {'ok' if pl else 'FEHLER'} (Helligkeit dL {dl:.3f}, Farbe dab {dab:.3f}, "
+               f"Gegenprobe rgb dL {dr:.3f})")
     # Auswahl: neue Charge schlaegt die alte (auch mit schlechterem NCC), gleiche Wand = eine Gruppe, andere = zweite
     wa, wb = np.full((90, 60, 3), 60, np.uint8), np.full((90, 60, 3), (200, 170, 120), np.uint8)
     mk = lambda name, wall, ncc: dict(path=f"{name}.JPG", n=1, ncc=ncc, cover=1.0, thumb=wall, rect=(15, 20, 30, 50))
