@@ -190,15 +190,16 @@ def grade(img, cfg, hole=None):
     return Image.fromarray(out)
 
 
-def aligned_photo(k):
-    return os.path.join(KL.PROJECT, "photos", "aligned", f"{k + 1:02d}.png")
+def aligned_photo(cfg, k):
+    """kickoff_loop/photos/<[photos].aligned_dir>/NN.png (abgenommen: aligned; Match-Cut-Varianten: aligned_MC*)."""
+    return os.path.join(KL.PROJECT, "photos", cfg["photos"]["aligned_dir"], f"{k + 1:02d}.png")
 
 
 def photo_plate(cfg, poster, k):
     """Echtes, entzerrtes Foto, falls vorhanden (kickoff_loop/photos/aligned/NN.png), sonst Simulation. Die Fotos sind
     fertig gegradet (kickoff_loop_photos: Plakat wie digital, Wand auf surround_luma); grade() hier wuerde das Plakat
     mit der Wand zusammen noch einmal heller/dunkler ziehen."""
-    path = aligned_photo(k)
+    path = aligned_photo(cfg, k)
     if os.path.exists(path):
         return Image.open(path).convert("RGB")
     return simulated_plate(cfg, poster, k)
@@ -701,7 +702,7 @@ def photo_key(cfg, tl):
     cam = [(tl.poster_at(t), *camera(cfg, tl, t, h)) for t in range(tl.zoom_end)]
 
     def real(k):
-        p = aligned_photo(k)
+        p = aligned_photo(cfg, k)
         return hashlib.sha1(open(p, "rb").read()).hexdigest() if os.path.exists(p) else None
     shown = [(k, KL.cache_key(KL.poster_style(cfg, k), KL.PREVIEW), real(k)) for k in sorted({c[0] for c in cam})]
     key = json.dumps([cam, shown, cfg["simulation"], cfg["video"], encoder(cfg), KL._source_hash(PHOTO_SOURCES)],
@@ -1084,12 +1085,17 @@ DRAFT_STEP = 2       # preview --draft: Digitalteil nur jedes 2. Bild rendern un
 VORSCHAU = "Vorschau"   # flacher Ordner im Hauptcheckout (Vadim 7.10.: "sieben Ordner tief, braucht ewig, die Preview zu finden")
 
 
+def vorschau_dir():
+    """<Hauptcheckout>/Vorschau, ueber git-common-dir auch aus einem Worktree."""
+    git = subprocess.run(["git", "-C", KL.PROJECT, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                         capture_output=True, text=True).stdout.strip()
+    return os.path.join(os.path.dirname(git) if git else os.path.dirname(KL.PROJECT), VORSCHAU)
+
+
 def publish(path, version):
     """Fertige Vorschau zusaetzlich als <Hauptcheckout>/Vorschau/<Version>[_draft].mp4 (Hardlink: dieselbe Datei, kein
     Platz). Hauptcheckout ueber git-common-dir, so landet sie auch aus einem Worktree dort, wo Vadim nachsieht."""
-    git = subprocess.run(["git", "-C", KL.PROJECT, "rev-parse", "--path-format=absolute", "--git-common-dir"],
-                         capture_output=True, text=True).stdout.strip()
-    folder = os.path.join(os.path.dirname(git) if git else os.path.dirname(KL.PROJECT), VORSCHAU)
+    folder = vorschau_dir()
     os.makedirs(folder, exist_ok=True)
     dst = os.path.join(folder, version + os.path.basename(path)[len("preview"):])   # preview_draft.mp4 → F7_draft.mp4
     if os.path.exists(dst):
@@ -1329,7 +1335,7 @@ def preview(cfg, posters, qr_ok, legib):
         zoom_sheet(cfg, tl, digital, last_img, os.path.join(out, draft_name(cfg, f"{mode}.png")))
     ground = [float(KL.LUMA @ (np.array([int(c[j:j + 2], 16) for j in (1, 3, 5)]) / 255))
               for c in (KL.palette_hex(cfg, i)[0] for i in range(n))]
-    real = sum(os.path.exists(aligned_photo(k)) for k in range(n))
+    real = sum(os.path.exists(aligned_photo(cfg, k)) for k in range(n))
     keys = [i for i in range(n) if KL.is_key(cfg, i)]
 
     def tier(x):                                  # Lesbarkeitsstufe wie bei den Einzelplakaten

@@ -640,9 +640,11 @@ def song_timeline(cfgs):
     import kickoff_loop_video as V
     vids = []
     for cfg in cfgs:
-        out = KL.out_dir(cfg)
-        v = next((p for p in (os.path.join(out, f) for f in ("preview.mp4", "preview_draft.mp4")) if os.path.exists(p)),
-                 None)
+        out, flat = KL.out_dir(cfg), V.vorschau_dir()                # Vorschau/ zuerst: bleibt, wenn ein Worktree geht
+        ver = os.path.basename(out)
+        v = next((p for p in (os.path.join(flat, f"{ver}.mp4"), os.path.join(flat, f"{ver}_draft.mp4"),
+                              os.path.join(out, "preview.mp4"), os.path.join(out, "preview_draft.mp4"))
+                  if os.path.exists(p)), None)
         assert v, f"{out}: keine Vorschau, erst: uv run src/kickoff_loop.py preview <variante.toml> --draft"
         vids.append((os.path.basename(out), v))
     cfg = cfgs[0]

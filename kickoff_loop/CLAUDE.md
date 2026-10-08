@@ -39,6 +39,7 @@ In dieser Reihenfolge:
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
 5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
 9. **F11 (8.10. abends)**: 7 Ideen gegen das antiklimaktische Ende, alle gebaut (8 Videos), Abschnitt „F11“.
+9. **Match Cuts MC1–MC6 (8.10. abends)**: Foto-Phase realistischer (Plakat kein Leuchtkasten mehr), Abschnitt „Match Cuts“.
 8. **F10 (8.10. nachts)**: Blau → Rot über die Ripple-Welle, 9 Varianten gestapelt in Resolve, Abschnitt „F10“.
 7. **F9 (7.10. nachts)**: blauer Spark + Slogan vor dem roten Ende, Abschnitt „F9“ hierunter. Musik schieben: Resolve
    `kickoff_loop_resolve.py song <variante.toml>` (Timeline „<Version> + Song“).
@@ -85,6 +86,35 @@ Befehle (aus dem Pack-Root): `uv run src/kickoff_loop_f11.py video|sheet|test <F
 F11d (Personen auf den Platzhaltern sind Clubmitglieder aus dem Sporga-Ordner, vor Veröffentlichung fragen); danach
 die Wahl ins richtige Ende überführen (heute nur Entwurf: Foto-Teil + Digitalteil bis 7.2 s kommen aus der F10a-Vorschau
 auf Zweiern; für `--master` muss F11 in `kickoff_loop_end`/`preview` ab dem Karussell-Ende, nicht als Nachbearbeitung).
+## Match Cuts MC1–MC6 (8.10. abends) · **wartet auf Vadim** · Resolve-Timeline „F10a-MC6 + Song“, Bögen `Vorschau/MC_stills_1|2.png`
+
+Vadim: „die Match Cuts sehen aus wie digital alles reingecutted, das muss realistischer wie Match Cuts aussehen, es geht
+um Farbechtheit“. Videos `Vorschau/MC1_draft.mp4` … `MC6_draft.mp4` (Ende = F10a, nur die Foto-Phase unterscheidet sich).
+**Befund** (Bogen `Vorschau/MC_stills_1|2.png`, 8 Fotos im Startausschnitt, Spalte MC0 = F5): `poster_mode = "rgb"` (F4/F5) zieht
+den Papierbogen zu 70 % auf den Render, also auch dessen Weiß und Schwarz: das Plakat ist heller und kontrastreicher als
+alles andere im Foto (**Leuchtkasten**, am stärksten 31, 49, 57) und hat einen eigenen Weißpunkt; der mitkorrigierte
+Papierrand kippt (20 rosa). Das Papier ist im Foto nie neutral (06 im Schatten bläulich, 01 hinter Glas beige, 20 lila):
+die Kamera hat die Szene abgeglichen, nicht das Papier; ein voller Weißabgleich aufs Papier verfärbt deshalb die Szene.
+**Neu** `poster_mode = "light"` (`kickoff_loop_photos.grade_light`, Schlüssel in `loop.toml [photos]`, Standard = F5):
+Plakat bekommt nur Farbton + Buntheit Richtung digital (`poster_match_frac`), Helligkeit bleibt die des Fotos
+(`poster_light_frac` 0: Licht, Schatten, Spiegelung, Papierkontrast echt), die digitale Farbe bekommt den Lichtstich des
+Fotos (gemessen am unbedruckten Papierrand, `poster_tint_frac`), läuft über `poster_fade_cells` vom Plakatrand ein (dort
+druckt der Lichtabfall ohnehin ins Papier), Papierrand + Wand bleiben Kamera-JPG. Optional ein Grade fürs ganze Foto ohne
+Maske: `shot_wb_frac`/`shot_expo_frac` (aufs Papierweiß, Lichter mit Schulter), `shot_chroma`, `shot_contrast`.
+| Code | Was |
+|---|---|
+| MC1 | roh: Kamera-JPG, keine Farbbearbeitung |
+| MC2 | Fotolicht: Plakatfarbe 0.8 Richtung digital, Licht aus dem Foto |
+| MC3 | MC2 + ganzes Foto bunter (x1.15) + S-Kurve 0.12 |
+| MC4 | MC2 + jedes ganze Foto halb aufs Papierweiß abgeglichen (Plakate über die Schnitte gleich hell) |
+| MC5 | Halblicht: 35 % Helligkeit digital, Lichtstich 70 % (zwischen F5 und MC2) |
+| MC6 | roh + ganzes Foto bunter + S-Kurve, keine Plakatbearbeitung |
+Je Variante eigene Platten `photos/aligned_MC*/` (+ `plates.png`, `colors.png` dort), `photos/aligned/` (F5) unberührt:
+`uv run src/kickoff_loop_photos.py <MC*.toml ...>` (Wahl + Farbmessung einmal, Grade je TOML). `[photos].aligned_dir`
+liest auch das Video. Selbsttest `kickoff_loop_photos.py test` „Fotolicht“: Helligkeit bleibt (ΔL 0.001), Farbe exakt,
+Papier/Wand bitgleich, MC1 = Foto; Gegenprobe rgb ΔL 0.077 (Leuchtkasten) schlägt an.
+Gewählt → Schlüssel aus `MC*/MC*.toml [photos]` (ohne `aligned_dir`) nach `loop.toml`, `uv run src/kickoff_loop_photos.py`.
+Gebaut im Worktree `match-cuts` (Branch `worktree-match-cuts`), weil der Harness Edits im Hauptcheckout sperrte.
 
 ## F10 (8.10. nachts) · **wartet auf Vadim** · Resolve-Timeline „F10a-F10i + Song“, Bogen `Vorschau/F10_abcdefghi.png`
 
