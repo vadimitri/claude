@@ -1,0 +1,27 @@
+# Songschnitt fuer die Resolve-Timeline (Vadim 8.10.): IGOR auf ~15 s kuerzen, Brummen → Drums bleibt an seiner Stelle,
+# der Run aus Phrase 2 und der Stopp am Ende bleiben drin. Pfade relativ zu kickoff_loop/.
+source = "ref/audio/igors_theme.mp3"
+grid = "ref/audio/igor_beats.json"
+out_dir = "resolve/schnitt"
+start_song_s = 18.143417   # Vadims Compound "song_F9a.wav" (Timeline F10a-F10i + Song): Quelle ab 109/6 s, minus 1116 Samples Stille vorn
+length_s = 24.791667       # 595 Bilder bei 24 fps, endet im Stopp (1 Beat Stille vor dem Hit)
+xfade_ms = 8               # equal-power, endet kurz vor der Transiente, die die Naht deckt
+snap_ms = 40               # Schnitt wird auf die staerkste Transiente in diesem Fenster um at_s gezogen
+fine_ms = 30               # Taktlaenge wird am 4-Takt-Loop um bis zu so viel nachgemessen (Song liegt nicht exakt auf 81.606 BPM)
+video_s = 13.25            # F9/F10-Vorschau, nur fuer den Bogen
+
+# at_s = Timeline-Zeit des Schnitts, bars = so viele Takte fliegen raus
+[cut.M4a]
+note = "4 Takte raus, Schnitt auf dem Boom des Drum-Einsatzes: ab dort Phrase 2 mit dem Run"
+at_s = 5.89
+bars = 4
+
+[cut.M4b]
+note = "3 Takte raus, Schnitt kurz vor dem Run (Takt 2.3.4): mehr Drums vor dem Run"
+at_s = 9.25
+bars = 3
+
+[cut.M4c]
+note = "3 Takte raus auf dem Taktstrich 2.1: Phrase 2 kommt mit ihrem Bass-Boom (staerkste Eins), Run danach"
+at_s = 7.23
+bars = 3
