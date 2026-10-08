@@ -291,14 +291,14 @@ wall_feather_cells = 12    # Wand-Abdunkeln auf surround_luma laeuft vom Plakatr
 wall_min_gain = 1.0        # Wand hoechstens auf diesen Faktor abdunkeln. Befund 6.10.: die Fotos sind fast alle heller als
                            # surround_luma, 0.35 wirkte nach Abend, 0.5 natuerlich (Bogen photos/ in der Session).
                            # F3 (Vadim 7.10.: "der Hintergrund ist immer so veraendert"): 1.0 = nie abdunkeln; F2 = 0.5
-poster_match_frac = 0.7    # Plakat-Farbe an den Render angleichen: 1 = volle 3x3-Matrix (F2, "sieht aus wie digital"),
+poster_match_frac = 0.8    # MC3 (Vadim 8.10.). Plakat-Farbe an den Render angleichen: 1 = volle 3x3-Matrix (F2, "sieht aus wie digital"),
                            # 0 = keine (F3: nur ein Weissabgleich + Belichtung fuers ganze Foto), dazwischen gemischt.
                            # F4 0.7: Vadim 7.10. "super erkennbar, Saturation stimmt, aber nicht super krass klar"
 wall_edit = false          # false (F4, Vadim 7.10. "Edits auf dem Plakat, Rest natuerlich, keine sichtbare Maske"): Wand = Kamera-
                            # JPG, nur der Papierbogen (Plakat + Druckerrand bis zur Papierkante) wird korrigiert
                            # (kickoff_loop_photos.grade_poster_only). true: F2/F3 (Wand bearbeitet, abgedunkelt)
 aligned_dir = "aligned"    # Ausgabe photos/<aligned_dir>/, liest auch das Video. Match-Cut-Varianten: eigener Ordner (aligned_MC*)
-poster_mode = "rgb"        # "rgb" (F4/F5): Papierbogen linear zur Plakat-Matrix gemischt (poster_match_frac).
+poster_mode = "light"      # MC3 (Vadim 8.10.: "die nehmen wir, die bleibt so"). "rgb" (F4/F5): Papierbogen linear zur Plakat-Matrix gemischt (poster_match_frac).
                            # "light" (MC, 8.10.): Plakat-Farbe Richtung digital, Helligkeit aus dem Foto, ganzes Foto ein Grade.
                            # Befund 8.10.: rgb macht das Plakat zum Leuchtkasten (Weiss/Schwarz vom Render, heller als die Szene)
 poster_light_frac = 0.0    # light: Helligkeit im Plakat 0 = aus dem Foto (Licht, Schatten, Spiegelung echt), 1 = wie digital
@@ -308,8 +308,8 @@ poster_fade_cells = 16     # light: Korrektur laeuft vom Plakatrand nach innen u
 shot_wb_frac = 0.0         # light, ganzes Foto: Weissabgleich aufs Papierweiss (0 aus, 1 Papier ganz neutral)
 shot_expo_frac = 0.0       # light, ganzes Foto: Belichtung Richtung Papier = shot_paper_luma (0 aus, 1 ganz; Plakate gleich hell ueber die Schnitte)
 shot_paper_luma = 0.6      # ... Ziel-Helligkeit des Papiers (linear; ~sRGB 203)
-shot_chroma = 1.0          # light, ganzes Foto: Buntheit (OKLab) x
-shot_contrast = 0.0        # light, ganzes Foto: S-Kurve um Mittelgrau (0 aus, 0.2 deutlich)
+shot_chroma = 1.15         # MC3; light, ganzes Foto: Buntheit (OKLab) x
+shot_contrast = 0.12       # MC3; light, ganzes Foto: S-Kurve um Mittelgrau (0 aus, 0.2 deutlich)
 composite = {45 = "IMG_1104"}   # Plakat → Foto eines anderen Plakats, in das sein Druck montiert wird (Vadim 7.10.: 45 nicht
                            # nachfotografieren). IMG_1104 = 9 im dunklen Rahmen an der Holztuer, frei seit 9 = IMG_0982
 wall_wb_max = 1.25         # Weissabgleich der Wand: Kanalfaktoren hoechstens so weit auseinander (aus der Grauachse des Plakats)

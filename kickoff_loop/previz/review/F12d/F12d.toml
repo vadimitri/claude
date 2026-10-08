@@ -1,0 +1,4 @@
+# F12d Zerfall: auf der Eins steht das rote Ende mit Kick-Licht sofort da, das letzte Wort zerfaellt darueber in 16teln
+[f12]
+end = "dissolve"
+dissolve_beats = 1.0

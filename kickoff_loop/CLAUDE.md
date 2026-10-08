@@ -38,85 +38,56 @@ In dieser Reihenfolge:
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
 5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
-9. **F11 (8.10. abends)**: 7 Ideen gegen das antiklimaktische Ende, alle gebaut (8 Videos), Abschnitt „F11“.
-9. **Match Cuts MC1–MC6 (8.10. abends)**: Foto-Phase realistischer (Plakat kein Leuchtkasten mehr), Abschnitt „Match Cuts“.
+10. **F12 (8.10. nachts)**: F11b + MC3 gewählt; neue Geburt aus dem schwarzen Spark + 7 Enden F12a–g, Abschnitt „F12“.
 8. **F10 (8.10. nachts)**: Blau → Rot über die Ripple-Welle, 9 Varianten gestapelt in Resolve, Abschnitt „F10“.
 7. **F9 (7.10. nachts)**: blauer Spark + Slogan vor dem roten Ende, Abschnitt „F9“ hierunter. Musik schieben: Resolve
    `kickoff_loop_resolve.py song <variante.toml>` (Timeline „<Version> + Song“).
 6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
    weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
 
-## F11 (8.10. abends) · **wartet auf Vadims Codes** · ansehen: Resolve-Timeline „F11a-F11g2 + Song“, `Vorschau/F11_alle_abcd_efg1g2.mp4`, Bogen `Vorschau/F11_abcdefg.png`
+## F12 (8.10. nachts) · **wartet auf Vadims Code** · ansehen: `Vorschau/F12a_draft.mp4` … `F12g_draft.mp4`, `Vorschau/F12_alle_abcdefg.mp4` (nebeneinander, a links), Bogen `Vorschau/F12_sheet.png`
 
-Vadim zu F10 + Songschnitt M4a: „super antiklimatisch; visuell faszinierender, auf den Beat (keine Beat-Größenwechsel,
-subtil oder Schnitte); Begriffe als Platzhalter, dann das Ende, wie es steht“ → 7 Ideen vorgeschlagen, „mach mir all
-diese Ideen“. **Befund vorher** (F10a gegen M4a, mittlere |ΔI| je Bild ×100): 0–5 s ≈ 17, 8–9 s 0.35, 11–12 s 0.10, Ton
-gleichzeitig −15 → −11 dBFS: die zweite Hälfte war ein Standbild, genau wenn IGORs Drums kommen. Das F10-Ende zählte
-Beats ab dem Drum-Boom 5.876 s, der Boom ist synkopiert (+0.7 16tel) → alle Ereignisse ~0.11 s ≈ 3 Bilder hinter dem Beat.
-**Gerüst** (alle, IGORs Raster aus `igor_beats.json` über `song_start_s`, Beat k = 4.2917 + k·0.7352 s): bis Bild 172 F10a
-(`Vorschau/F10a_draft.mp4`), **Takt 2 Eins (7.23 s, Bild 173) = harter Schnitt** in 4 Begriffe je Beat (7.23 / 7.97 / 8.70
-/ 9.44), **Takt 3 Eins (10.17 s) = Endkarte** (SPARK + KICK-OFF/Datum/Ort wie F10), **Stopp 12.38 s** = Schluss. Ein Bild,
-in dem ein Beat liegt, zeigt schon den neuen Zustand (beginnt ≤ 1/24 s davor). Begriffe = Platzhalter `words` in
-`F11/F11.toml` (HARDWARE ROBOTS HACKATHONS PROTOTYPES), alle gleich groß (der längste füllt die Satzbreite), Mitte
-`word_y` 0.43 über dem Spark (mittig auf dem Spark zog das Licht einer Zeile zum Balken = Kasten).
-| Code | Idee | Bildänderung ×100 je s (7 / 8 / 9 / 10) |
-|---|---|---|
-| F11a | **Bayer-Sequencer**: Bayer 4×4 = 16 Schwellen = 16 16tel. Begriff + blauer Lichtfächer setzen je Beat in 4 Bayer-Stufen ein (25/50/75/100 %), Takt 3: Endkarte + Rot in 16teln (1/16 je 16tel), Rest fällt in den Stopp, dann steht das Bild | 5.0 / 0.6 / 0.8 / 0.7 |
-| F11b | **Schrift als Fenster**: Begriff in Zeilen über die ganze Fläche, darin läuft das Karussell digital weiter (Zweier), sonst Schwarz, je Beat schneidet nur die Maske. Takt 3: SPARK ist das Fenster, rote Welle (2 Beats) macht es weiß, bringt Licht + Datum | 6.9 / 3.3 / 4.3 / 10.1 |
-| F11c | **Ein Stern, viele Welten**: Riesenstern fest (K1, r 0.8, dreht 12°/Beat), je Beat Schnitt auf Plakat 12 S31 → 18 S31g → 22 S50 → 28 S48e (Match-Cut auf die Silhouette, kein Rot vor dem Ende). Takt 3: S2 in Rot zieht sich in 1 Beat auf den Spark zusammen | 5.9 / 1.6 / 1.8 / 5.2 |
-| F11d | **Werkstatt-Inserts**: je Beat ein Club-Foto als Duoton (Rampen Blau/Cyan/Limette/Pink, Bayer, Zellraster, σ 0.7 Zellen), 5 % näher je Beat. Takt 3: letztes Foto zerfällt in 4 Stufen (16tel, transponierte Bayer-Folge) ins rote Ende. Fotos = Platzhalter aus der Sporga-Nextcloud (`assets/physical`), Zumo-Produktfoto mit `zoom` 0.42 (Rand weiß aufgefüllt) | 8.1 / 2.3 / 2.7 / 1.7 |
-| F11e | **Puls aus dem Spark**: Spark sendet je Beat eine Sternwelle (F10-Ring, `pulse_wave_pow` 0.55 = schnell raus, bremst), dahinter nächster Begriff + nächstes Licht Blau → Cyan → Limette → Pink, Takt 3 = Rot + Endkarte; Start 0.3 16tel vor dem Beat | 8.8 / 7.3 / 6.7 / 5.0 |
-| F11f | **Lichtregie**: Satz steht, je Beat springt die Lichtquelle des Schweifs außerhalb des Bilds (Kick unten, Snare oben, `light_from`), wandert im Beat ein Stück. Takt 3: roter Spark wie F10 | 4.8 / 0.5 / 0.5 / 0.8 |
-| F11g1 | = F11e, im Stopp hart auf Schwarz | wie F11e |
-| F11g2 | = F11e mit **Songschnitt M4d** (M4a bis zur B-Eins, `resolve/schnitt/M4d.wav`, 16.04 s): im Stopp Standbild in 2 Stufen (Impact) in die Stille, auf dem Hit 13.12 s rote Endkarte mit vollem Licht + Ring, klingt 1 Takt aus, Schluss vor der B-Eins | 13 s: 5.4 |
-Alle außer F11a: im Stopp geht das Licht in einem Bild aus, weiße Schrift steht in der Stille.
-**Selbsttest** `test` am fertigen Video: jeder geplante Schnitt setzt genau auf seinem Beat-Bild ein (> 2× Vorlauf, Helligkeit
-oder Silhouette; F11b: die Welt im Fenster wechselt alle 2 Bilder, nur die Silhouette zeigt den Wortschnitt; F11g2: nach
-dem Hit läuft der Ring weiter, deshalb „Einsatz“ statt „stärkstes Bild“), Mindeststärke gegen Encoder-Rauschen; Gegenprobe
-dieselben Schnitte +3 Bilder (F10-Versatz) schlägt an. 8/8 OK. F11e/g haben in Takt 2 keine Schnitte (Wellen laufen stetig).
-Code: `src/kickoff_loop_f11.py` (eigener Einstieg, rendert ab Bild 173 über `styles.render`-Hooks mit den F10-Bausteinen:
-Licht wie `KE.flare_layer` mit frei liegendem Block, `KE.word_mask`/`date_cap`, `KE.poster_digital` für die Welten,
-Cache wie der Digitalteil + Hash dieses Skripts). Stellschrauben: `previz/review/F11/F11.toml` + je `F11x/F11x.toml`.
-Befunde unterwegs: Fotos als Plakat-Colorway (mehrfarbig) zerfallen im Bayer zu Zebra → Duoton-Rampen; `photo_lum` muss
-float32 sein (PIL „F“ las float64 als Müll = reines Schwarz/Weiß); Titel über wechselnden Welten (F11b) in fester
-Palette, sonst flackert SPARK in jeder Plakatfarbe; auf dem weißen Produktfoto kippt SPARK als ganzes Wort (`flip`).
-Befehle (aus dem Pack-Root): `uv run src/kickoff_loop_f11.py video|sheet|test <F11x.toml> [...]`, `still <toml> <beat> [...]`,
-`song kickoff_loop/previz/review/F11g2/F11g2.toml` (M4d neu). ~20 s je Variante warm, Bogen ~20 s.
-**Offen:** Vadims Wahl (Codes, auch kombiniert, z. B. Lichtfolge aus F11e + Fotos aus F11d); Begriffe; echte Fotos für
-F11d (Personen auf den Platzhaltern sind Clubmitglieder aus dem Sporga-Ordner, vor Veröffentlichung fragen); danach
-die Wahl ins richtige Ende überführen (heute nur Entwurf: Foto-Teil + Digitalteil bis 7.2 s kommen aus der F10a-Vorschau
-auf Zweiern; für `--master` muss F11 in `kickoff_loop_end`/`preview` ab dem Karussell-Ende, nicht als Nachbearbeitung).
-## Match Cuts MC1–MC6 (8.10. abends) · **wartet auf Vadim** · Resolve-Timeline „F10a-MC6 + Song“, Bögen `Vorschau/MC_stills_1|2.png`
-
-Vadim: „die Match Cuts sehen aus wie digital alles reingecutted, das muss realistischer wie Match Cuts aussehen, es geht
-um Farbechtheit“. Videos `Vorschau/MC1_draft.mp4` … `MC6_draft.mp4` (Ende = F10a, nur die Foto-Phase unterscheidet sich).
-**Befund** (Bogen `Vorschau/MC_stills_1|2.png`, 8 Fotos im Startausschnitt, Spalte MC0 = F5): `poster_mode = "rgb"` (F4/F5) zieht
-den Papierbogen zu 70 % auf den Render, also auch dessen Weiß und Schwarz: das Plakat ist heller und kontrastreicher als
-alles andere im Foto (**Leuchtkasten**, am stärksten 31, 49, 57) und hat einen eigenen Weißpunkt; der mitkorrigierte
-Papierrand kippt (20 rosa). Das Papier ist im Foto nie neutral (06 im Schatten bläulich, 01 hinter Glas beige, 20 lila):
-die Kamera hat die Szene abgeglichen, nicht das Papier; ein voller Weißabgleich aufs Papier verfärbt deshalb die Szene.
-**Neu** `poster_mode = "light"` (`kickoff_loop_photos.grade_light`, Schlüssel in `loop.toml [photos]`, Standard = F5):
-Plakat bekommt nur Farbton + Buntheit Richtung digital (`poster_match_frac`), Helligkeit bleibt die des Fotos
-(`poster_light_frac` 0: Licht, Schatten, Spiegelung, Papierkontrast echt), die digitale Farbe bekommt den Lichtstich des
-Fotos (gemessen am unbedruckten Papierrand, `poster_tint_frac`), läuft über `poster_fade_cells` vom Plakatrand ein (dort
-druckt der Lichtabfall ohnehin ins Papier), Papierrand + Wand bleiben Kamera-JPG. Optional ein Grade fürs ganze Foto ohne
-Maske: `shot_wb_frac`/`shot_expo_frac` (aufs Papierweiß, Lichter mit Schulter), `shot_chroma`, `shot_contrast`.
-| Code | Was |
+Vadim 8.10.: „MC3 nehmen wir, die bleibt so, fertig“ + „F11b, aber zwei Übergänge besser“, Rest scrappen.
+1. **Geburt** (für alle F12 gleich): „den schwarzen Spark haben, und da wächst ein neuer Spark vom Loop versetzt in klein
+   raus, der füllt, und ab dem Moment ist die Maske da, auch wenn es länger dauert und wir ein Wort weniger haben“.
+   Ab Beat 4 (7.23 s) läuft das MC3-Video weiter (dunkler Spark wächst über das letzte Plakat), darin wächst ab
+   `birth_xy` ein neuer Spark, um 30° versetzt (Zacken zwischen denen des dunklen), als Fenster in den weiterlaufenden
+   Loop (Plakat je 2 Bilder), konstante Zoomrate, Mitte wandert zur Bildmitte. Letztes Bild vor Beat 5 deckt er das Bild
+   (`cover_r`, Stern ist sternförmig: der Rand reicht), auf Beat 5 (7.97 s) steht die Maske HARDWARE. Ab Bild
+   `base_until` (181, dort zeigt MC3 den alten blauen Slogan) ist außerhalb Schwarz + weißes SPARK. 3 Begriffe statt 4.
+2. **Ende** (Takt 3 Eins 10.17 s, „soll kicken, auflösen, dann kommt nochmal ein Spark“). Gemeinsam: Zündung = roter
+   Spark mit Kick-Licht (Schweif ×`kick_glow` 3, klingt in 0.35 Beat ab) + Welle in 1 Beat, schnell raus (F11b: 2 Beats,
+   gleichmäßig); Stopp 12.38 s Licht aus wie F11b.
+| Code | Ende |
 |---|---|
-| MC1 | roh: Kamera-JPG, keine Farbbearbeitung |
-| MC2 | Fotolicht: Plakatfarbe 0.8 Richtung digital, Licht aus dem Foto |
-| MC3 | MC2 + ganzes Foto bunter (x1.15) + S-Kurve 0.12 |
-| MC4 | MC2 + jedes ganze Foto halb aufs Papierweiß abgeglichen (Plakate über die Schnitte gleich hell) |
-| MC5 | Halblicht: 35 % Helligkeit digital, Lichtstich 70 % (zwischen F5 und MC2) |
-| MC6 | roh + ganzes Foto bunter + S-Kurve, keine Plakatbearbeitung |
-Je Variante eigene Platten `photos/aligned_MC*/` (+ `plates.png`, `colors.png` dort), `photos/aligned/` (F5) unberührt:
-`uv run src/kickoff_loop_photos.py <MC*.toml ...>` (Wahl + Farbmessung einmal, Grade je TOML). `[photos].aligned_dir`
-liest auch das Video. Selbsttest `kickoff_loop_photos.py test` „Fotolicht“: Helligkeit bleibt (ΔL 0.001), Farbe exakt,
-Papier/Wand bitgleich, MC1 = Foto; Gegenprobe rgb ΔL 0.077 (Leuchtkasten) schlägt an.
-Gewählt → Schlüssel aus `MC*/MC*.toml [photos]` (ohne `aligned_dir`) nach `loop.toml`, `uv run src/kickoff_loop_photos.py`.
-Gebaut im Worktree `match-cuts` (Branch `worktree-match-cuts`), weil der Harness Edits im Hauptcheckout sperrte.
+| F12a | **Sog**: letzte ½ Beat schneidet ein schrumpfender Spark das Wort zusammen (zieht an), auf der Eins Zündung aus dem Punkt |
+| F12b | **Implosion**: die Zeilen werden in ½ Beat in den Spark gezogen (Maske schrumpft um den Slash), Zündung |
+| F12c | **Noch ein Spark**: auf der Eins bleibt die Welt im Wort stehen, aus dem Slash wächst wie bei der Geburt ein Spark mit dem roten Ende darin, deckt nach 1 Beat |
+| F12d | **Zerfall**: rotes Ende mit Kick sofort, das Wort liegt darüber und zerfällt in 16teln (transponierte Bayer-Folge, 1 Beat) |
+| F12e | **Loch**: der rote Spark schlägt ein Loch in die Wörter (Welle ¾ Beat, sehr schnell raus), draußen läuft das Wort weiter |
+| F12f | **Schwarzer Spark**: der Anfang umgekehrt, ein schwarzer Spark wächst in ½ Beat über die Wörter, deckt auf der Eins, darin zündet der rote |
+| F12g | = F11b-Ende mit Kick: SPARK wird Fenster, Zündung, Welle 1 Beat statt 2 (Kontrolle zum alten Ende) |
+Code `src/kickoff_loop_f12.py` (Nachfolger von `kickoff_loop_f11.py`, F11a/c–g gelöscht, Stand 70d8f09), Stellschrauben
+`previz/review/F12/F12.toml` + je `F12x/F12x.toml` (`end` + Abweichungen). Befehle (Pack-Root): `uv run src/kickoff_loop_f12.py
+video|sheet|test <F12x.toml> [...]`, `still <toml> <beat> [...]`. Basis = `Vorschau/MC3_draft.mp4` (Entwurf auf Zweiern);
+für `--master` muss F12 wie F11 ins richtige Ende (`kickoff_loop_end`/`preview`), nicht als Nachbearbeitung.
+**Selbsttest** `test` am fertigen Video: jeder Schnitt (Maske nach der Geburt, Begriffe, Takt 3 außer F12c, Stopp) setzt auf
+seinem Beat-Bild ein, Gegenprobe +3 Bilder schlägt an, Geburt deckt das Bild vor der Maske (< 0.5 % Schwarz).
+Stand 8.10.: 7/7 OK (Takt 3 x2.6–16.9, Gegenprobe je 1/5); Deckung gegengeprüft: 1 Bild früher 9 % Schwarz.
+**Offen:** Vadims Code; Begriffe (Platzhalter `words`); danach ins richtige Ende überführen.
 
-## F10 (8.10. nachts) · **wartet auf Vadim** · Resolve-Timeline „F10a-F10i + Song“, Bogen `Vorschau/F10_abcdefghi.png`
+## F11 + Match Cuts (8.10. abends) · **entschieden: F11b + MC3**, Rest gelöscht
+
+F11a–g2 (7 Ideen gegen das antiklimaktische Ende) und MC1–MC6 (Farbechtheit der Fotos) liegen nur noch im Git: F11 =
+Commit 70d8f09 (Abschnitt „F11“ dort), MC = 50a6563. Videos/Platten im Papierkorb `~/.Trash/motion-pack_vorschau_2026-10-08`.
+- **MC3 gilt** (`loop.toml [photos]`): `poster_mode = "light"` (Plakat bekommt nur Farbton + Buntheit Richtung digital,
+  Helligkeit/Licht/Schatten aus dem Foto, `kickoff_loop_photos.grade_light`), `poster_match_frac` 0.8, ganzes Foto
+  `shot_chroma` 1.15 + S-Kurve `shot_contrast` 0.12. Platten in `photos/aligned/` (aus `aligned_MC3` übernommen, F5 weg).
+  Befund dahinter: `rgb` (F4/F5) machte das Plakat zum Leuchtkasten (Weiß/Schwarz vom Render, heller als die Szene).
+- **F11b gilt** als Kern von F12 (Begriff in Zeilen über die ganze Fläche als Fenster, darin läuft der Loop weiter).
+  Befund F11 bleibt: Ereignisse immer auf IGORs Raster (`igor_beats.json`), nicht ab dem synkopierten Drum-Boom zählen.
+
+## F10 (8.10. nachts) · **überholt durch F11/F12** (F10a-Ende = Basis bis Bild 180), Videos gelöscht
 
 Vadim zu F9: „der Wechsel von Blau zu Rot mit Animation: der Spark ist ganz klein, dann rippelt er, dadurch wird das
 Leuchten weniger, der Text zerfällt, es entsteht direkt der neue; verschiedene Versionen, in Resolve übereinander“.

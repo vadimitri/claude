@@ -1,0 +1,5 @@
+# F12e Loch: auf der Eins schlaegt der rote Spark ein Loch in die Woerter (schnelle Welle), darin das Ende
+[f12]
+end = "hole"
+kick_wave_beats = 0.75
+kick_wave_pow = 0.45

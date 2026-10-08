@@ -1,7 +1,0 @@
-# F11a Bayer-Sequencer: Bayer 4x4 = 16 Schwellen = 16 Sechzehntel. Begriff setzt je Beat in 4 Bayer-Stufen ein (eine
-# je 16tel), das blaue Licht waechst mit; Takt 3: KICK-OFF/Datum/Ort in 16teln (1/16 je 16tel), Rest faellt in den Stopp.
-[f11]
-idea = "sequencer"
-stop = "freeze"
-steps_per_beat = 4
-seq_glow_scale = 2.4         # Lichtschweif (ln-Massstab um den Spark, F10 1.6): gross genug, dass man das Drucken sieht

@@ -1,7 +1,0 @@
-# F11e Puls aus dem Spark: der Spark hinter dem Slash schickt je Beat eine Sternwelle, dahinter naechster Begriff +
-# naechstes Licht (Blau, ramps, Rot auf Takt 3). Welle startet vor dem Beat, damit die Front auf dem Beat am Wort ist.
-[f11]
-idea = "pulse"
-pulse_wave_pow = 0.55        # schnell aus dem Spark, dann bremsend (Ripple-GIF)
-pulse_wave_beats = 1.0        # Front vom Spark bis aus dem Bild (reach 1.35 wie F10)
-wave_lead_16ths = 0.3         # Front ist auf dem Beat schon ueber der Wortmitte

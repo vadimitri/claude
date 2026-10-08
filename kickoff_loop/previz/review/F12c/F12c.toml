@@ -1,0 +1,6 @@
+# F12c Noch ein Spark: auf der Eins bleibt die Welt im Wort stehen, aus dem Spark waechst wie bei der Geburt das rote Ende
+[f12]
+end = "rebirth"
+rebirth_r0 = 0.035     # wie der rote Spark (orbit_flare_r_frac)
+rebirth_beats = 1.0    # deckt das Bild nach 1 Beat
+card_cut = false       # Selbsttest: auf der Eins kein Schnitt, der Spark waechst aus einem Punkt

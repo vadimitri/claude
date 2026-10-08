@@ -1,0 +1,4 @@
+# F12a Sog: das letzte Wort wird in der letzten halben Beat-Laenge von einem schrumpfenden Spark zusammengeschnitten,
+# auf der Eins von Takt 3 verschwindet es im Punkt und der rote Spark zuendet
+[f12]
+end = "sog"
