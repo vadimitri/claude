@@ -9,10 +9,12 @@ nachgezeichnet. Logik `src/zumo_sprites.py`, alle Werte `zumo_sprites.toml`, Dem
 ```
 uv run src/zumo_sprites.py variants          Variantenbogen Z1..Z9 -> previz/now/variants.png (Vadim waehlt per Code)
 uv run src/zumo_sprites.py look Z4           eine Variante gross, 8 Ansichten, Echtfarben + P1 -> previz/now/look_Z4.png
+uv run src/zumo_sprites.py eyes Z4           Augenbogen E1..E6 (3/4 + Heck, idle + win) -> previz/now/eyes_Z4.png (~30 s)
 uv run src/zumo_sprites.py sheet [Z4]        alle Richtungen x Paletten + 4 GIFs -> previz/now/
 uv run src/zumo_sprites.py test [Z4]         Selbsttest am fertigen Sprite (Loop, Ketten, Augen, Durchsicht, Leinwand)
 uv run src/zumo_sprites.py export Z4         alles -> ~/vault/Files/03 Work/Spark/Assets/Zumo Sprites/Z4/ (~5 min)
-uv run src/zumo_sprites_demo.py              Sumo-Demo (Iso, P1, Z7) -> previz/now/demo_sumo.{mp4,gif}
+uv run src/zumo_sprites_demo.py              Sumo-Demo (Iso, P1, Z7) -> previz/now/demo_sumo.{gif,mp4} + demo_sumo_alpha.mov,
+                                             Kopie nach <export>/demo/ (GIF + ProRes 4444 transparent, MP4 auf Nacht-Grund)
 uv run --with trimesh --with networkx src/zumo_sprites.py mesh    nur wenn sich das glb aendert -> ref/zumo_mesh.npz
 ```
 `--no-open` unterdrueckt das Oeffnen. Quelle: `~/Movies/ZumoWire/zumo.glb` (aus dem Pololu-STEP, siehe ZumoWire/README).
@@ -65,22 +67,41 @@ Animationen (8 Frames, 12 fps): drive, reverse, turn_left, turn_right, idle, pus
 - **Demo = echte Pixel-Art** (Vadim 7.10. zur ersten Fassung: Ring "zu High Fidelity", Bewegung "nicht posterized", "zu
   fake"): flache Flaechen in Palettenstufen, kein Bayer-Lichtkegel, keine weichen Verlaeufe; alles auf 12-fps-Ticks und
   ganzen Pixeln, Keys linear (kein Smoothstep), Funke als Stempel. Das gilt fuer jede Szene mit diesen Sprites.
+- **Augenregel E5** (Vadim 8.10.: 3/4 vorne/hinten "nicht so suess", mit dem Keil nach oben wirkt er "andersrum").
+  Befund: das OLED steht physikalisch nach hinten (Pololu-Text von vorne kopfueber, Foto 0J12327), ein aufrechtes Gesicht
+  von hinten liest sich als Front. E5: tq 45/90/135 ohne Augen (Hinterkopf), tq 225/315 Augen 20 % nach vorne und auf
+  der Bildschirmebene (Iso-Treppe, 2 px Versatz). Codes E1..E6 in `[eye_styles]`, Bogen `eyes`, Wahl `[eyes] style`.
+  **Die Ansichten, die Vadim gut fand, bleiben unangetastet** (Vadim 8.10.): Draufsicht, Seite, Front (auch Heck
+  front 90), tq 0/180/270. Gemessen: Augen in 207/207 Sprites pixelgleich zum Stand 8.10., Draufsicht/Seite/Front 0 px.
+- **3/4 bereinigt** (`[views.tq] tidy`, Vadim 8.10.: "manche 3/4 sehen nur verpixelt aus"). Befund: die Vertiefung
+  (tiefer als das Minimum im Umkreis) dunkelte in 3/4 steile Ebenen fleckig ab, 406 px auf dem ebenen Schild in tq 225.
+  Jetzt nur konkav (tiefer als die Mitte zweier gegenueberliegender Nachbarn) + Wert-Inseln < 3 px gehen im Umfeld auf
+  (Bolzen, Linsen, Elkos ausgenommen; 5 px frisst die Ritzel). Beides nur in tq; Selbsttest misst den Schild.
+- **Demo v3** (Vadim 8.10.): schneller (10 px/Tick), A (315) rammt B (225) an der Flanke und schiebt ihn ueber die
+  vordere Kante (Fall vor der weissen Kante bleibt sichtbar), Rand 8/4 px, Kante weiss mit 1-px-Lippe Stufe 4, Ring mit
+  Kontur, Grund transparent (Slides, Videos). Kontakt-Gate am Boden statt im Bild: in Iso ueberdecken sich die Sprites
+  auch ohne Beruehrung (430 px), deshalb Abstand der Drehpunkte = Schildspitze + halbe Breite (37.7 px) +- 1.5.
 - Ritzelkreise mit 36/18 Segmenten (durch 6 teilbar): 60 Grad Drehung = deckungsgleich, Loop nahtlos.
 - Pool: `OPENBLAS_NUM_THREADS=1` (gemessen: Export 6 min, Systemzeit > Nutzerzeit durch BLAS-Ueberbuchung).
 
 ## Varianten (Codes stabil, nie umnummerieren)
 
 Z1 CAD 2 mm/px · Z2 Spielzeug 2 mm/px · Z3 Chibi 2 mm/px (Kopf 1.3) · **Z4 Chibi 2.6 mm/px (Vadim 8.10.: gewaehlt)** ·
-Z5 Mini 3.2 mm/px · Z6 Gross 1.5 mm/px · Z7 = Z4 mit Sticker-Kontur · Z8 = Z4 ohne Augen · Z9 = Z7 ohne Augen.
+Z5 Mini 3.2 mm/px · Z6 Gross 1.5 mm/px · Z7 = Z4 mit Sticker-Kontur · Z8 = Z4 ohne Augen · Z9 = Z7 ohne Augen ·
+Z10 = Z6 ohne Augen (Detail-Grossaufnahmen). Vadim 8.10.: Z4 mit Augen ist der Look, Z8 (ohne Augen) und Z7 (Sticker)
+bleiben parallel, Z10 fuer Detail-Shots. Augenregel: E1 Stand 8.10. · E2 Hinterkopf · E3 + nach vorne ·
+E4 + 3/4-Gesicht (fernes Auge schmal) · **E5 + Bildschirmebene (Standard)** · E6 = E4 + Bildschirmebene.
 
-## Stand 8.10. (Nacht)
+## Stand 8.10. (Abend)
 
-Exportiert: Z4, Z7, Z8, Z9 (mit Keil-Schild). Demo `demo_sumo` v2 (Z7, P1, Pixel-Art auf Ticks). Selbsttest gruen fuer
-Z2-Z9 (Z1: Loop/Durchsicht nicht geprueft, die STEP-Ritzel haben keine 60-Grad-Symmetrie).
+Branch `claude/zumo-sprites` (Worktree erzwungen). Exportiert: Z4, Z7, Z8, Z9, Z10 mit E5 + 3/4-Bereinigung,
+`augen_E1-E6.png` im Vault. Demo v3 (Z7, P1, transparent). Selbsttest gruen fuer Z2-Z10.
 
 ## Offen
 
-- Z4 ist der Look. Offen: mit oder ohne Augen (Z4/Z8), Sticker-Kontur fuer dunkle Gruende (Z7/Z9), weitere Paletten.
+- Vadim: E5 abnehmen oder anderen E-Code waehlen (eine Zeile `[eyes] style`, dann Export neu).
+- Sprites + Demo in die Spark-Vorlagen in Figma (Vadim 8.10.: "muss es in Figma in unserer Spark Template haben").
+  Sheets `value` sind die Graustufen fuer die Spark Lens.
 - Demos fuer Spormula E (Linie folgen, Draufsicht 16 Richtungen) und Area Capture (Schleife faehrt, Flaeche fuellt sich flach,
   Tick fuer Tick) — gleicher Aufbau wie `zumo_sprites_demo.py`.
 - Zwischenrichtungen fuer `tq` (16 statt 8) falls Kurvenfahrten in Iso gebraucht werden: eine Zeile in `[views.tq]`.
