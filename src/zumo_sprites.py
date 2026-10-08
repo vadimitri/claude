@@ -29,7 +29,7 @@ from multiprocessing import Pool
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import binary_fill_holes, distance_transform_edt, label
+from scipy.ndimage import binary_fill_holes, distance_transform_edt, label, minimum_filter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT = os.path.join(ROOT, "zumo_sprites")
@@ -507,8 +507,9 @@ def sprite(cfg, view, dir_deg, anim="drive", frame=0):
     val = np.where((win == MAT["track"]) & (gfrac > 0.5), np.maximum(val - 1, 0), val)
     # Pixel-Art-Nacharbeit: Vertiefungen dunkler, Lichtkante oben links, Innenlinien hinter Tiefenspruengen
     dz = np.where(opaque, depth, np.inf)
+    tidy = cfg["views"][view]["tidy"]                              # Bereinigung nur, wo sie verlangt war (3/4)
     if r["cavity_mm"]:
-        rec = cavity(dz, r["cavity_px"], r["cavity_mm"])
+        rec = cavity(dz, r["cavity_px"], r["cavity_mm"], tidy)
         RECESS[:] = [rec & (win == MAT["steel"])]                  # fuer den Selbsttest: Schild ist eben
         val = np.where(rec, np.maximum(val - 1, 0), val)
     nb = lambda a, dy, dx, fill: np.pad(a, 1, constant_values=fill)[1 + dy:1 + dy + H, 1 + dx:1 + dx + W]
@@ -525,7 +526,7 @@ def sprite(cfg, view, dir_deg, anim="drive", frame=0):
         val = np.where(opaque & closer, 0, val)
     if r["despeckle"]:
         val = despeckle(val, opaque)
-    if r["value_island_px"]:                                       # Splitter aus Licht/Linie/Vertiefung: ein Pixel-Artist
+    if tidy and r["value_island_px"]:                              # Splitter aus Licht/Linie/Vertiefung: ein Pixel-Artist
         keep = np.isin(win, [MAT[m] for m in r["island_keep"]])    # setzt keine 1-2-px-Inseln (Vadim 8.10.: "nur pixelized")
         val = np.where(keep, val, clean_islands(np.where(keep, -1, val), opaque & ~keep, r["value_island_px"], []))
     out = np.where(opaque, val + 1, 0).astype(np.uint8)
@@ -542,10 +543,14 @@ def sprite(cfg, view, dir_deg, anim="drive", frame=0):
     return np.roll(out, bob, 0)                                    # Hopser: Rand ist frei (margin_px > Hopser)
 
 
-def cavity(dz, k, mm):
+def cavity(dz, k, mm, concave=True):
     """Vertiefung = konkav: tiefer als die Mitte zweier gegenueberliegender Nachbarn (Abstand k, waagrecht, senkrecht,
     diagonal). Eine schraege Ebene ist das nie. Vorher: tiefer als das Minimum im Umkreis -> in 3/4 wurden Schild und
-    Kettenflanken (steile Ebenen, > 2 mm Tiefe pro Pixel) fleckig dunkel, "sieht nur verpixelt aus" (Vadim 8.10.)."""
+    Kettenflanken (steile Ebenen, > 2 mm Tiefe pro Pixel) fleckig dunkel, "sieht nur verpixelt aus" (Vadim 8.10.).
+    concave=False = alte Regel, bleibt fuer Draufsicht, Seite, Front (so abgenommen, dort kaum steile Ebenen)."""
+    if not concave:
+        with np.errstate(invalid="ignore"):                       # inf - inf ausserhalb der Silhouette
+            return (dz - minimum_filter(dz, size=2 * k + 1) > mm) & np.isfinite(dz)
     H, W = dz.shape
     p = np.pad(dz, k, constant_values=np.inf)
     at = lambda dy, dx: p[k + dy:k + dy + H, k + dx:k + dx + W]
@@ -630,7 +635,7 @@ def stamp_eyes(cfg, out, win, g, view, dir_deg, face):
         eyes = [(side[0], np.rot90(st, k)), (side[1], np.rot90(st[:, ::-1], k))]
     else:
         t = math.radians(dir_deg)
-        if math.sin(t) > e["away_sin"] and not e["show_away"]:
+        if math.sin(t) > e["away_sin"] and not e["show_away"] and view in e["away_views"]:
             return out                                             # Hinterkopf: das OLED schaut nach hinten, ein Gesicht
                                                                    # von hinten liest sich als Front (Vadim 8.10.: "andersrum")
         sep = max(abs(side[0][0] - side[1][0]), st.shape[1] + e["min_gap_px"])
@@ -933,7 +938,7 @@ def selftest(cfg):
         rows = eye_rows()
         if len(rows) != 2 or abs(rows[0] - rows[1]) > 0.5:
             fails.append(f"Augen tq {d}: {len(rows)} Augen, Zeilen {rows}")
-    for v, d in (("tq", 45), ("tq", 90), ("tq", 135), ("front", 90)) if e["show"] and not e["show_away"] else ():
+    for v, d in (("tq", 45), ("tq", 90), ("tq", 135)) if e["show"] and not e["show_away"] else ():
         sprite(cfg, v, d, "idle", 0)                               # alter Fehler: von hinten schaut ihn ein Gesicht an,
         if eye_rows():                                             # er wirkt "andersrum" (Vadim 8.10.)
             fails.append(f"Hinterkopf {v} {d}: {len(eye_rows())} Augen sichtbar")
