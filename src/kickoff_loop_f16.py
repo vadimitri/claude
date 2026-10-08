@@ -3,23 +3,25 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy", "pillow", "scipy", "qrcode", "scikit-image", "opencv-python-headless", "img2pdf"]
 # ///
-"""F15 = Ende nach Vadims Feedback zu F14 (8.10.), Foto-Phase MC3, ein Ablauf:
+"""F16 = Ende nach Vadims Feedback zu F15 (8.10.), Foto-Phase MC3, ein Ablauf:
 
-1. Maske (mask_beat → pull_beat): der dunkle Spark des MC3-Videos (KE.orbit_state, fliegt ueber die letzten Plakate auf
-   die Kamera zu und macht alles schwarz) ist die Maske. Darin die Wortwand ueber den ganzen Bildschirm, in den
-   Buchstaben laeuft der Loop weiter; ausserhalb das MC3-Bild, bis er es deckt. Vadim: "der ist ja schon posterized, da
-   ist es nicht so schlimm, wenn er nicht verschiedene Formen annimmt; dann haben wir genug Zeit fuer die Begriffe".
-   Begriffe wechseln auf words_change.
-2. Vorhang (pull_beat → erste Stufe): die Woerter stehen, ein Spark-Loch in Deckgroesse auf F1 (Silhouette im Stil des
-   Plakats dahinter, wechselt je Plakat) zieht geradeaus zur Seite weg, Tempo erst steigend, dann konstant, Groesse
-   bleibt (F14 schrumpfte in die Tiefe und liess einen Zwerg uebrig, der in einem Bild verschwand).
+1. Maske (mask_beat → pull_beat): der echte dunkle Spark des MC3-Videos. Je MC3-Bild (Digitalteil auf Zweiern) sind
+   die Zellen in seinem Sternkoerper Maske, die im MC3-Bild dunkel sind (mask_dark_luma), dazu der Titel dort; hellere
+   gerasterte Baender des Sparks und alles ausserhalb bleiben MC3 (Vadim zu F15: "warum ein neuer Spark statt der
+   echten? Mismatch, Posterization fehlt"). In der Maske die Wortwand, in den Buchstaben der Loop: solange der dunkle
+   Spark auf der Bahn ist, genau sein Plakat mit hellem Spark an seiner Stelle (deckungsgleich), danach im
+   Karussell-Tempo weiter, so dass im letzten Wandbild F1 steht. Ab base_until (MC3 zeigt den alten Slogan) deckt er.
+2. Vorhang (pull_beat → erste Stufe): die Woerter stehen, das Loch ist der Plakat-Spark auf F1 (Silhouette im Stil des
+   Plakats dahinter) und zieht mit der Geschwindigkeit der Loop-Bahn an F1 geradeaus weiter, wie die Sparks hinter den
+   Woertern, bis er draussen ist (F15 war x5 so schnell).
 3. Tonleiter (steps, gemessene Bass-Einsaetze C2 / D2 / D#2): je Stufe neue Kartenzeilen, roter Spark hinter dem Slash.
-   Eine neue Zeile leuchtet ein (Rampe glimmend rot → weiss, intro_beats), ihr Halo waechst dabei von klein auf
-   (ease-in-out), alle aelteren wachsen ein Stueck mit (glow_bump_frac); alle Halos atmen und flackern leicht. Nach der
-   letzten Stufe + fade_hold_beats schrumpft und dunkelt alles Licht in fade_beats, die Schrift zerfaellt mit → Schwarz.
+   Eine neue Zeile leuchtet ein (Rampe glimmend rot → weiss, intro_beats), ihr Halo waechst von klein auf
+   (ease-in-out), jede spaetere Stufe gibt allen aelteren glow_bump_frac dazu, alle kriechen stetig weiter: kein Halo
+   wird kleiner (F15 atmete). Nach der letzten Stufe + fade_hold_beats schrumpft und dunkelt alles Licht in fade_beats,
+   die Schrift zerfaellt mit → Schwarz.
 
-Stellschrauben: kickoff_loop/previz/review/F15/F15.toml. Licht wie das F10-Ende (kickoff_loop_end.flare_layer).
-  uv run src/kickoff_loop_f15.py video|sheet|test <F15.toml>     still <F15.toml> <beat> [...]
+Stellschrauben: kickoff_loop/previz/review/F16/F16.toml. Licht wie das F10-Ende (kickoff_loop_end.flare_layer).
+  uv run src/kickoff_loop_f16.py video|sheet|test <F16.toml>     still <F16.toml> <beat> [...]
 """
 import copy
 import functools
@@ -48,16 +50,16 @@ CELL = S.BASE["R"] * S.SIZES[FMT][2]                  # 4 Ausgabepixel pro Zelle
 SRC = hashlib.sha1(open(__file__, "rb").read()).hexdigest()[:12]   # im Cache-Schluessel: Aenderungen hier rendern neu
 EPS = 1e-6
 OFF = (-3240.0, -5760.0, 1.0, 0.0)                    # Plakatstern weit ausserhalb (schwarze Szenen)
-COVER = 1.02           # Loch deckt das Bild: weitestes Pixel x so viel (Rand im Korn)
-FLICKER_PER_BEAT = (2.7, 4.1)   # Flackern = zwei Sinus mit unteilbaren Frequenzen (~3.7 / 5.6 Hz): wirkt unregelmaessig
+LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
 EVENT_RATIO = 2.0      # test: ein Schnitt setzt auf seinem Bild ein: doppelt so stark wie das Bild davor und der Median davor
 EVENT_MIN = 0.003      # ... und mindestens so viel mittlere Aenderung (Encoder-Rauschen im Standbild ~0.0002)
 BLACK_LUM = 0.03       # Silhouette = Zellen ueber Schwarz
-LIT_LUM = 0.10         # test "Woerter stehen" / "kein Zwerg": sicher hell (Encoder-Saum an Buchstabenkanten liegt darunter)
+LIT_LUM = 0.10         # test "Woerter stehen": sicher hell (Encoder-Saum an Buchstabenkanten liegt darunter)
 OLD_SHIFT = 3          # Gegenprobe: dieselben Schnitte 3 Bilder spaeter
 GROW_PROBE_BEATS = 0.6 # test "Halo waechst": Lichtflaeche so lange nach der Stufe gegen das Bild der Stufe (vor der naechsten)
 INTRO_RATIO = 0.6      # test "leuchtet ein": neue Zeile auf ihrer Stufe hoechstens so hell wie nach intro_beats
 SAME_MC3 = 0.02        # test "Maske": ausserhalb mittlere Abweichung vom MC3-Bild hoechstens (Encoder), innen mindestens 0.05
+NEVER_LESS = 0.003     # test "Halo nie kleiner": Lichtflaeche faellt von Bild zu Bild hoechstens so viel (Encoder, Korn)
 
 
 # ---------------------------------------------------------------- Konfiguration und Raster
@@ -70,7 +72,7 @@ def main_root():
 
 
 def load(path):
-    f = tomllib.load(open(path, "rb"))["f15"]
+    f = tomllib.load(open(path, "rb"))["f16"]
     f["code"], f["toml"] = os.path.splitext(os.path.basename(path))[0], os.path.abspath(path)
     cfg = KL.load(os.path.join(KL.ROOT, f["base_toml"]))
     g = json.load(open(os.path.join(KL.ROOT, f["grid"])))
@@ -81,9 +83,13 @@ def load(path):
     assert len(ch) == len(f["words"]) - 1 and ch == sorted(ch), "words_change: je Begriff nach dem ersten ein Beat, steigend"
     assert f["mask_beat"] < ch[0] and ch[-1] < f["pull_beat"] < f["steps"][0], "mask_beat < words_change < pull_beat < steps"
     assert len(f["steps"]) == len(f["step_items"]), "steps / step_items"
-    assert 0 < f["pull_accel_frac"] <= 1 and math.hypot(*f["pull_dir"]) > 0, "pull_accel_frac in (0, 1], pull_dir != 0"
     assert 0 <= f["intro_level"] < 1 and f["intro_beats"] > 0 and f["glow_grow_beats"] > 0, "intro_* / glow_grow_beats"
     assert os.path.exists(f["song"]) and os.path.exists(f["base_video"]), "Song oder MC3-Video fehlt"
+    n0, n2, n3 = marks(f)
+    assert n0 < switch_frame(cfg, f) < n2, "der dunkle Spark verlaesst die Bahn nicht zwischen mask_beat und pull_beat"
+    need = curtain_frames(cfg, f)
+    assert need <= n3 - n2, (f"Vorhang braucht {need} Bilder im Loop-Tempo, hat {n3 - n2}: pull_beat <= "
+                             f"{tb_of(f, n3 - need) - 1 / (f['beat'] * FPS):.2f}")
     return cfg, f
 
 
@@ -106,13 +112,25 @@ def n_end(f):
 
 
 def marks(f):
-    """Eckbilder: erstes mit Maske, letztes der Wortwand (deckt ganz), letztes des Vorhangs (Loch draussen, schwarz)."""
+    """Eckbilder: erstes mit Maske, letztes der Wortwand (F1), letztes des Vorhangs (Loch draussen, schwarz)."""
     return frame_at(f, f["mask_beat"]), frame_at(f, f["pull_beat"]) - 1, frame_at(f, f["steps"][0]) - 1
 
 
-def zoom_dt(cfg, n):
-    """Sekunden nach dem Karussell-Ende (Zeitachse des F10-Endes, KE.orbit_state)."""
-    return (n - round(cfg["music"]["grid"]["burst_s"] * FPS)) / FPS
+def zoom_end(cfg):
+    return round(cfg["music"]["grid"]["burst_s"] * FPS)
+
+
+def mc3_dt(cfg, n):
+    """Zeit des Digitalteils, die MC3-Bild n zeigt: Entwurf auf Zweiern (kickoff_loop_video.digital_frames)."""
+    k = n - zoom_end(cfg)
+    return (k - k % V.DRAFT_STEP) / FPS
+
+
+def mc3_pair(cfg, n):
+    """Erstes Bild des Zweiers von n (beide zeigen denselben Render; die Maske kommt aus diesem, sonst flackert sie mit
+    dem Encoder-Rauschen)."""
+    k = n - zoom_end(cfg)
+    return zoom_end(cfg) + k - k % V.DRAFT_STEP
 
 
 def base_until(cfg):
@@ -125,7 +143,7 @@ def smooth(u):
     return u * u * (3 - 2 * u)
 
 
-# ---------------------------------------------------------------- Lage der Loecher (Bildanteile, r = Anteil Bildbreite)
+# ---------------------------------------------------------------- Bahn: dunkler Spark, Loop in den Buchstaben, Vorhang
 
 def loop_star(cfg, phase):
     """Loop-Stern bei Bahnphase phase (Frames) im 9:16-Bild, umgerechnet wie KE.poster_digital."""
@@ -137,9 +155,9 @@ def loop_star(cfg, phase):
 
 
 def dark(cfg, n):
-    """Der dunkle Spark des MC3-Videos in Bild n (Befund 8.10.: Umriss liegt auf Bild 159-190 genau auf ihm)."""
+    """Der dunkle Spark in MC3-Bild n (Bildanteile)."""
     W, H = S.SIZES[FMT][:2]
-    x, y, R, rot = KE.orbit_state(cfg, zoom_dt(cfg, n))["loop"]["digital"]["star"]
+    x, y, R, rot = KE.orbit_state(cfg, mc3_dt(cfg, n))["loop"]["digital"]["star"]
     return x / W, y / H, R / W, rot
 
 
@@ -152,51 +170,76 @@ def core_cells(pose):
     return np.hypot(dx, dy) < star_r(dx, dy, rot % KE.STAR_SYM_DEG) * r * W
 
 
-def cover_r(x, y, rot):
-    """Spitzenradius (Anteil Bildbreite), ab dem der Spark um (x, y) jede Zelle deckt (sternfoermig: der Rand reicht)."""
-    W, H = S.SIZES[FMT][:2]
-    gy, gx = np.mgrid[0:H // CELL, 0:W // CELL].astype(np.float32)
-    dx, dy = (gx + 0.5) * CELL - x * W, (gy + 0.5) * CELL - y * H
-    return float((np.hypot(dx, dy) / star_r(dx, dy, rot)).max()) * COVER / W
+def switch_frame(cfg, f):
+    """Erstes Bild ab mask_beat, in dem der dunkle Spark die Bahn verlaesst (MC3 taucht in ihn ein)."""
+    n = marks(f)[0]
+    while KE.orbit_star(cfg, mc3_dt(cfg, n))["loop"]:
+        n += 1
+    return n
+
+
+def inner(cfg, f):
+    """(Bild, Phase, Tempo) des Loops in den Buchstaben ab dem Verlassen der Bahn: startet auf der Phase des dunklen
+    Sparks, Tempo ~Karussell, so dass im letzten Wandbild F1 steht (naechstes Vielfaches des Umlaufs)."""
+    ns, n2 = switch_frame(cfg, f), marks(f)[1]
+    p0 = KE.orbit_phase(cfg, mc3_dt(cfg, ns))
+    rate = cfg["loop"]["changes_per_bar"] / 4 / f["beat"] / FPS          # Plakate pro Bild (T16)
+    N = KL.count(cfg)
+    target = round((p0 + rate * (n2 - ns)) / N) * N
+    return ns, p0, (target - p0) / (n2 - ns)
 
 
 def phase(cfg, f, n):
-    """Bahnphase (Bahnframes, absolut: Plakat = floor) in Bild n: Karussell-Tempo, auf F1 (= 2 count) im letzten Bild der
-    Wortwand, damit der Vorhang dort ansetzt, wo der Spark des Plakats dahinter gerade steht."""
-    rate = cfg["loop"]["changes_per_bar"] / 4 / f["beat"] / FPS         # Plakate pro Bild (T16)
-    return 2 * KL.count(cfg) + rate * (n - marks(f)[1])
+    """Phase des Loops in den Buchstaben ab dem Verlassen der Bahn (davor zeigt er das Plakat des dunklen Sparks)."""
+    ns, p0, rate = inner(cfg, f)
+    return p0 + rate * (n - ns)
 
 
-def pull_u(f, n):
-    _, n2, n3 = marks(f)
-    return min(max((n - n2) / (n3 - n2), 0.0), 1.0)
-
-
-@functools.lru_cache(maxsize=None)
-def exit_dist(x0, y0, r, rot, dx, dy):
-    """Weg (Einheiten von pull_dir), nach dem ein Stern (x0, y0, r, rot) keine Zelle mehr beruehrt (Bisektion)."""
-    hi = 1.0
-    while core_cells((x0 + dx * hi, y0 + dy * hi, r, rot)).any():
-        hi *= 2
-    lo = 0.0
-    for _ in range(24):
-        mid = (lo + hi) / 2
-        lo, hi = (mid, hi) if core_cells((x0 + dx * mid, y0 + dy * mid, r, rot)).any() else (lo, mid)
-    return hi
+def curtain_motion(cfg, f):
+    """Vorhang: Start = Plakat-Spark auf F1, Geschwindigkeit + Drehung je Bild = die der Loop-Bahn an F1 im Tempo des
+    Loops in den Buchstaben."""
+    rate = inner(cfg, f)[2]
+    x0, y0, r0, rot0 = loop_star(cfg, 0)
+    xa, ya, _, ra = loop_star(cfg, -0.5)
+    xb, yb, _, rb = loop_star(cfg, 0.5)
+    return (x0, y0, r0, rot0), ((xb - xa) * rate, (yb - ya) * rate), (rb - ra) * rate
 
 
 def curtain(cfg, f, n):
-    """Vorhang: Loch in Deckgroesse auf F1 zieht geradeaus nach pull_dir, Tempo steigt in pull_accel_frac linear und
-    bleibt dann (Weg s(u) = u^2/2a bzw. u - a/2, normiert), im letzten Bild vor der ersten Stufe ist es samt Auslaeufern
-    (sil_reach) draussen. Groesse bleibt, Drehung laeuft weiter."""
-    x0, y0, r0, rot0 = loop_star(cfg, 0)
-    R = r0 * max(1.0, cover_r(x0, y0, rot0) / r0)
-    u, a = pull_u(f, n), f["pull_accel_frac"]
-    s = (u * u / (2 * a) if u <= a else u - a / 2) / (1 - a / 2)
-    dx, dy = np.array(f["pull_dir"]) / math.hypot(*f["pull_dir"])
-    rot1 = rot0 + f["pull_spin_deg"]
-    D = exit_dist(x0, y0, R * (1 + f["sil_rim"]), rot1 % KE.STAR_SYM_DEG, float(dx), float(dy))
-    return x0 + dx * D * s, y0 + dy * D * s, R, rot0 + f["pull_spin_deg"] * u
+    (x0, y0, r0, rot0), (vx, vy), spin = curtain_motion(cfg, f)
+    m = n - marks(f)[1]
+    return x0 + vx * m, y0 + vy * m, r0, rot0 + spin * m
+
+
+@functools.lru_cache(maxsize=None)
+def _curtain_frames(key):
+    cfg, f = key.cfg, key.f
+    n2 = marks(f)[1]
+    wm = wall_mask(S.Ctx(world(cfg, 0), FMT), wall(f, f["words"][-1])["wall"])
+    n = n2 + 1
+    while True:
+        x, y, r, rot = curtain(cfg, f, n)
+        if not (core_cells((x, y, r * (1 + f["sil_rim"]), rot)) & wm).any():
+            return n - n2
+        n += 1
+
+
+class _Key:
+    """Haelt cfg/f fuer lru_cache (Dicts sind nicht hashbar), gleich je Config-Datei."""
+    def __init__(self, cfg, f):
+        self.cfg, self.f = cfg, f
+
+    def __hash__(self):
+        return hash(self.f["toml"])
+
+    def __eq__(self, o):
+        return self.f["toml"] == o.f["toml"]
+
+
+def curtain_frames(cfg, f):
+    """Bilder, bis Koerper + Rand des Vorhang-Lochs keinen Buchstaben mehr beruehren (die Wand hat Satzrand: am Bildrand
+    gemessen war er 7 Bilder vor Schluss unsichtbar, Befund 8.10.)."""
+    return _curtain_frames(_Key(cfg, f))
 
 
 # ---------------------------------------------------------------- Szenen (Stil-Dicts, gecacht wie der Digitalteil)
@@ -207,10 +250,10 @@ def spark_none(c):
 
 def st_black(cfg, f):
     """Grundstil der schwarzen Szenen: Satz und Palette wie das F10-Ende, ohne Stern."""
-    st = KE.orbit_state(cfg, zoom_dt(cfg, frame_at(f, f["pull_beat"])))
+    st = KE.orbit_state(cfg, (frame_at(f, f["pull_beat"]) - zoom_end(cfg)) / FPS)
     dg = st["loop"]["digital"]
     st = {k: v for k, v in st.items() if k != "P_spark"}
-    st.update(S=KL.S_CODES["S2"], spark_fn=spark_none, type_fn=f15_type, star=(OFF[0] / 1080, OFF[1] / 1920, 0.001))
+    st.update(S=KL.S_CODES["S2"], spark_fn=spark_none, type_fn=f16_type, star=(OFF[0] / 1080, OFF[1] / 1920, 0.001))
     st["loop"] = {**st["loop"], "digital": dict(u=dg["u"], offset=list(dg["offset"]), star=list(OFF), show=None)}
     return st
 
@@ -219,24 +262,38 @@ def white(cfg, f):
     return S.PALS[st_black(cfg, f)["P"]]
 
 
-def world(cfg, k):
-    """Plakat k in den Buchstaben (KE.poster_digital: so saehe es aus, wenn das Karussell digital weiterliefe)."""
+def world(cfg, k, pose=None):
+    """Plakat k in den Buchstaben (KE.poster_digital: so saehe es aus, wenn das Karussell digital weiterliefe). pose:
+    sein Spark sitzt dort (Bildanteile), sonst auf seinem Bahnframe."""
     st = KE.poster_digital(cfg, k)
-    st["type_fn"] = f15_type
+    if pose:
+        W, H = S.SIZES[FMT][:2]
+        x, y, r, rot = pose
+        st["loop"] = {**st["loop"], "digital": dict(st["loop"]["digital"], star=(x * W, y * H, r * W, rot))}
+        st["star"], st["rot"] = (x, y, r), rot
+    st["type_fn"] = f16_type
     return st
 
 
+def inner_world(cfg, f, n):
+    """Plakat in den Buchstaben in Bild n: auf der Bahn das des dunklen Sparks mit hellem Spark genau an seiner Stelle,
+    danach der Loop (inner)."""
+    if n < switch_frame(cfg, f):
+        return world(cfg, KE.orbit_poster(cfg, mc3_dt(cfg, n)), dark(cfg, n))
+    return world(cfg, math.floor(phase(cfg, f, n) + EPS))
+
+
 def scene(cfg, f, st, **kw):
-    """Was f15_type zeichnet: black (Maske), light, items (sichtbare Kartenteile), gone (Bayer-Zerfall der Schrift 0..1)."""
+    """Was f16_type zeichnet: black (Maske), light, items (sichtbare Kartenteile), gone (Bayer-Zerfall der Schrift 0..1)."""
     sc = dict(black="all", light=None, items=0, gone=0.0, pal=white(cfg, f), scale=cfg["ending"]["orbit_date_center"])
     sc.update(kw)
-    return dict(st, f15=sc, f15_src=SRC)
+    return dict(st, f16=sc, f16_src=SRC)
 
 
-def hole_spec(f, pose, reach):
+def hole_spec(f, pose):
     x, y, r, rot = pose
     return {"hole": dict(pose=[round(x, 5), round(y, 5), round(r, 5), round(rot % KE.STAR_SYM_DEG, 3)],
-                         reach=reach, rim=f["sil_rim"])}
+                         reach=f["sil_reach"], rim=f["sil_rim"])}
 
 
 def wall(f, word):
@@ -244,17 +301,12 @@ def wall(f, word):
     return {"wall": dict(word=word, margin_cells=f["wall_margin_cells"], lead_frac=f["wall_lead_frac"])}
 
 
-def flicker(tb, j):
-    a, b = FLICKER_PER_BEAT
-    return 0.6 * math.sin(2 * math.pi * a * tb + 1.3 * j) + 0.4 * math.sin(2 * math.pi * b * tb + 2.1 * j)
-
-
 def card(cfg, f, tb):
     """Tonleiter: k Stufen vorbei → step_items[k-1] Kartenteile (SPARK, KICK-OFF, Datum, Ort). Je Stufe j eine Gruppe
-    [erste, letzte Zeile, Halo-Laenge, Textstufe, Halo-Helligkeit]: die Zeilen leuchten von intro_level (Rampe: glimmend
-    rot) nach Weiss ein, das Halo waechst von glow_start_frac auf voll (ease-in-out), jede spaetere Stufe gibt
-    glow_bump_frac dazu; Laenge atmet (breathe_*), Helligkeit flackert (flicker_frac), Zeilen versetzt. Nach der letzten
-    Stufe + fade_hold_beats schrumpft und dunkelt alles in fade_beats, die Schrift zerfaellt mit (q)."""
+    [erste, letzte Zeile, Halo-Laenge, Textstufe]: die Zeilen leuchten von intro_level (Rampe: glimmend rot) nach Weiss
+    ein, das Halo waechst von glow_start_frac auf voll (ease-in-out), jede spaetere Stufe gibt glow_bump_frac dazu, alle
+    kriechen mit glow_creep_per_beat weiter (nur wachsen). Nach der letzten Stufe + fade_hold_beats schrumpft und dunkelt
+    alles in fade_beats, die Schrift zerfaellt mit (q)."""
     e = cfg["ending"]
     k = sum(tb >= s for s in f["steps"])
     q = min(max((tb - f["steps"][-1] - f["fade_hold_beats"]) / f["fade_beats"], 0.0), 1.0)
@@ -264,11 +316,11 @@ def card(cfg, f, tb):
     grown = [smooth((tb - f["steps"][j]) / f["glow_grow_beats"]) for j in range(k)]
     groups = []
     for j in range(k):
-        size = f["glow_start_frac"] + (1 - f["glow_start_frac"]) * grown[j] + f["glow_bump_frac"] * sum(grown[j + 1:])
-        size *= 1 + f["breathe_frac"] * math.sin(2 * math.pi * (tb / f["breathe_beats"] + j / 3))
+        size = (f["glow_start_frac"] + (1 - f["glow_start_frac"]) * grown[j] + f["glow_bump_frac"] * sum(grown[j + 1:])
+                + f["glow_creep_per_beat"] * (min(tb, f["steps"][-1] + f["fade_hold_beats"]) - f["steps"][j]))
         level = f["intro_level"] + (1 - f["intro_level"]) * smooth((tb - f["steps"][j]) / f["intro_beats"])
         groups.append([f["step_items"][j - 1] if j else 0, f["step_items"][j], round(full * size * (1 - q), 4),
-                       round(level, 4), round(1 + f["flicker_frac"] * flicker(tb, j), 4)])
+                       round(level, 4)])
     lt = dict(xy=list(e["orbit_flare_xy"]), r=round(e["orbit_flare_r_frac"] * (1 - q), 5),
               rot=round(tb * e["orbit_flare_spin_deg_per_beat"] % KE.STAR_SYM_DEG, 3), groups=groups,
               gain=round((1 - q) ** 2, 4), peak=e["orbit_flare_peak"], colors=list(e["orbit_flare_colors"]))
@@ -276,25 +328,20 @@ def card(cfg, f, tb):
 
 
 def plan(cfg, f, n):
-    """("base", n) aus dem MC3-Video | ("render", st, hole): hole = ausserhalb liegt noch das MC3-Bild."""
+    """("base", n) aus dem MC3-Video | ("render", st, mc3): mc3 = ausserhalb der Maske des dunklen Sparks liegt MC3."""
     n0, n2, n3 = marks(f)
     if n < n0:
         return ("base", n)
-    k = math.floor(phase(cfg, f, n) + EPS)
     if n <= n2:                                                        # dunkler Spark = Maske, darin die Wortwand
         word = f["words"][sum(tb_of(f, n) >= b for b in f["words_change"])]
-        pose = dark(cfg, n)
-        if core_cells(pose).all():
-            return ("render", scene(cfg, f, world(cfg, k), black={"not": wall(f, word)}), None)
-        hs = hole_spec(f, pose, 0.0)
-        st = scene(cfg, f, world(cfg, k), black={"not": {"and": [hs, wall(f, word)]}})
-        return ("render", st, hs if n < base_until(cfg) else None)
+        return ("render", scene(cfg, f, inner_world(cfg, f, n), black={"not": wall(f, word)}), n < base_until(cfg))
     if n == n3:                                                        # Vorhang draussen (Auslaeufer auch)
-        return ("render", scene(cfg, f, st_black(cfg, f)), None)
+        return ("render", scene(cfg, f, st_black(cfg, f)), False)
     if n < n3:                                                         # Vorhang: Loch zieht ueber die stehende Wand
-        keep = {"and": [hole_spec(f, curtain(cfg, f, n), f["sil_reach"]), wall(f, f["words"][-1])]}
-        return ("render", scene(cfg, f, world(cfg, k), black={"not": keep}), None)
-    return ("render", card(cfg, f, tb_of(f, n)), None)
+        keep = {"and": [hole_spec(f, curtain(cfg, f, n)), wall(f, f["words"][-1])]}
+        k = math.floor(phase(cfg, f, n) + EPS)
+        return ("render", scene(cfg, f, world(cfg, k), black={"not": keep}), False)
+    return ("render", card(cfg, f, tb_of(f, n)), False)
 
 
 # ---------------------------------------------------------------- Zeichnen (Hooks fuer styles.render)
@@ -311,21 +358,19 @@ def wall_mask(c, p):
 
 
 def hole_mask(c, p):
-    """Silhouette eines Lochs an p["pose"]: Sternkoerper mit posterisiertem Rand (Bayer-Band bis rim x Radius nach
-    aussen); reach > 0 nimmt die Auslaeufer des Plakat-Stils (c.st["S"]) dazu: helle Zellen seines Renders (Spritzer,
-    Scherben, Schein) bis reach x Radius. Der Render allein taugt nicht: viele Stile sind innen dunkel (S33 Ringe,
-    S23/S47 Kern), S31 leuchtet ein Rechteck aus (Befund 8.10. an allen 20 Stilen)."""
+    """Silhouette des Vorhang-Lochs an p["pose"]: Sternkoerper mit posterisiertem Rand (Bayer-Band bis rim x Radius) plus
+    die Auslaeufer des Plakat-Stils (c.st["S"]): helle Zellen seines Renders (Spritzer, Scherben, Schein) bis reach x
+    Radius. Der Render allein taugt nicht: viele Stile sind innen dunkel (S33 Ringe, S23/S47 Kern), S31 leuchtet ein
+    Rechteck aus (Befund 8.10. an allen 20 Stilen)."""
     x, y, r, rot = p["pose"]
     X, Y, R = x * c.W, y * c.H, r * c.W
     d = S.star_d(c, X, Y, R, rot)[0]
     m = d < 1 + p["rim"] * (1 - S.tile(S.bayer(4), (c.gh, c.gw)))
-    if p["reach"] > 0:
-        sub = copy.copy(c)
-        sub.st, sub.L, sub.layers, sub.layer_pal = dict(c.st, rot=rot), dict(c.L, star=(X, Y, R, rot)), [], {}
-        K.spark(sub)
-        K._EXTRA["extra"] = []                                          # Zweitlicht der Labor-Sterne nicht ins Schwarz
-        m |= sub.star_m & (d < p["reach"])
-    return m
+    sub = copy.copy(c)
+    sub.st, sub.L, sub.layers, sub.layer_pal = dict(c.st, rot=rot), dict(c.L, star=(X, Y, R, rot)), [], {}
+    K.spark(sub)
+    K._EXTRA["extra"] = []                                              # Zweitlicht der Labor-Sterne nicht ins Schwarz
+    return m | (sub.star_m & (d < p["reach"]))
 
 
 def mask(c, spec):
@@ -342,6 +387,20 @@ def mask(c, spec):
     if op == "hole":
         return hole_mask(c, a)
     raise ValueError(f"Maske {spec}")
+
+
+@functools.lru_cache(maxsize=1)
+def _title_cells(key):
+    c = S.Ctx(world(key.cfg, 0), FMT)
+    return np.logical_or.reduce(KL.line_masks(c, KL.text_lines(c)["title"], centered=True))
+
+
+def dark_mask(cfg, f, n, img):
+    """Maske des echten dunklen Sparks in Bild n aus dem MC3-Bild img (erstes Bild seines Zweiers): Zellen in seinem
+    Sternkoerper, die dunkler als mask_dark_luma sind, dazu der Titel dort (er kippt ueber dem Spark hell)."""
+    W, H = S.SIZES[FMT][:2]
+    lum = (img.astype(np.float32) @ LUMA / 255).reshape(H // CELL, CELL, W // CELL, CELL).mean((1, 3))
+    return core_cells(dark(cfg, n)) & ((lum < f["mask_dark_luma"]) | _title_cells(_Key(cfg, f)))
 
 
 def item_masks(c, sc):
@@ -370,27 +429,26 @@ def streak(c, src, centre, glow):
 
 
 def light_layer(c, lt, items):
-    """Licht je Stufe: ihre Zeilen (auf Stufe 1 dazu der Spark) als Quelle in Textstufe x Helligkeit, eigener Schweif,
-    Maximum ueber die Stufen; Zeilen, die noch einleuchten, stehen selbst in der Rampe (glimmend rot → weiss), eigene
-    Rampe, alles x gain (Ausklingen)."""
+    """Licht je Stufe: ihre Zeilen (auf Stufe 1 dazu der Spark) als Quelle in Textstufe, eigener Schweif, Maximum ueber
+    die Stufen; Zeilen, die noch einleuchten, stehen selbst in der Rampe (glimmend rot → weiss), alles x gain."""
     X, Y = lt["xy"][0] * c.W, lt["xy"][1] * c.H
     centre = (Y / c.px - 0.5, X / c.px - 0.5)
     star = (S.star_d(c, X, Y, max(lt["r"], 1e-6) * c.W, lt["rot"])[0] < 1).astype(np.float32)
     g = np.zeros((c.gh, c.gw), np.float32)
-    for j, (a, b, glow, level, bright) in enumerate(lt["groups"]):
+    for j, (a, b, glow, level) in enumerate(lt["groups"]):
         text = np.logical_or.reduce(items[a:b]).astype(np.float32)
-        src = np.minimum(text * lt["peak"] * level * bright, 1.0)
+        src = text * lt["peak"] * level
         if j == 0:
-            src = np.maximum(src, star * bright)
+            src = np.maximum(src, star)
         g = np.maximum(np.maximum(g, streak(c, src, centre, glow)), text * level)
     g = g * lt["gain"]
     c.layer_pal["light"] = KE.ramp(c, lt["colors"])
     c.add("light", g > KE.GLOW_MIN, g)
 
 
-def f15_type(c):
-    """Zeichnet die Szene st["f15"]."""
-    sc = c.st["f15"]
+def f16_type(c):
+    """Zeichnet die Szene st["f16"]."""
+    sc = c.st["f16"]
     if sc["black"]:
         c.layer_pal["dim"] = np.zeros_like(c.pal)
         c.add("dim", mask(c, sc["black"]), 0.0)
@@ -402,7 +460,7 @@ def f15_type(c):
     pal = S.hexpal_list(sc["pal"])
     c.layer_pal["type"] = pal
     hi = c.lvl(int((pal @ KL.LUMA).argmax()))
-    done = [items[a:b] for a, b, _, level, _ in (sc["light"] or {}).get("groups", []) if level >= 1 - EPS]
+    done = [items[a:b] for a, b, _, level in (sc["light"] or {}).get("groups", []) if level >= 1 - EPS]
     if done:                                                           # eingeleuchtete Zeilen: Weiss der Schrift
         c.add("type", np.logical_or.reduce(sum(done, [])), hi)
 
@@ -410,47 +468,52 @@ def f15_type(c):
 # ---------------------------------------------------------------- Rendern
 
 def _job(args):
-    """Bild n auf dem Zellraster; mit Loch zusaetzlich dessen Maske (MC3 liegt ausserhalb)."""
     cfg, f, n = args
     p = plan(cfg, f, n)
     if p[0] == "base":
-        return n, None, None
-    img = KL.render_cached(p[1], FMT, "f15")
-    m = hole_mask(S.Ctx(p[1], FMT), p[2]["hole"]) if p[2] else None
-    return n, np.ascontiguousarray(img[::CELL, ::CELL]), m
+        return n, None
+    return n, np.ascontiguousarray(KL.render_cached(p[1], FMT, "f16")[::CELL, ::CELL])
+
+
+class MC3:
+    """MC3-Bilder in aufsteigender Folge aus einem Decoder, die letzten zwei gemerkt (Zweier: die Maske braucht das erste)."""
+    def __init__(self, path):
+        self.path, self.dec, self.at, self.keep = path, None, 0, {}
+
+    def __call__(self, n):
+        W, H = S.SIZES[FMT][:2]
+        if self.dec is None:
+            self.dec = subprocess.Popen(["ffmpeg", "-v", "error", "-i", self.path, "-f", "rawvideo", "-pix_fmt", "rgb24",
+                                         "-"], stdout=subprocess.PIPE)
+        while self.at <= n:
+            self.keep = {k: v for k, v in self.keep.items() if k >= self.at - 2}
+            self.keep[self.at] = np.frombuffer(self.dec.stdout.read(W * H * 3), np.uint8).reshape(H, W, 3)
+            self.at += 1
+        return self.keep[n]
+
+    def close(self):
+        if self.dec:
+            self.dec.kill()
 
 
 def frames(cfg, f, ns):
-    """Bilder ns (aufsteigend) als (n, RGB voll). MC3-Bilder aus einem Decoder, gerenderte aus dem KL-Pool; solange das
-    MC3-Bild den dunklen Spark zeigt (base_until), liegt es ausserhalb der Maske."""
-    W, H = S.SIZES[FMT][:2]
+    """Bilder ns (aufsteigend) als (n, RGB voll): MC3 vor der Maske, gerenderte aus dem KL-Pool; solange MC3 den dunklen
+    Spark zeigt, liegt die Wortwand nur in seiner Maske (dark_mask), ausserhalb MC3."""
     ps = {n: plan(cfg, f, n) for n in ns}
     it = iter(KL.pool().imap(_job, [(cfg, f, n) for n in ns if ps[n][0] != "base"], chunksize=2))
-    dec, at = None, 0
-
-    def base(n):
-        nonlocal dec, at
-        if dec is None:
-            dec = subprocess.Popen(["ffmpeg", "-v", "error", "-i", f["base_video"], "-f", "rawvideo", "-pix_fmt",
-                                    "rgb24", "-"], stdout=subprocess.PIPE)
-        while True:
-            img = np.frombuffer(dec.stdout.read(W * H * 3), np.uint8).reshape(H, W, 3)
-            at += 1
-            if at > n:
-                return img
-
+    mc3 = MC3(f["base_video"])
     for n in ns:
         if ps[n][0] == "base":
-            img = base(n)
+            img = mc3(n)
         else:
-            m, small, hm = next(it)
+            m, small = next(it)
             assert m == n
             img = S.up(small, CELL)
-            if hm is not None:
-                img = np.where(S.up(hm, CELL)[..., None], img, base(n))
+            if ps[n][2]:
+                base, pair = mc3(n), mc3(mc3_pair(cfg, n))
+                img = np.where(S.up(dark_mask(cfg, f, n, pair), CELL)[..., None], img, base)
         yield n, img
-    if dec:
-        dec.kill()
+    mc3.close()
 
 
 def out_dir(f):
@@ -501,8 +564,8 @@ def onset(d, n):
 
 
 def on_beat(diffs, sil, ev, shift=0):
-    """Je Schnitt: setzt er auf seinem Bild ein? Aus Schwarz heraus (Stufe 1 leuchtet sanft ein, davor bewegt sich der
-    Vorhang im Median) zaehlt: Bild davor schwarz, dieses nicht."""
+    """Je Schnitt: setzt er auf seinem Bild ein? Aus Schwarz heraus (Stufe 1 leuchtet sanft ein) zaehlt: Bild davor
+    schwarz, dieses nicht."""
     out = []
     for n, name in ev:
         n += shift
@@ -527,21 +590,32 @@ def report(cfg, f, path):
     diffs = [np.r_[0, np.abs(np.diff(a, axis=0)).mean((1, 2))], np.r_[0, np.abs(np.diff(sil, axis=0)).mean((1, 2))]]
     rows, old = on_beat(diffs, sil, events(f)), on_beat(diffs, sil, events(f), OLD_SHIFT)
     n0, n2, n3 = marks(f)
-    # Maske: im ersten Bild ausserhalb = MC3, innerhalb (Kern, ohne Rand) die Woerter
-    mc3 = gray(f["base_video"])[n0]
-    inside = down(core_cells(dark(cfg, n0)), shape, "all")
-    outside = ~binary_dilation(down(core_cells(dark(cfg, n0)), shape, "any"), iterations=3)
-    d_out, d_in = float(np.abs(a[n0] - mc3)[outside].mean()), float(np.abs(a[n0] - mc3)[inside].mean())
-    full = next(n for n in range(n0, n2 + 1) if core_cells(dark(cfg, n)).all())
-    # Vorhang: Woerter stehen, Helles wird nur weniger. "Kein Zwerg" ist am Bild nicht trennbar (der F14-Zwerg lag in
-    # Bild 250 ebenfalls an der Wandkante, Befund 8.10.), die Groesse bleibt im Code (curtain)
+    # Maske: Zweier (gleiche Maske je Paar), im ersten Bild ausserhalb = MC3, in der Maske die Woerter
+    mc3 = MC3(f["base_video"])
+    probe = [n for n in range(n0, base_until(cfg)) if mc3_pair(cfg, n) == n]
+    d_out, d_in, pairs = [], [], 0
+    g3 = gray(f["base_video"])
+    for n in probe:
+        m = dark_mask(cfg, f, n, mc3(n))
+        pairs += bool(np.array_equal(m, dark_mask(cfg, f, n + 1, mc3(mc3_pair(cfg, n + 1)))))
+        inside, outside = down(m, shape, "all"), ~binary_dilation(down(m, shape, "any"), iterations=2)
+        d_out.append(float(np.abs(a[n] - g3[n])[outside].mean()))
+        if inside.any():
+            d_in.append(float(np.abs(a[n] - g3[n])[inside].mean()))
+    mc3.close()
+    # Vorhang: Woerter stehen (Helles nur in der Wand), Sichtbares nur im Loch (Koerper x sil_reach); die Flaeche selbst
+    # schwankt mit der Helligkeit der Plakate in den Buchstaben (Befund 8.10.: 52 → 55 %), daher kein "faellt"
     wm = binary_dilation(down(wall_mask(S.Ctx(world(cfg, 0), FMT), wall(f, f["words"][-1])["wall"]), shape, "any"))
     lit = a > LIT_LUM
     stray = max(float((lit[n] & ~wm).mean()) for n in range(n2 + 1, n3))
-    area = [float(lit[n].mean()) for n in range(n2, n3 + 1)]
-    shrink = all(q <= p + 0.002 for p, q in zip(area, area[1:]))
+    area = [float(sil[n].mean()) for n in range(n2, n3 + 1)]
+    outside = 0.0
+    for n in range(n2 + 1, n3):
+        x, y, r, rot = curtain(cfg, f, n)
+        hole = binary_dilation(down(core_cells((x, y, r * f["sil_reach"], rot)), shape, "any"), iterations=2)
+        outside = max(outside, float(((sil[n] > 0) & ~hole).mean()))
     gap = float(sil[n3].mean())
-    # Tonleiter: neue Zeilen leuchten ein, Halo waechst
+    # Tonleiter: neue Zeilen leuchten ein, Halo waechst, wird nie kleiner
     c = S.Ctx(st_black(cfg, f), FMT)
     its = [down(m, shape, "all") for m in item_masks(c, dict(items=4, scale=cfg["ending"]["orbit_date_center"]))]
     intro, grow = [], []
@@ -550,26 +624,34 @@ def report(cfg, f, path):
         ns, ni, ng = frame_at(f, s), frame_at(f, s + f["intro_beats"]), frame_at(f, s + GROW_PROBE_BEATS)
         intro.append((ns, ni, float(a[ns][reg].mean()), float(a[ni][reg].mean())))
         grow.append((ns, ng, float(sil[ns].mean()), float(sil[ng].mean())))
+    fade0 = frame_at(f, f["steps"][-1] + f["fade_hold_beats"])
+    halo = [float(sil[n].mean()) for n in range(frame_at(f, f["steps"][0]), fade0)]
+    drop = max(p - q for p, q in zip(halo, halo[1:]))
     tail = float(sil[round(t_beat(f, f["steps"][-1] + f["fade_hold_beats"] + f["fade_beats"]) * FPS) + 1:].mean())
     lines = [f"{f['code']}, {path}",
-             f"Maske ab Bild {n0}: ausserhalb = MC3 (Abweichung {d_out:.3f}, muss < {SAME_MC3}), innen Woerter "
-             f"({d_in:.3f}, muss > 0.05); dunkler Spark deckt ab Bild {full} = Beat {tb_of(f, full):.2f}",
-             f"Vorhang: Helles ausserhalb der stehenden Wand max {stray * 100:.2f} % (muss < 0.5); Flaeche "
-             + " ".join(f"{p * 100:.0f}" for p in area) + f" % (muss fallen: {'ja' if shrink else 'NEIN'})",
+             f"Maske ab Bild {n0} (echter dunkler Spark, MC3 auf Zweiern): Paare gleich {pairs}/{len(probe)}, ausserhalb "
+             f"= MC3 (Abweichung max {max(d_out):.3f}, muss < {SAME_MC3}), in der Maske Woerter (min {min(d_in):.3f}, "
+             f"muss > 0.05); Loop in den Buchstaben ab Bild {switch_frame(cfg, f)} Phase {inner(cfg, f)[1]:.2f}, "
+             f"{inner(cfg, f)[2]:.3f} Plakate/Bild",
+             f"Vorhang ab Bild {n2 + 1}: {curtain_frames(cfg, f)} Bilder bis draussen ({n3 - n2} da), Tempo der Loop-Bahn "
+             f"an F1; Helles ausserhalb der stehenden Wand max {stray * 100:.2f} % (muss < 0.5), Sichtbares ausserhalb des "
+             f"Lochs max {outside * 100:.2f} % (muss < 0.5); Flaeche " + " ".join(f"{p * 100:.0f}" for p in area) + " %",
              f"Weggezogen: Helles im Bild vor Stufe 1 {gap * 100:.1f} % (muss ~0)",
              "Zeilen leuchten ein (Helligkeit der neuen Zeilen auf der Stufe → +" + f"{f['intro_beats']:g} Beat): "
              + ", ".join(f"Bild {ns} {p:.2f} → {ni} {q:.2f}" for ns, ni, p, q in intro) + f" (muss < {INTRO_RATIO:g}x)",
              "Halo waechst (Lichtflaeche auf der Stufe → +" + f"{GROW_PROBE_BEATS:g} Beat): "
              + ", ".join(f"Bild {ns} {p * 100:.1f} % → {ng} {q * 100:.1f} %" for ns, ng, p, q in grow) + " (muss steigen)",
+             f"Halo nie kleiner bis zum Ausklingen: groesster Rueckgang je Bild {drop * 100:.2f} % (muss < {NEVER_LESS * 100:g})",
              f"Schluss: Helles nach dem Ausklingen {tail * 100:.2f} % (muss ~0)",
              f"Schnitte auf dem Beat (> {EVENT_RATIO:g}x Vorlauf, Helligkeit oder Silhouette):"]
     lines += [f"  {'ok ' if ok else 'NEIN'} {name:<12} Bild {n} = {n / FPS:.3f} s  x{r}" for name, n, ok, r in rows]
     lines.append(f"Gegenprobe +{OLD_SHIFT} Bilder: {sum(ok for *_, ok, _ in old)}/{len(old)} ok (muss weniger sein)")
     open(os.path.join(out_dir(f), "report_draft.txt"), "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
-    return (all(r[2] for r in rows) and sum(r[2] for r in old) < len(old) and d_out < SAME_MC3 and d_in > 0.05
-            and stray < 0.005 and shrink and gap < 0.005 and tail < 0.001
-            and all(p < INTRO_RATIO * q for *_, p, q in intro) and all(q > p for *_, p, q in grow))
+    return (all(r[2] for r in rows) and sum(r[2] for r in old) < len(old) and pairs == len(probe)
+            and max(d_out) < SAME_MC3 and min(d_in) > 0.05 and stray < 0.005 and outside < 0.005 and gap < 0.005
+            and tail < 0.001 and drop < NEVER_LESS and all(p < INTRO_RATIO * q for *_, p, q in intro)
+            and all(q > p for *_, p, q in grow))
 
 
 def test(cfg, f):
@@ -580,9 +662,9 @@ def test(cfg, f):
 
 # ---------------------------------------------------------------- Bogen
 
-SHEET_BEATS = (3.5, 3.65, 3.8, 3.95, 4.1, 4.3, 4.6, 5.2, 6.7, 7.9, 8.05,
-               8.12, 8.2, 8.27, 8.35, 8.42, 8.52, 8.65, 8.9, 9.52, 9.7, 10.27,
-               10.45, 10.8, 11.3, 11.9, 12.1, 12.3)
+SHEET_BEATS = (3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 4.15, 4.3, 4.6, 5.2, 6.4,
+               7.0, 7.2, 7.35, 7.5, 7.65, 7.8, 7.95, 8.1, 8.25, 8.4, 8.52,
+               8.7, 9.0, 9.52, 9.8, 10.27, 10.6, 11.2, 11.8, 12.1, 12.3)
 
 
 def sheet(cfg, f):

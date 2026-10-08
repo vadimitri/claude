@@ -45,7 +45,31 @@ In dieser Reihenfolge:
 6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
    weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
 
-## F15 (8.10. nachts) · **verworfen → F16** · Commit siehe Git-Log
+## F16 (8.10. nachts) · **wartet auf Vadim** · ansehen: `Vorschau/F16_draft.mp4`, Bogen `Vorschau/F16_sheet.png`
+
+Ein Ablauf (`src/kickoff_loop_f16.py`, Stellschrauben `previz/review/F16/F16.toml`, Basis bis Bild 162 =
+`Vorschau/MC3_draft.mp4`, 14.0 s, `song_pad.wav`). Vadim zu F15 siehe unten.
+1. **Maske = echter dunkler Spark** ab Bild 163: je MC3-Bild (Digitalteil auf Zweiern: `mc3_dt`, Maske aus dem ersten
+   Bild des Paars, sonst flackert sie mit dem Encoder) die Zellen im Sternkörper (`KE.orbit_state`, Lage wie MC3), die
+   dunkler als `mask_dark_luma` 0.12 sind (Befund: 80–90 % < 0.08, Titel ~0.97, gerasterte Bänder 0.2–0.5 bleiben
+   MC3), dazu der Titel dort. Kein Rand, keine eigene Form. In der Maske die Wortwand; in den Buchstaben bis Bild 170
+   genau das Plakat des dunklen Sparks mit hellem Spark an seiner Stelle, ab dem Eintauchen (Bild 171, Phase 57.71 =
+   F26) der Loop mit 0.684 Plakaten/Bild (≈ T16 0.68), so dass im letzten Wandbild (227) F1 steht. Ab Bild 181 deckt er.
+   Begriffe HARDWARE ab 3.45, ROBOTS 5, HACKATHONS 6.25 (Platzhalter).
+2. **Vorhang** ab Beat 7.1 (Bild 228): Loch = Plakat-Spark auf F1 (r 1.9, Silhouette im Stil des Plakats dahinter wie
+   F14), zieht mit Geschwindigkeit + Drehung der Loop-Bahn an F1 (0.103 Bildbreiten und 5.1° je Bild) geradeaus nach
+   links, Größe bleibt; 23 Bilder, bis er keinen Buchstaben mehr berührt (24 da; am Bildrand gemessen war er 7 Bilder
+   vor Schluss unsichtbar: Satzrand). `load` sagt, welcher `pull_beat` nötig ist, wenn es nicht reicht. F15 lief x5 so schnell.
+3. **Tonleiter** wie F15 (Zeilen leuchten von Rampe 0.3 nach Weiß ein, Halo je Stufe von 15 % in 0.9 Beat, +15 % für
+   ältere je Stufe), aber ohne Atmen/Flackern: alle kriechen mit `glow_creep_per_beat` 0.05 weiter, nie kleiner.
+**Selbsttest** `test`: Maske (Paare gleich 9/9, außen = MC3 max 0.008, in der Maske Wörter min 0.129; F15-Video: außen
+0.317 schlägt an), Vorhang (Helles nur in der Wand, Sichtbares nur im Loch × `sil_reach`; die Fläche schwankt mit der
+Helligkeit der Plakate, daher kein „fällt“), Bild vor Stufe 1 schwarz, Zeilen leuchten ein, Halo wächst, **Halo nie
+kleiner** (max Rückgang 0.01 %/Bild; F15 0.58 % schlägt an), Schnitte auf dem Beat, Gegenprobe +3 Bilder 0/5. Alles OK.
+Befehle: `uv run src/kickoff_loop_f16.py video|sheet|test|still kickoff_loop/previz/review/F16/F16.toml [beats]`.
+**Offen:** Vadims Urteil, Begriffe; danach ins richtige Ende (`--master`, Digitalteil auf Einern: dann `mc3_dt` ohne Zweier).
+
+## F15 (8.10. nachts) · **verworfen → F16** · Commit 8eb0686
 
 Vadim zu F14 („Maske mega gut, aber am Ende ein Zwerg, Titel poppen“): dunkler Spark aus MC3 als Maske, Vorhang in
 gleicher Geschwindigkeit zur Seite, Titel leuchten rot ein, Halos lebendig. Umgesetzt in `src/kickoff_loop_f15.py`
