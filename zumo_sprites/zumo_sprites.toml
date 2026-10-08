@@ -20,6 +20,7 @@ margin_px = 3               # Rand um den Sprite (Kontur + Hopser bis 2 px)
 track_band_mm = 4.5         # Kette optisch so dick (echte Kette ~1 mm im CAD, mit Stollen ~4 mm): liest sich als Band
 hide = ["part", "screw"]    # Materialien, die nicht gerendert werden (SMD-Bauteile, Schrauben: nur Rauschen bei 2 mm/px)
 min_island_px = 3           # Material-Flecken kleiner als das gehen im Umfeld auf
+value_island_px = 3         # Wert-Inseln (Licht, Linie, Vertiefung) kleiner als das gehen im Umfeld auf (0 = aus)
 island_keep = ["screen", "lens", "cap", "bolt", "usb"]   # ... ausser diese (kleine Akzente sind gewollt)
 cavity_mm = 4.0             # Vertiefung: so viel tiefer als der naechste Punkt im Umkreis -> eine Stufe dunkler
 cavity_px = 2               # Umkreis dafuer (Radius in Pixeln)
@@ -100,6 +101,41 @@ spacing_frac = 0.42         # Augenabstand als Anteil der Bildschirmbreite
 min_rows_tall = 5           # so viele Bildschirmzeilen braucht die hohe Augenform, sonst flach
 min_gap_px = 2              # ausser Draufsicht: mindestens so viel Luft zwischen den Augen
 look_px = 1                 # ausser Draufsicht: Augen so weit in Fahrtrichtung verschoben (schaut, wohin er faehrt)
+style = "E5"                # Augenregel fuer 3/4, Seite, Front (Codes unten, Bogen: `eyes`); ueberschreibt die Werte hier
+diag_forward_frac = 0.0     # schraeg zur Kamera: Augen so weit nach vorne (Anteil der Bildschirmtiefe), schaut wohin er faehrt
+show_away = true            # Augen auch, wenn er vom Betrachter wegfaehrt (false = Hinterkopf, OLED bleibt schwarz)
+away_sin = 0.3              # ab diesem sin(Richtung) gilt "weg" (0.3: 45, 90, 135 Grad; 0 und 180 = Seite bleiben)
+plane = false               # Augenpaar folgt der Bildschirmebene (Iso-Treppe) statt auf einer Zeile zu stehen
+far_narrow_px = 0           # Schraeg zur Kamera: das ferne Auge (Fahrtseite) so viel schmaler (3/4-Gesicht)
+
+# Augenregeln (Vadim 8.10.: in 3/4 vorne/hinten "nicht so suess", von hinten wirkt er "andersrum"). Codes stabil.
+# Befund: das OLED steht physikalisch nach hinten (Pololu-Text ist von vorne kopfueber, Foto 0J12327), ein aufrechtes
+# Gesicht von hinten liest sich als Front.
+[eye_styles.E1]
+label = "Stand 8.10."
+[eye_styles.E2]
+label = "Hinterkopf"
+show_away = false
+[eye_styles.E3]
+label = "Hinterkopf + nach vorne"
+show_away = false
+diag_forward_frac = 0.2
+[eye_styles.E4]
+label = "E3 + 3/4-Gesicht"
+show_away = false
+diag_forward_frac = 0.2
+far_narrow_px = 1
+[eye_styles.E5]
+label = "E3 + Bildschirmebene"
+show_away = false
+diag_forward_frac = 0.2
+plane = true
+[eye_styles.E6]
+label = "E4 + Bildschirmebene"
+show_away = false
+diag_forward_frac = 0.2
+far_narrow_px = 1
+plane = true
 
 # Gesichter: Stempel fuer das linke Auge (rechtes = gespiegelt), '#' = an. tall bei grossem, flat bei flachem Bildschirm.
 [faces.neutral]

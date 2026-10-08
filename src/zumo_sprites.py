@@ -29,7 +29,7 @@ from multiprocessing import Pool
 
 import numpy as np
 from PIL import Image, ImageDraw
-from scipy.ndimage import binary_fill_holes, distance_transform_edt, label, minimum_filter
+from scipy.ndimage import binary_fill_holes, distance_transform_edt, label
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT = os.path.join(ROOT, "zumo_sprites")
@@ -69,8 +69,9 @@ ACCENTS = "rgbymcw"
 
 # ---------------------------------------------------------------- Konfiguration
 
-def load(path=CONFIG, variant=None):
-    """TOML lesen und pruefen. variant = Code aus [variants] (Z1 ...): ueberschreibt einzelne Werte aus [render]/[toy]."""
+def load(path=CONFIG, variant=None, style=None):
+    """TOML lesen und pruefen. variant = Code aus [variants] (Z1 ...): ueberschreibt einzelne Werte aus [render]/[toy].
+    style = Augenregel aus [eye_styles] (E1 ...), sonst [eyes].style."""
     with open(path, "rb") as f:
         cfg = tomllib.load(f)
     variant = variant or cfg["render"].get("variant")
@@ -83,6 +84,12 @@ def load(path=CONFIG, variant=None):
             assert sec, f"[variants.{variant}].{k}: kein Schluessel in [render], [toy] oder [eyes]"
             cfg[sec][k] = v
         cfg["_variant"] = variant
+    style = cfg["eyes"]["style"] = style or cfg["eyes"]["style"]  # Augenregel in 3/4 (E-Code), nach der Variante
+    assert style in cfg["eye_styles"], f"[eyes].style {style!r} fehlt in [eye_styles]"
+    for k, v in cfg["eye_styles"][style].items():
+        if k != "label":
+            assert k in cfg["eyes"], f"[eye_styles.{style}].{k}: kein Schluessel in [eyes]"
+            cfg["eyes"][k] = v
     r = cfg["render"]
     assert r["mm_per_px"] > 0 and r["supersample"] >= 2, "[render]: mm_per_px > 0, supersample >= 2"
     for m, ramp in cfg["materials"].items():
@@ -501,10 +508,9 @@ def sprite(cfg, view, dir_deg, anim="drive", frame=0):
     # Pixel-Art-Nacharbeit: Vertiefungen dunkler, Lichtkante oben links, Innenlinien hinter Tiefenspruengen
     dz = np.where(opaque, depth, np.inf)
     if r["cavity_mm"]:
-        k = 2 * r["cavity_px"] + 1
-        with np.errstate(invalid="ignore"):                       # inf - inf ausserhalb der Silhouette
-            recess = dz - minimum_filter(dz, size=k) > r["cavity_mm"]
-        val = np.where(opaque & recess, np.maximum(val - 1, 0), val)
+        rec = cavity(dz, r["cavity_px"], r["cavity_mm"])
+        RECESS[:] = [rec & (win == MAT["steel"])]                  # fuer den Selbsttest: Schild ist eben
+        val = np.where(rec, np.maximum(val - 1, 0), val)
     nb = lambda a, dy, dx, fill: np.pad(a, 1, constant_values=fill)[1 + dy:1 + dy + H, 1 + dx:1 + dx + W]
     if r["rim"]:
         rim = np.zeros_like(opaque)
@@ -519,6 +525,9 @@ def sprite(cfg, view, dir_deg, anim="drive", frame=0):
         val = np.where(opaque & closer, 0, val)
     if r["despeckle"]:
         val = despeckle(val, opaque)
+    if r["value_island_px"]:                                       # Splitter aus Licht/Linie/Vertiefung: ein Pixel-Artist
+        keep = np.isin(win, [MAT[m] for m in r["island_keep"]])    # setzt keine 1-2-px-Inseln (Vadim 8.10.: "nur pixelized")
+        val = np.where(keep, val, clean_islands(np.where(keep, -1, val), opaque & ~keep, r["value_island_px"], []))
     out = np.where(opaque, val + 1, 0).astype(np.uint8)
     EYES.clear()
     if cfg["eyes"]["show"]:
@@ -531,6 +540,20 @@ def sprite(cfg, view, dir_deg, anim="drive", frame=0):
             ring |= np.roll(np.roll(o, dy, 0), dx, 1)
         out = np.where(ring & ~o, 1 + r["outline_value"], out).astype(np.uint8)
     return np.roll(out, bob, 0)                                    # Hopser: Rand ist frei (margin_px > Hopser)
+
+
+def cavity(dz, k, mm):
+    """Vertiefung = konkav: tiefer als die Mitte zweier gegenueberliegender Nachbarn (Abstand k, waagrecht, senkrecht,
+    diagonal). Eine schraege Ebene ist das nie. Vorher: tiefer als das Minimum im Umkreis -> in 3/4 wurden Schild und
+    Kettenflanken (steile Ebenen, > 2 mm Tiefe pro Pixel) fleckig dunkel, "sieht nur verpixelt aus" (Vadim 8.10.)."""
+    H, W = dz.shape
+    p = np.pad(dz, k, constant_values=np.inf)
+    at = lambda dy, dx: p[k + dy:k + dy + H, k + dx:k + dx + W]
+    out = np.zeros(dz.shape, bool)
+    with np.errstate(invalid="ignore"):                            # inf ausserhalb der Silhouette zaehlt nicht
+        for dy, dx in ((0, k), (k, 0), (k, k), (k, -k)):
+            out |= dz - (at(dy, dx) + at(-dy, -dx)) / 2 > mm
+    return out & np.isfinite(dz)
 
 
 def bayer4():
@@ -580,6 +603,7 @@ def to_px(cfg, g, p):
 
 
 EYES = []                   # gestempelte Augenpixel des letzten Sprites (fuer den Selbsttest)
+RECESS = []                 # Vertiefung auf dem Schild im letzten Sprite (fuer den Selbsttest)
 
 
 def stamp_eyes(cfg, out, win, g, view, dir_deg, face):
@@ -605,9 +629,29 @@ def stamp_eyes(cfg, out, win, g, view, dir_deg, face):
         k = int(round((dir_deg - 90) / 90)) % 4
         eyes = [(side[0], np.rot90(st, k)), (side[1], np.rot90(st[:, ::-1], k))]
     else:
+        t = math.radians(dir_deg)
+        if math.sin(t) > e["away_sin"] and not e["show_away"]:
+            return out                                             # Hinterkopf: das OLED schaut nach hinten, ein Gesicht
+                                                                   # von hinten liest sich als Front (Vadim 8.10.: "andersrum")
         sep = max(abs(side[0][0] - side[1][0]), st.shape[1] + e["min_gap_px"])
-        look = e["look_px"] * math.cos(math.radians(dir_deg))
-        eyes = [((cx + look - sep / 2, cy), st), ((cx + look + sep / 2, cy), st[:, ::-1])]
+        look = e["look_px"] * math.cos(t)
+        diag = abs(math.cos(t)) > 0.3 and math.sin(t) < -0.3       # schraeg zur Kamera (225, 315)
+        if diag and e["diag_forward_frac"]:                        # Blick dorthin, wohin er faehrt (Seite: sonst am Rand)
+            fx = x0 + e["diag_forward_frac"] * (hi[0] - lo[0])
+            cx, cy, _ = to_px(cfg, g, (fx, y, 0.0))
+            side = [to_px(cfg, g, (fx, y, sgn * gap / 2))[:2] for sgn in (-1, 1)]
+        (_, ly), (_, ry) = sorted(side)                            # Augen im Bild links, rechts
+        tilt = round((ry - ly) / 2) if e["plane"] and diag else 0  # Paar liegt auf der Bildschirmebene (Iso-Treppe)
+        left, right = st, st[:, ::-1]
+        n = e["far_narrow_px"] if diag and st.shape[1] > 1 else 0
+        w = st.shape[1]
+        keep = (w - n - 1) // 2 - (w - 1) // 2                     # Stempel wird mittig gesetzt: Rest bleibt, wo er war
+        dl = dr = 0
+        if n and math.cos(t) > 0:                                  # 3/4-Gesicht: das Auge auf der Fahrtseite ist das ferne,
+            right, dr = right[:, :w - n], keep                     # schmaler, Innenkante bleibt
+        elif n:
+            left, dl = left[:, n:], n + keep
+        eyes = [((cx + look - sep / 2 + dl, cy - tilt), left), ((cx + look + sep / 2 + dr, cy + tilt), right)]
     for (px, py), stp in eyes:
         h, w = stp.shape
         ys, xs = np.nonzero(stp)
@@ -793,6 +837,52 @@ def look(cfg, views=(("tq", 270), ("tq", 315), ("tq", 0), ("tq", 45), ("top", 0)
     return p
 
 
+def _ejob(a):
+    code, style, view, d, anim = a
+    return sprite(load(variant=code, style=style), view, d, anim, 0)
+
+
+def eyes_sheet(cfg, views=(("tq", 0), ("tq", 45), ("tq", 90), ("tq", 135), ("tq", 180), ("tq", 225), ("tq", 270),
+                           ("tq", 315), ("front", 90)), anims=("idle", "win"), zoom=6):
+    """Augenbogen: pro E-Code eine Zeile (idle + win), alle 3/4-Richtungen. Vadim waehlt per Code."""
+    out = os.path.join(PROJECT, "previz", "now")
+    os.makedirs(out, exist_ok=True)
+    code = cfg.get("_variant")
+    styles = list(cfg["eye_styles"])
+    jobs = [(code, s, v, d, a) for s in styles for a in anims for v, d in views]
+    with Pool() as pool:
+        imgs = pool.map(_ejob, jobs)
+    bg = tuple(int(cfg["sheet"]["grounds"][1][i:i + 2], 16) for i in (1, 3, 5))
+    lines, k = [], 0
+    for s in styles:
+        for a in anims:
+            row = imgs[k:k + len(views)]
+            k += len(views)
+            tiles = [Image.fromarray(colorize(cfg, im, "natural")).resize((im.shape[1] * zoom, im.shape[0] * zoom),
+                                                                          Image.NEAREST) for im in row]
+            h = max(t.height for t in tiles)
+            line = Image.new("RGB", (240 + sum(t.width + 12 for t in tiles), h + 12), bg)
+            dr = ImageDraw.Draw(line)
+            dr.text((12, 10), s, fill=(60, 60, 75), font_size=40)
+            dr.text((12, 60), cfg["eye_styles"][s].get("label", ""), fill=(60, 60, 75), font_size=15)
+            dr.text((12, 82), a, fill=(110, 110, 125), font_size=15)
+            x = 240
+            for t in tiles:
+                line.paste(t, (x, h - t.height + 6), t)
+                x += t.width + 12
+            lines.append(line)
+    S = Image.new("RGB", (max(l.width for l in lines), sum(l.height for l in lines) + 30), bg)
+    ImageDraw.Draw(S).text((252, 6), "   ".join(f"{v} {d:g}" for v, d in views), fill=(110, 110, 125), font_size=15)
+    y = 30
+    for l in lines:
+        S.paste(l, (0, y))
+        y += l.height
+    p = os.path.join(out, f"eyes_{code or 'base'}.png")
+    S.save(p)
+    print(p)
+    return p
+
+
 def gifs(cfg, specs, pal="natural"):
     """Animierte Vorschau (vergroessert) pro (Ansicht, Richtung, Animation)."""
     out = os.path.join(PROJECT, "previz", "now")
@@ -837,11 +927,20 @@ def selftest(cfg):
             fails.append(f"Loop {v} {d}: Frame {n} weicht in {(a0 != an).sum()} px von Frame 0 ab")
         if (a0 != a1).sum() < 10:
             fails.append(f"Kette {v} {d}: Frame 0 -> 1 aendert nur {(a0 != a1).sum()} px")
-    for d in (0, 45, 180, 270) if cfg["eyes"]["show"] else ():    # alter Fehler: Augen uebereinander bei Fahrt seitwaerts
+    e = cfg["eyes"]
+    for d in (0, 180, 270) if e["show"] else ():                  # alter Fehler: Augen uebereinander bei Fahrt seitwaerts
         sprite(cfg, "tq", d, "idle", 0)
         rows = eye_rows()
         if len(rows) != 2 or abs(rows[0] - rows[1]) > 0.5:
             fails.append(f"Augen tq {d}: {len(rows)} Augen, Zeilen {rows}")
+    for v, d in (("tq", 45), ("tq", 90), ("tq", 135), ("front", 90)) if e["show"] and not e["show_away"] else ():
+        sprite(cfg, v, d, "idle", 0)                               # alter Fehler: von hinten schaut ihn ein Gesicht an,
+        if eye_rows():                                             # er wirkt "andersrum" (Vadim 8.10.)
+            fails.append(f"Hinterkopf {v} {d}: {len(eye_rows())} Augen sichtbar")
+    for d in (225, 315) if cfg["render"]["cavity_mm"] else ():   # alter Fehler: Vertiefung = tiefer als das Minimum im
+        sprite(cfg, "tq", d, "idle", 0)                            # Umkreis -> schraege Ebenen (Schild) fleckig dunkel
+        if RECESS and RECESS[0].sum():
+            fails.append(f"Vertiefung tq {d}: {RECESS[0].sum()} px auf dem ebenen Schild abgedunkelt")
     if not cad:                                                    # alter Fehler: durch die Speichenluecken sieht man
         g = gbuffer(cfg, 0, 0, (0, 0), 0, n)                       # das Ritzel der anderen Seite (Pixelrauschen)
         loc, hit = g["loc"], g["mat"] > 0
@@ -988,6 +1087,10 @@ if __name__ == "__main__":
             subprocess.run(["open", os.path.join(p, "index.html")])
     elif cmd == "look":
         p = look(cfg)
+        if "--no-open" not in sys.argv:
+            subprocess.run(["open", p])
+    elif cmd == "eyes":
+        p = eyes_sheet(cfg)
         if "--no-open" not in sys.argv:
             subprocess.run(["open", p])
     elif cmd == "variants":
