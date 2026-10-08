@@ -45,10 +45,11 @@ In dieser Reihenfolge:
 6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
    weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
 
-## Match Cuts MC1–MC6 (8.10. abends) · **wartet auf Vadim** · Resolve-Timeline „F10a-MC6 + Song“, Bögen `previz/review/MC/`
+## Match Cuts MC1–MC6 (8.10. abends) · **wartet auf Vadim** · Resolve-Timeline „F10a-MC6 + Song“, Bögen `Vorschau/MC_stills_1|2.png`
 
 Vadim: „die Match Cuts sehen aus wie digital alles reingecutted, das muss realistischer wie Match Cuts aussehen, es geht
-um Farbechtheit“. **Befund** (Bogen `MC/MC_stills_1|2.png`, 8 Fotos, Spalte MC0 = F5): `poster_mode = "rgb"` (F4/F5) zieht
+um Farbechtheit“. Videos `Vorschau/MC1_draft.mp4` … `MC6_draft.mp4` (Ende = F10a, nur die Foto-Phase unterscheidet sich).
+**Befund** (Bogen `Vorschau/MC_stills_1|2.png`, 8 Fotos im Startausschnitt, Spalte MC0 = F5): `poster_mode = "rgb"` (F4/F5) zieht
 den Papierbogen zu 70 % auf den Render, also auch dessen Weiß und Schwarz: das Plakat ist heller und kontrastreicher als
 alles andere im Foto (**Leuchtkasten**, am stärksten 31, 49, 57) und hat einen eigenen Weißpunkt; der mitkorrigierte
 Papierrand kippt (20 rosa). Das Papier ist im Foto nie neutral (06 im Schatten bläulich, 01 hinter Glas beige, 20 lila):
