@@ -306,6 +306,12 @@ head_scale = 1.35
 head_lift_mm = 3.0
 outline_value = 4
 show = false
+[variants.Z10]
+label = "Z6 ohne Augen"     # Vadim 8.10.: fuer Detail-Grossaufnahmen
+mm_per_px = 1.5
+head_scale = 1.2
+head_lift_mm = 2.0
+show = false
 
 # Sumo-Demo (uv run src/zumo_sprites_demo.py): zwei Zumos im Ring, zeigt die Sprites in einer Challenge-Animation.
 # Echte Pixel-Art (Vadim 7.10.: "zu fake"): flacher Ring ohne Lichtkegel/Verlauf, alles laeuft auf 12-fps-Ticks und in
@@ -327,16 +333,17 @@ ring_rx_px = 92             # stilisiert (massstaeblich waeren 148 px: Ring 77 c
 ring_ry_frac = 0.5          # Iso 2:1 (pitch 30)
 ring_h_px = 8               # Plattformkante (Mini-Sumo: 5 cm hoch)
 border_px = [8, 4]          # weisser Rand: seitlich, oben/unten (Iso: halb so hoch). Vadim 8.10.: "deutlich dicker"
-ring_values = [1, 4, 5]     # Stufen: Ringflaeche, Plattformkante (hell wie der Rand, eine Stufe tiefer = Kante), Rand
+ring_values = [1, 5, 5]     # Stufen: Ringflaeche, Plattformkante, Rand (Vadim 8.10.: Rand auch an der Seite weiss)
+lip_value = 4               # 1-px-Lippe zwischen Rand und Kante (sonst verschmelzen beide zu einem weissen Band)
 ring_outline = 0            # 1-px-Kontur um den Ring (Stufe), damit er auf hellen und dunklen Gruenden steht
 shadow_px = [16, 6]         # flacher Schatten unter jedem Zumo auf dem Ring (Radien), Stufe 0
 ticks = 40
 dir_a = 315                 # A faehrt schraeg nach vorne rechts ...
 dir_b = 225                 # ... B faehrt schraeg nach vorne links: A trifft B an der Flanke
-keys_a = [[0, -46, -35], [3, -46, -35], [7, -6, -15], [9, -6, -15], [15, 54, 15], [40, 54, 15]]
-keys_b = [[0, 30, -7], [6, 20, -2], [9, 20, -2], [15, 80, 28], [17, 86, 31], [40, 86, 31]]
-fall_b = [[0, 0], [15, 0], [16, 3], [17, 8], [18, 6], [19, 8], [40, 8]]   # ueber die Kante, kleiner Hopser
-anims_a = [[0, "idle"], [3, "drive"], [7, "push"], [17, "win"]]
+keys_a = [[0, -30, -27], [4, -30, -27], [7, -6, -15], [9, -6, -15], [15, 58, 17], [40, 58, 17]]
+keys_b = [[0, 30, -7], [6, 20, -2], [9, 20, -2], [15, 84, 30], [17, 98, 37], [40, 98, 37]]
+fall_b = [[0, 0], [15, 0], [16, 4], [17, 9], [18, 7], [19, 8], [40, 8]]   # ueber die Kante, kleiner Hopser
+anims_a = [[0, "idle"], [4, "drive"], [7, "push"], [17, "win"]]
 anims_b = [[0, "drive"], [6, "idle"], [7, "ko"]]
 impact_tick = 7
 shake_px = [[2, 1], [-1, 0]]  # Bildversatz ab dem Aufprall, ein Eintrag pro Tick
