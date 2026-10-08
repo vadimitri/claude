@@ -45,7 +45,27 @@ In dieser Reihenfolge:
 6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
    weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
 
-## F16 (8.10. nachts) · **wartet auf Vadim** · ansehen: `Vorschau/F16_draft.mp4`, Bogen `Vorschau/F16_sheet.png`
+## F17 (8.10. nachts) · **wartet auf Vadim, soll 9.10. gepostet werden** · ansehen: `Vorschau/F17_draft.mp4`
+
+Vadim zu F16: „fast fertig“. Umgesetzt (`previz/review/F17/F17.toml` = F16 + neue Schlüssel, Basis `F17B/F17B.toml` = MC3):
+1. **Kamera** (`loop.toml [video]`): `zoom_stepped = true` (Zoom + Rollen nur mit dem Fotowechsel), Verwackeln mit Saat
+   = Fotowechsel statt Bildnummer (`camera`): Versatz springt nur zwischen zwei Fotos. Befund: MC3 0/129 stehende
+   Bildpaare, F17B 39/129 (= die Haltebilder, T16 ≈ 1.5 Bilder je Foto).
+2. **Welten getauscht** (`swap_worlds`, `Timeline`): Fotos Welt 2 vor Welt 1, damit das Foto mit Daniela früh (weit) kommt;
+   das letzte Foto (Anschluss digital) und der Digitalteil bleiben. **Ungeprüft: ob Daniela jetzt ganz zu sehen ist.**
+   `MC3.toml` zeigte noch auf `photos/aligned_MC3` (gibt es nicht mehr, liegt in `aligned`) → F17B ohne den Schlüssel.
+3. **Wortwand lesbar** (`wall_colorways` [56, 26, 24]): je Begriff eine feste Colorway mit hellem Grund (Eisblau,
+   Bernstein, Weiß/Rot/Blau), der Loop läuft darin weiter. Befund: alle Paletten gehen dunkel → hell, unlesbar war es,
+   wo der Grund dunkel ist (dunkle Buchstaben auf dem schwarzen Spark).
+4. **Vorhang deckungsgleich**: das Loch fuhr jedes Bild stufenlos geradeaus (5.1°/Bild), der Loop springt je Plakat auf
+   seiner gekrümmten Bahn (7.5°/Plakat, Radius 1.9 → 1.46) → nie deckungsgleich. Jetzt springt das Loch mit dem Loop
+   (je Plakat Weg + Drehung an F1), das Plakat dahinter trägt seinen Spark genau im Loch (`curtain`, `plan`).
+5. **Halos** `step_lead_beats` 0.1 (Stufen ~2 Bilder vor dem Bass-Einsatz), `glow_grow_beats` 0.9 → 0.75.
+6. **Ton** (`song_pad`): Nachhall (Rauschen, RT60 3 s, Tiefpass 3.5 kHz, −12 dB), geduckt unter dem lauten Song
+   (Sidechain, sonst ganzer Song 3 dB leiser). Ende 13.0–13.5 s: −37 statt −48 dB.
+Selbsttest grün (Schnitte und Ausklingen messen jetzt mit dem Vorlauf). **Offen:** Vadims Urteil, dann `--master`.
+
+## F16 (8.10. nachts) · **überholt durch F17** · `Vorschau/F16_draft.mp4`, Bogen `Vorschau/F16_sheet.png`
 
 Ein Ablauf (`src/kickoff_loop_f16.py`, Stellschrauben `previz/review/F16/F16.toml`, Basis bis Bild 162 =
 `Vorschau/MC3_draft.mp4`, 14.0 s, `song_pad.wav`). Vadim zu F15 siehe unten.

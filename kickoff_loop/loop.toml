@@ -221,12 +221,13 @@ end_cell_px = 4            # Zoom-Ende: 1 Plakatzelle = 4 Ausgabepixel (R3) → 
 # Das Karussell (Plakatwechsel pro Takt je Abschnitt) kommt aus der Musik ([music].grid carousel_bars, gesetzt in
 # [mashup] a_carousel/b_carousel): die Takte liegen unter der Musik, die gerade laeuft. Es endet immer auf dem letzten
 # Frame, auf welchem Frame es anfaengt, ergibt sich daraus.
-zoom_stepped = false       # true = Kamera springt nur mit den Plakaten (reines Stop-Motion), false = faehrt fluessig
+zoom_stepped = true        # Vadim 8.10.: kein Zoom/Wackeln innerhalb eines Fotos, nur von Foto zu Foto. true = Kamera springt nur mit den Plakaten (reines Stop-Motion), false = faehrt fluessig
 roll_deg = -4.0            # Kamera rollt gleichmaessig von hier auf 0° (waagerecht am Zoom-Ende). Mehr Bewegung, kein Wackeln
 shake_px = 1.5             # F4 (Vadim 7.10.: "weniger Stabilisierung, jeden Frame minimal versetzt"): Zufallsversatz je Bild,
                            # F5: 6 → 1.5 (Vadim zu F4: "viel zu viel Bewegung, muss viel subtiler")
                            # Sigma in Ausgabepixeln (1080 breit), auf +-2 Sigma begrenzt. 0 = ruhig wie F1-F3
 shake_rot_deg = 0.05       # ... und Zufallsdrehung je Bild (Sigma, Grad). F5: 0.3 → 0.05
+swap_worlds = true         # Vadim 8.10.: Fotos Welt 2 vor Welt 1 (Foto mit Daniela frueher = weiter, ganz zu sehen); Digitalteil bleibt
 shake_fade_frac = 0.15     # Verwackeln laeuft ueber diesen Anteil der Fahrt zum Zoom-Ende auf 0 (Wechsel ins Digitale pixelgenau)
 # Papier → digital. F8 (Vadim zu F7: "erst mal hat alles einen weissen Hintergrund, dann nicht komplett blankweiss,
 # sondern der digitale Loop geht weiter, hat erst den Rand wie das Papier, und der wird immer groesser und waechst raus,

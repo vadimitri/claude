@@ -69,6 +69,9 @@ class Timeline:
             times = [x for x in times if x < KE.runout_times(cfg)[0] - 1e-6] + KE.runout_times(cfg)
         first = (end_index(cfg) + 1 - len(times)) % n         # letzter Wechsel = [endcard].end_frame
         self.changes = [(round(x * fps), (first + j) % n) for j, x in enumerate(times)]
+        if v.get("swap_worlds"):     # Vadim 8.10.: Fotos der Welten tauschen, letztes Foto (= Anschluss digital) bleibt
+            w = cfg["color"]["world_frames"]
+            self.changes = [(fr, (k + w) % n) for fr, k in self.changes[:-1]] + self.changes[-1:]
         self.hit = round(g["impact_s"] * fps)
         self.zoom_end = round(g["burst_s"] * fps)
         self.total = round(g["end_s"] * fps)
@@ -112,7 +115,8 @@ def camera(cfg, tl, t, poster_h):
     fps, b = v["timeline_fps"], beat_s(cfg)
     kick = sum(np.exp(-(t - p) / fps / (v["punch_decay_beats"] * b)) for p in tl.punches if p <= t < tl.zoom_end - 1)
     f = min(1.0, (1 - u) / v["shake_fade_frac"])
-    jx, jy, jr = np.clip(np.random.default_rng(t).normal(size=3), -SHAKE_CLIP, SHAKE_CLIP) * f
+    # Saat tz: der Versatz springt nur mit dem Foto, nie innerhalb (Vadim 8.10.: "Irregularitaet nur zwischen zwei Postern")
+    jx, jy, jr = np.clip(np.random.default_rng(tz).normal(size=3), -SHAKE_CLIP, SHAKE_CLIP) * f
     return (s0 * (s1 / s0) ** u * (1 + v["punch_frac"] * kick), v["roll_deg"] * (1 - u) + jr * v["shake_rot_deg"],
             jx * v["shake_px"], jy * v["shake_px"])
 

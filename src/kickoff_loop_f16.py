@@ -196,19 +196,27 @@ def phase(cfg, f, n):
 
 
 def curtain_motion(cfg, f):
-    """Vorhang: Start = Plakat-Spark auf F1, Geschwindigkeit + Drehung je Bild = die der Loop-Bahn an F1 im Tempo des
-    Loops in den Buchstaben."""
-    rate = inner(cfg, f)[2]
+    """Vorhang: Start = Plakat-Spark auf F1, je Plakat des Loops in den Buchstaben ein Schritt mit Weg + Drehung der
+    Loop-Bahn an F1 (7.5 Grad). F17 (Vadim 8.10. zu F16: "nicht aligned, dreht sich mehr als der Loop"): das Loch fuhr
+    jedes Bild stufenlos, der Loop dahinter springt je Plakat auf seiner gekruemmten Bahn; jetzt springen beide zusammen."""
     x0, y0, r0, rot0 = loop_star(cfg, 0)
     xa, ya, _, ra = loop_star(cfg, -0.5)
     xb, yb, _, rb = loop_star(cfg, 0.5)
-    return (x0, y0, r0, rot0), ((xb - xa) * rate, (yb - ya) * rate), (rb - ra) * rate
+    return (x0, y0, r0, rot0), (xb - xa, yb - ya), rb - ra
 
 
 def curtain(cfg, f, n):
     (x0, y0, r0, rot0), (vx, vy), spin = curtain_motion(cfg, f)
-    m = n - marks(f)[1]
+    m = math.floor(phase(cfg, f, n) + EPS) - math.floor(phase(cfg, f, marks(f)[1]) + EPS)   # Plakate seit F1
     return x0 + vx * m, y0 + vy * m, r0, rot0 + spin * m
+
+
+def wall_colors(cfg, f, st, word):
+    """F17 (Vadim 8.10.: "Wortwand leserlicher, nicht so viele Hintergrundfarben"): je Begriff eine feste Colorway mit
+    hellem Grund (wall_colorways = Plakat je Begriff), der Loop laeuft in ihr weiter; [] = Farbreise wie F16."""
+    if f.get("wall_colorways"):
+        st["P"] = KL.poster_style(cfg, f["wall_colorways"][f["words"].index(word)])["P"]
+    return st
 
 
 @functools.lru_cache(maxsize=None)
@@ -334,14 +342,16 @@ def plan(cfg, f, n):
         return ("base", n)
     if n <= n2:                                                        # dunkler Spark = Maske, darin die Wortwand
         word = f["words"][sum(tb_of(f, n) >= b for b in f["words_change"])]
-        return ("render", scene(cfg, f, inner_world(cfg, f, n), black={"not": wall(f, word)}), n < base_until(cfg))
+        st = wall_colors(cfg, f, inner_world(cfg, f, n), word)
+        return ("render", scene(cfg, f, st, black={"not": wall(f, word)}), n < base_until(cfg))
     if n == n3:                                                        # Vorhang draussen (Auslaeufer auch)
         return ("render", scene(cfg, f, st_black(cfg, f)), False)
     if n < n3:                                                         # Vorhang: Loch zieht ueber die stehende Wand
-        keep = {"and": [hole_spec(f, curtain(cfg, f, n)), wall(f, f["words"][-1])]}
-        k = math.floor(phase(cfg, f, n) + EPS)
-        return ("render", scene(cfg, f, world(cfg, k), black={"not": keep}), False)
-    return ("render", card(cfg, f, tb_of(f, n)), False)
+        pose = curtain(cfg, f, n)                                      # Spark des Plakats sitzt genau im Loch
+        keep = {"and": [hole_spec(f, pose), wall(f, f["words"][-1])]}
+        st = wall_colors(cfg, f, world(cfg, math.floor(phase(cfg, f, n) + EPS), pose), f["words"][-1])
+        return ("render", scene(cfg, f, st, black={"not": keep}), False)
+    return ("render", card(cfg, f, tb_of(f, n) + f.get("step_lead_beats", 0.0)), False)
 
 
 # ---------------------------------------------------------------- Zeichnen (Hooks fuer styles.render)
@@ -522,11 +532,35 @@ def out_dir(f):
     return d
 
 
+SR = 48000      # Audio-Abtastrate der Vorschau (ffmpeg dekodiert/kodiert darauf)
+DUCK_S = 0.3    # Huellkurve fuers Ducking des Nachhalls: RMS ueber so viele Sekunden (~ein Achtel bei IGOR)
+
+
 def song_pad(f):
-    """Song mit Stille bis end_s (der Writer schneidet mit -shortest auf die kuerzere Spur)."""
+    """Song bis end_s (der Writer schneidet mit -shortest auf die kuerzere Spur). F17 (Vadim 8.10.: "hoert sich am Ende
+    so leer an, ganz subtil laenger"): Nachhall aus Rauschen mit exponentiellem Abfall (tail_rt60_s, tiefpass
+    tail_lowpass_hz, Stereo dekorreliert), tail_wet_db unter den ganzen Song gemischt; der letzte Ton klingt aus statt
+    abzureissen. Ohne tail_rt60_s nur Stille wie F16."""
+    import scipy.signal as sig
     path = os.path.join(out_dir(f), "song_pad.wav")
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", f["song"], "-af", f"apad=whole_dur={f['end_s']}", path],
-                   check=True)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", f["song"], "-f", "f32le", "-ac", "2", "-ar", str(SR), "-"],
+                         capture_output=True, check=True).stdout
+    x = np.frombuffer(raw, np.float32).reshape(-1, 2).astype(np.float64)
+    x = np.pad(x, ((0, max(0, round(f["end_s"] * SR) - len(x))), (0, 0)))
+    if f.get("tail_rt60_s"):
+        t = np.arange(round(f["tail_rt60_s"] * SR)) / SR
+        ir = np.random.default_rng(1).normal(size=(len(t), 2)) * np.exp(-6.91 * t / f["tail_rt60_s"])[:, None]
+        ir = sig.sosfilt(sig.butter(2, f["tail_lowpass_hz"], fs=SR, output="sos"), ir, axis=0)
+        ir /= np.sqrt((ir ** 2).sum(0))                                 # Energie 1: Hall so laut wie der Song, dann wet_db
+        wet = sig.fftconvolve(x, ir, axes=0)[:len(x)]
+        # Ducking: Hall nur, wo der Song leise wird (Huellkurve DUCK_S), sonst bliebe kein Platz bis 0 dBFS (F17 erst:
+        # ganzer Song 3 dB leiser gerechnet)
+        env = np.sqrt(sig.fftconvolve(x.mean(1) ** 2, np.ones(round(DUCK_S * SR)) / round(DUCK_S * SR), mode="same").clip(0))
+        duck = (1 - env / env.max()) ** 2
+        x = x + wet * 10 ** (f["tail_wet_db"] / 20) * duck[:, None]
+        x /= max(1.0, np.abs(x).max() / 0.999)
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "f32le", "-ac", "2", "-ar", str(SR), "-i", "-", path],
+                   input=x.astype(np.float32).tobytes(), check=True)
     return path
 
 
@@ -555,7 +589,8 @@ def gray(path):
 def events(f):
     """Geplante Schnitte: jeder Begriffswechsel, jede Stufe. (Bild, Name)."""
     ev = [(frame_at(f, b), w) for b, w in zip(f["words_change"], f["words"][1:])]
-    return ev + [(frame_at(f, s), f"Stufe {j + 1}") for j, s in enumerate(f["steps"])]
+    lead = f.get("step_lead_beats", 0.0)                 # Stufen setzen so viel frueher an (F17), fruehestens nach dem Vorhang
+    return ev + [(max(frame_at(f, s - lead), marks(f)[2] + 1), f"Stufe {j + 1}") for j, s in enumerate(f["steps"])]
 
 
 def onset(d, n):
@@ -624,7 +659,7 @@ def report(cfg, f, path):
         ns, ni, ng = frame_at(f, s), frame_at(f, s + f["intro_beats"]), frame_at(f, s + GROW_PROBE_BEATS)
         intro.append((ns, ni, float(a[ns][reg].mean()), float(a[ni][reg].mean())))
         grow.append((ns, ng, float(sil[ns].mean()), float(sil[ng].mean())))
-    fade0 = frame_at(f, f["steps"][-1] + f["fade_hold_beats"])
+    fade0 = frame_at(f, f["steps"][-1] + f["fade_hold_beats"] - f.get("step_lead_beats", 0.0))
     halo = [float(sil[n].mean()) for n in range(frame_at(f, f["steps"][0]), fade0)]
     drop = max(p - q for p, q in zip(halo, halo[1:]))
     tail = float(sil[round(t_beat(f, f["steps"][-1] + f["fade_hold_beats"] + f["fade_beats"]) * FPS) + 1:].mean())

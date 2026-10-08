@@ -1,0 +1,15 @@
+F17, /Users/vadim/Developer/spark/motion-pack/.claude/worktrees/f11/kickoff_loop/previz/review/F17/preview_draft.mp4
+Maske ab Bild 163 (echter dunkler Spark, MC3 auf Zweiern): Paare gleich 9/9, ausserhalb = MC3 (Abweichung max 0.008, muss < 0.02), in der Maske Woerter (min 0.158, muss > 0.05); Loop in den Buchstaben ab Bild 171 Phase 57.71, 0.684 Plakate/Bild
+Vorhang ab Bild 228: 24 Bilder bis draussen (24 da), Tempo der Loop-Bahn an F1; Helles ausserhalb der stehenden Wand max 0.00 % (muss < 0.5), Sichtbares ausserhalb des Lochs max 0.00 % (muss < 0.5); Flaeche 57 57 57 56 56 53 46 46 41 33 33 28 21 21 19 8 8 4 2 2 1 0 0 0 0 %
+Weggezogen: Helles im Bild vor Stufe 1 0.0 % (muss ~0)
+Zeilen leuchten ein (Helligkeit der neuen Zeilen auf der Stufe → +0.4 Beat): Bild 252 0.27 → 260 0.97, Bild 270 0.33 → 277 0.98, Bild 283 0.28 → 290 0.97 (muss < 0.6x)
+Halo waechst (Lichtflaeche auf der Stufe → +0.6 Beat): Bild 252 12.4 % → 263 32.8 %, Bild 270 36.2 % → 281 40.3 %, Bild 283 43.2 % → 294 50.0 % (muss steigen)
+Halo nie kleiner bis zum Ausklingen: groesster Rueckgang je Bild 0.02 % (muss < 0.3)
+Schluss: Helles nach dem Ausklingen 0.00 % (muss ~0)
+Schnitte auf dem Beat (> 2x Vorlauf, Helligkeit oder Silhouette):
+  ok  ROBOTS       Bild 191 = 7.958 s  x14.5
+  ok  HACKATHONS   Bild 213 = 8.875 s  x65.9
+  ok  Stufe 1 (aus Schwarz) Bild 252 = 10.500 s  x13.0
+  ok  Stufe 2      Bild 268 = 11.167 s  x6.9
+  ok  Stufe 3      Bild 282 = 11.750 s  x6.6
+Gegenprobe +3 Bilder: 0/5 ok (muss weniger sein)
