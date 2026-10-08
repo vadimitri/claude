@@ -1,0 +1,7 @@
+# F11g1 = F11e, aber im Stopp hart auf Schwarz (Bild endet mit dem Ton).
+[f11]
+idea = "pulse"
+stop = "black"
+pulse_wave_pow = 0.55        # schnell aus dem Spark, dann bremsend (Ripple-GIF)
+pulse_wave_beats = 1.0
+wave_lead_16ths = 0.3

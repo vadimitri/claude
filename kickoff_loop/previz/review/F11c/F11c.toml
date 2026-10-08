@@ -1,0 +1,9 @@
+# F11c Ein Stern, viele Welten: grosser Stern fest, je Beat Schnitt auf Stil + Colorway eines anderen Plakats
+# (Match-Cut auf die Silhouette). Takt 3: S2 in Rot, zieht sich auf den Spark hinter dem Slash zusammen.
+[f11]
+idea = "worlds"
+world_posters = [12, 18, 22, 28]   # Plakat-Index (0-63): S31 Blau/Orange, S31g Gelb, S50 Pink, S48e Limette (kein Rot vor dem Ende)
+world_star = [0.5, 0.5, 0.8]       # x, y, Spitzenradius (Bildbreite): Riese (K1), Begriff liegt ganz auf ihm
+world_rot_deg = 6.0                # + 12/Beat: in der Mitte der Begriffe (30 Grad) liegen Spitzen waagerecht
+world_spin_deg_per_beat = 12.0     # dreht stetig wie der Spark (kein Ruck am Schnitt)
+shrink_beats = 1.0

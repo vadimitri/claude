@@ -1,0 +1,7 @@
+# F11f Lichtregie: Satz steht, je Beat kommt das Licht (F10-Schweif) von einer anderen Stelle ausserhalb des Bilds
+# (Kick unten, Snare oben) und wandert im Beat stetig ein Stueck. Takt 3: roter Spark hinter dem Slash wie F10.
+[f11]
+idea = "lights"
+light_scale = 1.22            # Schweiflaenge (ln-Massstab um die Lichtquelle; fern = kleiner Wert reicht)
+light_from = [[0.22, 1.35], [0.82, -0.38], [0.78, 1.35], [0.18, -0.38]]   # x, y (Bildanteile) je Beat
+light_drift = [[0.12, 0.0], [-0.12, 0.0], [-0.12, 0.0], [0.12, 0.0]]       # Weg im Beat

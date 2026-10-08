@@ -1,0 +1,10 @@
+# F11b Schrift als Fenster: Begriff in Zeilen ueber die volle Satzbreite (HARDWARE HARDWARE ...), darin laeuft das
+# Karussell digital weiter, sonst Schwarz. Je Beat schneidet nur die Maske. Takt 3: SPARK ist das Fenster, rote Welle.
+[f11]
+idea = "window"
+world_start = 0               # erstes Plakat im Fenster, dann eins je world_step_frames Bilder (Zweier wie der Digitalteil)
+world_step_frames = 2
+window_gap_cells = 14         # Abstand unter SPARK
+window_margin_cells = 19      # unterer Rand (wie die Satzkante)
+window_lead_frac = 1.06       # Zeilenabstand / Versalhoehe
+wave_beats = 2.0              # rote Welle ueber 2 Beats wie F10

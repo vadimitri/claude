@@ -38,11 +38,53 @@ In dieser Reihenfolge:
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
 5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
+9. **F11 (8.10. abends)**: 7 Ideen gegen das antiklimaktische Ende, alle gebaut (8 Videos), Abschnitt „F11“.
 8. **F10 (8.10. nachts)**: Blau → Rot über die Ripple-Welle, 9 Varianten gestapelt in Resolve, Abschnitt „F10“.
 7. **F9 (7.10. nachts)**: blauer Spark + Slogan vor dem roten Ende, Abschnitt „F9“ hierunter. Musik schieben: Resolve
    `kickoff_loop_resolve.py song <variante.toml>` (Timeline „<Version> + Song“).
 6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
    weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
+
+## F11 (8.10. abends) · **wartet auf Vadims Codes** · ansehen: Resolve-Timeline „F11a-F11g2 + Song“, `Vorschau/F11_alle_abcd_efg1g2.mp4`, Bogen `Vorschau/F11_abcdefg.png`
+
+Vadim zu F10 + Songschnitt M4a: „super antiklimatisch; visuell faszinierender, auf den Beat (keine Beat-Größenwechsel,
+subtil oder Schnitte); Begriffe als Platzhalter, dann das Ende, wie es steht“ → 7 Ideen vorgeschlagen, „mach mir all
+diese Ideen“. **Befund vorher** (F10a gegen M4a, mittlere |ΔI| je Bild ×100): 0–5 s ≈ 17, 8–9 s 0.35, 11–12 s 0.10, Ton
+gleichzeitig −15 → −11 dBFS: die zweite Hälfte war ein Standbild, genau wenn IGORs Drums kommen. Das F10-Ende zählte
+Beats ab dem Drum-Boom 5.876 s, der Boom ist synkopiert (+0.7 16tel) → alle Ereignisse ~0.11 s ≈ 3 Bilder hinter dem Beat.
+**Gerüst** (alle, IGORs Raster aus `igor_beats.json` über `song_start_s`, Beat k = 4.2917 + k·0.7352 s): bis Bild 172 F10a
+(`Vorschau/F10a_draft.mp4`), **Takt 2 Eins (7.23 s, Bild 173) = harter Schnitt** in 4 Begriffe je Beat (7.23 / 7.97 / 8.70
+/ 9.44), **Takt 3 Eins (10.17 s) = Endkarte** (SPARK + KICK-OFF/Datum/Ort wie F10), **Stopp 12.38 s** = Schluss. Ein Bild,
+in dem ein Beat liegt, zeigt schon den neuen Zustand (beginnt ≤ 1/24 s davor). Begriffe = Platzhalter `words` in
+`F11/F11.toml` (HARDWARE ROBOTS HACKATHONS PROTOTYPES), alle gleich groß (der längste füllt die Satzbreite), Mitte
+`word_y` 0.43 über dem Spark (mittig auf dem Spark zog das Licht einer Zeile zum Balken = Kasten).
+| Code | Idee | Bildänderung ×100 je s (7 / 8 / 9 / 10) |
+|---|---|---|
+| F11a | **Bayer-Sequencer**: Bayer 4×4 = 16 Schwellen = 16 16tel. Begriff + blauer Lichtfächer setzen je Beat in 4 Bayer-Stufen ein (25/50/75/100 %), Takt 3: Endkarte + Rot in 16teln (1/16 je 16tel), Rest fällt in den Stopp, dann steht das Bild | 5.0 / 0.6 / 0.8 / 0.7 |
+| F11b | **Schrift als Fenster**: Begriff in Zeilen über die ganze Fläche, darin läuft das Karussell digital weiter (Zweier), sonst Schwarz, je Beat schneidet nur die Maske. Takt 3: SPARK ist das Fenster, rote Welle (2 Beats) macht es weiß, bringt Licht + Datum | 6.9 / 3.3 / 4.3 / 10.1 |
+| F11c | **Ein Stern, viele Welten**: Riesenstern fest (K1, r 0.8, dreht 12°/Beat), je Beat Schnitt auf Plakat 12 S31 → 18 S31g → 22 S50 → 28 S48e (Match-Cut auf die Silhouette, kein Rot vor dem Ende). Takt 3: S2 in Rot zieht sich in 1 Beat auf den Spark zusammen | 5.9 / 1.6 / 1.8 / 5.2 |
+| F11d | **Werkstatt-Inserts**: je Beat ein Club-Foto als Duoton (Rampen Blau/Cyan/Limette/Pink, Bayer, Zellraster, σ 0.7 Zellen), 5 % näher je Beat. Takt 3: letztes Foto zerfällt in 4 Stufen (16tel, transponierte Bayer-Folge) ins rote Ende. Fotos = Platzhalter aus der Sporga-Nextcloud (`assets/physical`), Zumo-Produktfoto mit `zoom` 0.42 (Rand weiß aufgefüllt) | 8.1 / 2.3 / 2.7 / 1.7 |
+| F11e | **Puls aus dem Spark**: Spark sendet je Beat eine Sternwelle (F10-Ring, `pulse_wave_pow` 0.55 = schnell raus, bremst), dahinter nächster Begriff + nächstes Licht Blau → Cyan → Limette → Pink, Takt 3 = Rot + Endkarte; Start 0.3 16tel vor dem Beat | 8.8 / 7.3 / 6.7 / 5.0 |
+| F11f | **Lichtregie**: Satz steht, je Beat springt die Lichtquelle des Schweifs außerhalb des Bilds (Kick unten, Snare oben, `light_from`), wandert im Beat ein Stück. Takt 3: roter Spark wie F10 | 4.8 / 0.5 / 0.5 / 0.8 |
+| F11g1 | = F11e, im Stopp hart auf Schwarz | wie F11e |
+| F11g2 | = F11e mit **Songschnitt M4d** (M4a bis zur B-Eins, `resolve/schnitt/M4d.wav`, 16.04 s): im Stopp Standbild in 2 Stufen (Impact) in die Stille, auf dem Hit 13.12 s rote Endkarte mit vollem Licht + Ring, klingt 1 Takt aus, Schluss vor der B-Eins | 13 s: 5.4 |
+Alle außer F11a: im Stopp geht das Licht in einem Bild aus, weiße Schrift steht in der Stille.
+**Selbsttest** `test` am fertigen Video: jeder geplante Schnitt setzt genau auf seinem Beat-Bild ein (> 2× Vorlauf, Helligkeit
+oder Silhouette; F11b: die Welt im Fenster wechselt alle 2 Bilder, nur die Silhouette zeigt den Wortschnitt; F11g2: nach
+dem Hit läuft der Ring weiter, deshalb „Einsatz“ statt „stärkstes Bild“), Mindeststärke gegen Encoder-Rauschen; Gegenprobe
+dieselben Schnitte +3 Bilder (F10-Versatz) schlägt an. 8/8 OK. F11e/g haben in Takt 2 keine Schnitte (Wellen laufen stetig).
+Code: `src/kickoff_loop_f11.py` (eigener Einstieg, rendert ab Bild 173 über `styles.render`-Hooks mit den F10-Bausteinen:
+Licht wie `KE.flare_layer` mit frei liegendem Block, `KE.word_mask`/`date_cap`, `KE.poster_digital` für die Welten,
+Cache wie der Digitalteil + Hash dieses Skripts). Stellschrauben: `previz/review/F11/F11.toml` + je `F11x/F11x.toml`.
+Befunde unterwegs: Fotos als Plakat-Colorway (mehrfarbig) zerfallen im Bayer zu Zebra → Duoton-Rampen; `photo_lum` muss
+float32 sein (PIL „F“ las float64 als Müll = reines Schwarz/Weiß); Titel über wechselnden Welten (F11b) in fester
+Palette, sonst flackert SPARK in jeder Plakatfarbe; auf dem weißen Produktfoto kippt SPARK als ganzes Wort (`flip`).
+Befehle (aus dem Pack-Root): `uv run src/kickoff_loop_f11.py video|sheet|test <F11x.toml> [...]`, `still <toml> <beat> [...]`,
+`song kickoff_loop/previz/review/F11g2/F11g2.toml` (M4d neu). ~20 s je Variante warm, Bogen ~20 s.
+**Offen:** Vadims Wahl (Codes, auch kombiniert, z. B. Lichtfolge aus F11e + Fotos aus F11d); Begriffe; echte Fotos für
+F11d (Personen auf den Platzhaltern sind Clubmitglieder aus dem Sporga-Ordner, vor Veröffentlichung fragen); danach
+die Wahl ins richtige Ende überführen (heute nur Entwurf: Foto-Teil + Digitalteil bis 7.2 s kommen aus der F10a-Vorschau
+auf Zweiern; für `--master` muss F11 in `kickoff_loop_end`/`preview` ab dem Karussell-Ende, nicht als Nachbearbeitung).
 
 ## F10 (8.10. nachts) · **wartet auf Vadim** · Resolve-Timeline „F10a-F10i + Song“, Bogen `Vorschau/F10_abcdefghi.png`
 
