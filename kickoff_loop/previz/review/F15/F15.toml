@@ -1,0 +1,34 @@
+# F15 = Vadim 8.10. zu F14: der dunkle Spark aus MC3 (macht ohnehin alles schwarz, ist schon posterisiert) wird die
+# Maske, darin die Begriffe ab seinem Auftauchen (mehr Zeit); Vorhang ohne Zwerg: gleiches Tempo geradeaus zur Seite raus;
+# Endtitel leuchten rot ein und werden heller, Halo waechst mit; Halos atmen (lebendig), alle wachsen je Zeile ein Stueck.
+[f15]
+base_toml = "kickoff_loop/previz/review/MC3/MC3.toml"
+base_video = "Vorschau/MC3_draft.mp4"         # im Hauptcheckout (gitignored)
+song = "kickoff_loop/resolve/schnitt/M4a.wav"  # im Hauptcheckout (gitignored), beginnt auf Timeline-Bild 0, endet 13.03 s
+song_start_s = 18.143417
+grid = "kickoff_loop/ref/audio/igor_beats.json"
+end_s = 14.0                                   # 336 Bilder; hinter dem Song Stille (song_pad.wav im Ordner)
+# Beats ab Taktstrich 1 der Timeline (4.292 s, Beat 0.7352 s)
+mask_beat = 3.45               # ab hier ist der dunkle Spark des MC3-Videos die Maske (Bild 163: dort ist er zuerst dunkel)
+words = ["HARDWARE", "ROBOTS", "HACKATHONS"]   # PLATZHALTER: der erste steht ab mask_beat ...
+words_change = [5.0, 6.5]      # ... die naechsten ab diesen Beats (je ~1.5 Beat)
+pull_beat = 8                  # Vorhang (Eins Takt 3): Spark-Loch in Deckgroesse auf F1 zieht weg, bis zur ersten Stufe ...
+pull_dir = [-1.0, 0.0]         # ... geradeaus in diese Richtung (Bildanteile, wie die Loop-Bahn ab F1: links) ...
+pull_accel_frac = 0.5          # ... Tempo steigt im ersten Teil linear, danach konstant (kein Bremsen, kein Schrumpfen) ...
+pull_spin_deg = 40.0           # ... und dreht dabei weiter (Loop-Bahn: ~5 Grad je Bild)
+sil_reach = 1.3                # Vorhang-Silhouette: Auslaeufer des Plakat-Stils (Spritzer, Scherben) bis so viel x Radius
+sil_rim = 0.12                 # posterisierter Rand (Maske und Vorhang): Bayer-Band ausserhalb des Koerpers, Anteil am Radius
+steps = [8.5, 9.5, 10.25]      # Tonleiter: gemessene Bass-Einsaetze C2 / D2 / D#2 in M4a (Stille ab ~10.8)
+step_items = [2, 3, 4]         # sichtbare Kartenteile je Stufe: 1 SPARK, 2 + KICK-OFF, 3 + Datum, 4 + Ort
+intro_beats = 0.4              # neue Zeile leuchtet ein: von intro_level (Rampe 0.3 = glimmend rot) bis Weiss ...
+intro_level = 0.3
+glow_start_frac = 0.15         # ... Halo startet bei so viel seiner Laenge und waechst in glow_grow_beats (ease-in-out) ...
+glow_grow_beats = 0.9
+glow_bump_frac = 0.15          # ... jede neue Stufe laesst alle aelteren Halos um so viel (Anteil der vollen Laenge) mitwachsen
+breathe_frac = 0.12            # Halos atmen: Laenge schwankt um so viel ...
+breathe_beats = 1.0            # ... mit dieser Periode (Zeilen um 1/3 Periode versetzt), dazu ein schnelleres Flackern ...
+flicker_frac = 0.08            # ... der Helligkeit des Halos
+fade_hold_beats = 1.5          # nach der letzten Stufe so lange stehen (F13 0.15), dann ...
+fade_beats = 0.45              # ... schrumpft + dunkelt alles Licht und nimmt die Schrift mit (schwarz ~13.3 s)
+wall_margin_cells = 19         # Rand oben/unten der Wortwand
+wall_lead_frac = 1.06          # Zeilenabstand / Versalhoehe

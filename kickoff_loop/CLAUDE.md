@@ -38,36 +38,26 @@ In dieser Reihenfolge:
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
 5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
-10. **F13 (8.10. nachts)**: MC3 fest; Wortwand im Masken-Spark auf der Loop-Bahn, Wegziehen, Tonleiter-Ende, Abschnitt „F13“.
+10. **F16 (8.10. nachts)**: MC3 fest; echter dunkler Spark (MC3-Pixel) = Maske der Wortwand, Vorhang im Loop-Tempo, Abschnitt „F16“.
 8. **F10 (8.10. nachts)**: Blau → Rot über die Ripple-Welle, 9 Varianten gestapelt in Resolve, Abschnitt „F10“.
 7. **F9 (7.10. nachts)**: blauer Spark + Slogan vor dem roten Ende, Abschnitt „F9“ hierunter. Musik schieben: Resolve
    `kickoff_loop_resolve.py song <variante.toml>` (Timeline „<Version> + Song“).
 6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
    weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
 
-## F13 (8.10. nachts) · **wartet auf Vadim** · ansehen: `Vorschau/F13_draft.mp4`, Bogen `Vorschau/F13_sheet.png`
+## F15 (8.10. nachts) · **verworfen → F16** · Commit siehe Git-Log
 
-Vadim zu F12 (Geburt + 7 Enden, alle verworfen, F12 nur noch im Git c115a16): „Masken-Spark aus der Mitte des dunklen
-Sparks, in Loop-Richtung weiter, Größe wie der Loop-Stern, smooth und Teil davon; kein gefüllter Spark, die Begriffe
-füllen den ganzen Bildschirm; danach zieht der Spark als Maske mit den Begriffen alles nach links weg; dahinter je
-Tonleiter-Stufe ein Begriff, Spark kommt mit Halo zurück, das je Stufe aufleuchtet; nach der letzten nicht in einem
-Bild weg, sondern Halo kleiner/dunkler und die Schrift mit, zack, alles schwarz“. Ein Ablauf (`src/kickoff_loop_f13.py`,
-Stellschrauben `previz/review/F13/F13.toml`, Basis bis Bild 172 = `Vorschau/MC3_draft.mp4`):
-1. **Geburt** Beat 4 → 5: Bahnphase läuft im Karussell-Tempo (12 Plakate/Beat) auf F1 zu, Mitte + Drehung gehen per
-   smoothstep von der Mitte des dunklen Sparks (`KE.orbit_state`, anfangs rechts außerhalb) in die Loop-Bahn
-   (`KL.orbit`, umgerechnet wie `KE.poster_digital`) über, Radius 6 % → Loop-Stern; F1 deckt 9:16 nicht ganz → auf
-   `cover_r` gestreckt. Im Spark nur die Wortwand (Loop läuft in den Buchstaben), sonst Schwarz bzw. MC3 bis Bild 180.
-2. **Wände** Beat 5/6/7 (HARDWARE ROBOTS HACKATHONS = Platzhalter), ganzer Bildschirm, kein SPARK-Titel.
-3. **Wegziehen** Beat 8 → 8.38: Spark fliegt von F1 nach links raus (`pull_*`), die Wand hängt an ihm (verschoben +
-   skaliert), sichtbar Bild 244–247, dann 4 Bilder Schwarz.
-4. **Tonleiter** = gemessene Bass-Einsätze in M4a (Bassband 45–110 Hz je Bild + Grundton): **8.5 C2 / 9.5 D2 /
-   10.25 D#2**, Stille ab ~10.8. Je Stufe ein Kartenteil (SPARK + KICK-OFF, Datum, D-SCHOOL; `step_items`), roter Spark
-   hinter dem Slash, Halo ×3 je Stufe, klingt in ¼ Beat ab. Nach Stufe 3 + 0.15 Beat schrumpft + dunkelt das Halo in
-   0.45 Beat, die Schrift zerfällt mit (transponierte Bayer-Folge) → ab ~10.9 schwarz bis 13.04 s.
-**Selbsttest** `test`: Spark deckt geometrisch genau ab dem letzten Bild vor Beat 5 (davor 5.4 % ungedeckt), Bild vor
-Stufe 1 schwarz, nach dem Ausklingen schwarz, Wände 2/3 und Stufen 1–3 setzen auf ihrem Beat-Bild ein, Gegenprobe +3
-Bilder 2/5. Alles OK. Befehle: `uv run src/kickoff_loop_f13.py video|sheet|test kickoff_loop/previz/review/F13/F13.toml`.
-**Offen:** Vadims Urteil, Begriffe; danach ins richtige Ende (`--master`) überführen.
+Vadim zu F14 („Maske mega gut, aber am Ende ein Zwerg, Titel poppen“): dunkler Spark aus MC3 als Maske, Vorhang in
+gleicher Geschwindigkeit zur Seite, Titel leuchten rot ein, Halos lebendig. Umgesetzt in `src/kickoff_loop_f15.py`
+(Maske = geometrischer Stern an `KE.orbit_state` + Bayer-Rand, Vorhang geradeaus mit Anlauf, Halos atmen/flackern).
+Vadim zu F15: „warum ein neuer Spark statt der echten? Mismatch, Posterization fehlt, spackt“ (Befund: MC3 ist ein
+Entwurf auf Zweiern, die Maske lief jedes Bild weiter und lag jedes zweite Bild neben dem Spark; der Bayer-Rand legte
+einen falschen Saum über Spritzer/Glühen), „Loop in der Wortwand an anderer Position“, „Vorhang viel zu schnell, nicht
+wie der Loop“, „Halos atmen zu viel, werden wieder weniger“.
+**F14** (Commit 8c57837): Loch = Plakat-Spark auf der echten Bahn F21 → F1, deckungsgleich, löst sich zum Decken.
+**Falle:** `previz/review/<Code>/preview_draft.mp4` ist ein Hardlink auf `Vorschau/<Code>_draft.mp4`; nach `git mv` des
+Ordners schrieb `ffmpeg -y` in die alte Vorschau (F13 neu gerendert). `video` löscht die Datei jetzt vor dem Schreiben.
+**Falle:** `M4a.wav` endet bei 13.03 s, `ffmpeg_writer` schneidet mit `-shortest` → `song_pad.wav` (Stille bis end_s).
 
 ## F11 + Match Cuts (8.10. abends) · **entschieden: F11b + MC3**, Rest gelöscht
 

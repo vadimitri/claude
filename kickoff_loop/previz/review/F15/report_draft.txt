@@ -1,0 +1,14 @@
+F15, /Users/vadim/Developer/spark/motion-pack/.claude/worktrees/f11/kickoff_loop/previz/review/F15/preview_draft.mp4
+Maske ab Bild 163: ausserhalb = MC3 (Abweichung 0.008, muss < 0.02), innen Woerter (0.299, muss > 0.05); dunkler Spark deckt ab Bild 184 = Beat 4.65
+Vorhang: Helles ausserhalb der stehenden Wand max 0.00 % (muss < 0.5); Flaeche 52 52 52 48 33 12 5 1 0 % (muss fallen: ja)
+Weggezogen: Helles im Bild vor Stufe 1 0.0 % (muss ~0)
+Zeilen leuchten ein (Helligkeit der neuen Zeilen auf der Stufe → +0.4 Beat): Bild 252 0.17 → 260 0.97, Bild 270 0.19 → 277 0.98, Bild 283 0.17 → 290 0.97 (muss < 0.6x)
+Halo waechst (Lichtflaeche auf der Stufe → +0.6 Beat): Bild 252 11.0 % → 263 30.0 %, Bild 270 34.5 % → 281 39.8 %, Bild 283 42.8 % → 294 46.5 % (muss steigen)
+Schluss: Helles nach dem Ausklingen 0.00 % (muss ~0)
+Schnitte auf dem Beat (> 2x Vorlauf, Helligkeit oder Silhouette):
+  ok  ROBOTS       Bild 191 = 7.958 s  x30.2
+  ok  HACKATHONS   Bild 217 = 9.042 s  x4.6
+  ok  Stufe 1 (aus Schwarz) Bild 252 = 10.500 s  x1.9
+  ok  Stufe 2      Bild 270 = 11.250 s  x4.0
+  ok  Stufe 3      Bild 283 = 11.792 s  x3.3
+Gegenprobe +3 Bilder: 2/5 ok (muss weniger sein)
