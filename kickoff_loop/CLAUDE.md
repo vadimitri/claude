@@ -45,7 +45,23 @@ In dieser Reihenfolge:
 6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
    weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
 
-## F17 (8.10. nachts) · **wartet auf Vadim, soll 9.10. gepostet werden** · ansehen: `Vorschau/F17_draft.mp4`
+## F19 (9.10.) · **Endfassung zum Posten** · `Vorschau/F19.mp4` (Master, x264, Basis `Vorschau/F17B.mp4` auf Einern)
+
+Vadim zu F17 → F18 (a–d = Zeilenabstand 1.3/1.6/1.5+80 %/2.0+80 %) → „wir nehmen a“. F19 = F18a +:
+- **Endbild ohne Slash**, 14.10. und 17:00 bleiben an ihrer Stelle (`card_drop_chars`, `drop_cells`: Zeile bis zum
+  Zeichen minus Zeile davor, gleiche Lage); der Spark leuchtet in der Lücke. Druck/Plakate unverändert.
+- **Wortwand** `wall_lead_frac` 1.3, `wall_style` S2 auf linearem Grund ohne Tropfen (Befund: jeder Labor-Stil ändert
+  26–89 % der Fläche außerhalb seines Sterns), Loop auf Zweiern (`wall_hold_frames`, an F1 verankert), dunkle Stufen
+  um `wall_lift_frac` 0.35 zum hellsten Ton angehoben (`lift`). HARDWARE bis Beat 5.5, ROBOTICS bis 6.5.
+- **Colorways** `wall_colorways`: 56 Eisblau, `~11` (umgedreht: Creme/Orange), eigene `loop:` Rot-Pink/Limette für
+  HACKATHONS (Vadim: „trist“; Befund: ab F1 füllt der Riesenstern die Buchstaben, in Navy-Paletten Graublau).
+- **Ghost-Halo** am ersten Masken-Spark = Glühen des MC3-Titels (nur die Titelzellen waren Maske) →
+  `mask_title_glow_cells` 20: Titel + Saum im Sternkörper gehören zur Maske.
+- **Endszene +1 s**: `end_s` 15, `fade_hold_beats` 2.86. Nachhall füllt bis zum Ende.
+- `--master` (`video|test ... --master`): Basis ohne `_draft` (Digitalteil auf Einern), x264, `preview.mp4`/`report.txt`.
+Selbsttest F19: OK. **Offen:** nichts, außer Vadims Abnahme.
+
+## F17 (8.10. nachts) · **überholt durch F19** · `Vorschau/F17_draft.mp4`
 
 Vadim zu F16: „fast fertig“. Umgesetzt (`previz/review/F17/F17.toml` = F16 + neue Schlüssel, Basis `F17B/F17B.toml` = MC3):
 1. **Kamera** (`loop.toml [video]`): `zoom_stepped = true` (Zoom + Rollen nur mit dem Fotowechsel), Verwackeln mit Saat

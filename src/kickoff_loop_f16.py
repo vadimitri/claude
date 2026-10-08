@@ -71,18 +71,26 @@ def main_root():
     return os.path.dirname(git) if git else KL.ROOT
 
 
-def load(path):
+def load(path, master=False):
+    """master: Basisvideo ohne _draft (preview --master, Digitalteil auf Einern), x264, Ausgabe preview.mp4."""
     f = tomllib.load(open(path, "rb"))["f16"]
+    f["master"] = master
     f["code"], f["toml"] = os.path.splitext(os.path.basename(path))[0], os.path.abspath(path)
     cfg = KL.load(os.path.join(KL.ROOT, f["base_toml"]))
     g = json.load(open(os.path.join(KL.ROOT, f["grid"])))
     f["bar1"], f["beat"] = g["in_s"] - f["song_start_s"], g["beat_s"]   # Taktstrich 1 auf der Timeline, Beatlaenge
     root = main_root()
     f["base_video"], f["song"] = (os.path.join(root, f[k]) for k in ("base_video", "song"))
+    if master:
+        f["base_video"] = f["base_video"].replace("_draft.mp4", ".mp4")
+        cfg["f16_base_step"] = 1
     ch = f["words_change"]
     assert len(ch) == len(f["words"]) - 1 and ch == sorted(ch), "words_change: je Begriff nach dem ersten ein Beat, steigend"
     assert f["mask_beat"] < ch[0] and ch[-1] < f["pull_beat"] < f["steps"][0], "mask_beat < words_change < pull_beat < steps"
     assert len(f["steps"]) == len(f["step_items"]), "steps / step_items"
+    assert not f.get("wall_colorways") or len(f["wall_colorways"]) == len(f["words"]), "wall_colorways: eine je Begriff"
+    assert f.get("wall_hold_frames", 1) >= 1 and 0 < f.get("wall_width_frac", 1) <= 1, "wall_hold_frames / wall_width_frac"
+    assert not f.get("wall_style") or f["wall_style"] in KL.S_CODES, f"wall_style {f.get('wall_style')} unbekannt"
     assert 0 <= f["intro_level"] < 1 and f["intro_beats"] > 0 and f["glow_grow_beats"] > 0, "intro_* / glow_grow_beats"
     assert os.path.exists(f["song"]) and os.path.exists(f["base_video"]), "Song oder MC3-Video fehlt"
     n0, n2, n3 = marks(f)
@@ -120,17 +128,22 @@ def zoom_end(cfg):
     return round(cfg["music"]["grid"]["burst_s"] * FPS)
 
 
+def base_step(cfg):
+    """Digitalteil des Basisvideos: Entwurf auf Zweiern (V.DRAFT_STEP), Master auf Einern (load setzt es)."""
+    return cfg.get("f16_base_step", V.DRAFT_STEP)
+
+
 def mc3_dt(cfg, n):
-    """Zeit des Digitalteils, die MC3-Bild n zeigt: Entwurf auf Zweiern (kickoff_loop_video.digital_frames)."""
+    """Zeit des Digitalteils, die MC3-Bild n zeigt (kickoff_loop_video.digital_frames, auf base_step)."""
     k = n - zoom_end(cfg)
-    return (k - k % V.DRAFT_STEP) / FPS
+    return (k - k % base_step(cfg)) / FPS
 
 
 def mc3_pair(cfg, n):
     """Erstes Bild des Zweiers von n (beide zeigen denselben Render; die Maske kommt aus diesem, sonst flackert sie mit
     dem Encoder-Rauschen)."""
     k = n - zoom_end(cfg)
-    return zoom_end(cfg) + k - k % V.DRAFT_STEP
+    return zoom_end(cfg) + k - k % base_step(cfg)
 
 
 def base_until(cfg):
@@ -190,8 +203,11 @@ def inner(cfg, f):
 
 
 def phase(cfg, f, n):
-    """Phase des Loops in den Buchstaben ab dem Verlassen der Bahn (davor zeigt er das Plakat des dunklen Sparks)."""
+    """Phase des Loops in den Buchstaben ab dem Verlassen der Bahn (davor zeigt er das Plakat des dunklen Sparks). F18
+    (Vadim 9.10.: "etwas mehr posterised"): steht je wall_hold_frames Bilder, die Stufen sind am letzten Wandbild
+    verankert (dort steht F1, der Vorhang setzt daran an)."""
     ns, p0, rate = inner(cfg, f)
+    n = max(ns, n - (n - marks(f)[1]) % f.get("wall_hold_frames", 1))
     return p0 + rate * (n - ns)
 
 
@@ -211,11 +227,35 @@ def curtain(cfg, f, n):
     return x0 + vx * m, y0 + vy * m, r0, rot0 + spin * m
 
 
+def lift(P, frac):
+    """Palette "loop:RRGGBB..." mit jeder Stufe um frac x (1 - Helligkeit / hellste) zum hellsten Ton gemischt: dunkle
+    Stufen werden heller, die hellste bleibt. Befund F17: in Weiss/Rot/Blau ist der Stern dunkelblau, als Riesenstern
+    auf F1 standen die Buchstaben dunkel auf dem schwarzen Spark."""
+    hx = P.split(":")[1]
+    cols = np.array([[int(hx[i + j:i + j + 2], 16) for j in (0, 2, 4)] for i in range(0, len(hx), 6)], np.float64)
+    lum = cols @ LUMA
+    out = cols + (cols[lum.argmax()] - cols) * (frac * (1 - lum / lum.max()))[:, None]
+    hexes = ["#" + "".join(f"{round(v):02X}" for v in c) for c in out]
+    name = "loop:" + "".join(h[1:] for h in hexes)
+    S.PALS[name] = hexes                            # in jedem Prozess eintragen wie KL.palette (macOS spawnt Worker)
+    return name
+
+
 def wall_colors(cfg, f, st, word):
-    """F17 (Vadim 8.10.: "Wortwand leserlicher, nicht so viele Hintergrundfarben"): je Begriff eine feste Colorway mit
-    hellem Grund (wall_colorways = Plakat je Begriff), der Loop laeuft in ihr weiter; [] = Farbreise wie F16."""
+    """Loop in den Buchstaben, ruhig und lesbar. F17 (Vadim 8.10.: "nicht so viele Hintergrundfarben"): je Begriff eine
+    feste Colorway (wall_colorways = Plakat je Begriff), angehoben um wall_lift_frac. F18 (Vadim 9.10.: "weniger Effekte,
+    nicht der gesamte Canvas aendert sich, Hintergrund ein Standardgradient"): Stil wall_style fuer alle (Befund: jeder
+    Labor-Stil aendert 26-89 % der Flaeche ausserhalb seines Sterns) auf linearem Grund ohne Tropfen."""
     if f.get("wall_colorways"):
-        st["P"] = KL.poster_style(cfg, f["wall_colorways"][f["words"].index(word)])["P"]
+        k = f["wall_colorways"][f["words"].index(word)]
+        P = k if str(k).startswith("loop:") else KL.poster_style(cfg, int(str(k).lstrip("~")))["P"]   # "loop:..." = eigene
+        if str(k).startswith("~"):              # "~N" = Palette von Plakat N umgedreht (F19: bunte Stufen werden der Grund)
+            hx = P.split(":")[1]
+            P = "loop:" + "".join(hx[i:i + 6] for i in range(len(hx) - 6, -1, -6))
+        st["P"] = lift(P, f.get("wall_lift_frac", 0.0))
+    if f.get("wall_style"):
+        st["S"] = KL.S_CODES[f["wall_style"]]
+        st["ground"] = dict(st["ground"], mode="linear", melt_cells=0)
     return st
 
 
@@ -293,7 +333,8 @@ def inner_world(cfg, f, n):
 
 def scene(cfg, f, st, **kw):
     """Was f16_type zeichnet: black (Maske), light, items (sichtbare Kartenteile), gone (Bayer-Zerfall der Schrift 0..1)."""
-    sc = dict(black="all", light=None, items=0, gone=0.0, pal=white(cfg, f), scale=cfg["ending"]["orbit_date_center"])
+    sc = dict(black="all", light=None, items=0, gone=0.0, pal=white(cfg, f), scale=cfg["ending"]["orbit_date_center"],
+              drop=f.get("card_drop_chars", ""))
     sc.update(kw)
     return dict(st, f16=sc, f16_src=SRC)
 
@@ -306,7 +347,8 @@ def hole_spec(f, pose):
 
 def wall(f, word):
     """Wortwand (Maske): Begriff in Zeilen ueber den ganzen Bildschirm, steht fest."""
-    return {"wall": dict(word=word, margin_cells=f["wall_margin_cells"], lead_frac=f["wall_lead_frac"])}
+    return {"wall": dict(word=word, margin_cells=f["wall_margin_cells"], lead_frac=f["wall_lead_frac"],
+                         width_frac=f.get("wall_width_frac", 1.0))}
 
 
 def card(cfg, f, tb):
@@ -358,7 +400,7 @@ def plan(cfg, f, n):
 
 def wall_mask(c, p):
     """Begriff in Zeilen auf voller Satzbreite von margin bis H - margin."""
-    measure = c.W - 2 * c.L["x0"]
+    measure = (c.W - 2 * c.L["x0"]) * p.get("width_frac", 1.0)          # F18: schmaler = kleiner, mehr Luft
     cap = math.floor(measure / S.width_per_cap(p["word"]) / c.px) * c.px
     lead = round(cap * p["lead_frac"] / c.px) * c.px
     top, bottom = p["margin_cells"] * c.px, c.H - p["margin_cells"] * c.px
@@ -410,7 +452,10 @@ def dark_mask(cfg, f, n, img):
     Sternkoerper, die dunkler als mask_dark_luma sind, dazu der Titel dort (er kippt ueber dem Spark hell)."""
     W, H = S.SIZES[FMT][:2]
     lum = (img.astype(np.float32) @ LUMA / 255).reshape(H // CELL, CELL, W // CELL, CELL).mean((1, 3))
-    return core_cells(dark(cfg, n)) & ((lum < f["mask_dark_luma"]) | _title_cells(_Key(cfg, f)))
+    title = _title_cells(_Key(cfg, f))
+    if f.get("mask_title_glow_cells"):         # F19 (Vadim 9.10.: "blaues Ghost-Halo am ersten Masken-Spark"): das Gluehen
+        title = binary_dilation(title, iterations=f["mask_title_glow_cells"])   # um den MC3-Titel geht mit in die Maske
+    return core_cells(dark(cfg, n)) & ((lum < f["mask_dark_luma"]) | title)
 
 
 def item_masks(c, sc):
@@ -420,8 +465,30 @@ def item_masks(c, sc):
     ls = list(c.L["sub"])
     cap, lead = KE.date_cap(c, sc["scale"], ls)
     top = c.H / 2 - (cap + (len(ls) - 1) * lead) / 2
-    out += [KE.word_mask(c, [s], cap, lead, c.W / 2, top + j * lead)[0] for j, s in enumerate(ls)]
+    out += [KE.word_mask(c, [s], cap, lead, c.W / 2, top + j * lead)[0] & ~drop_cells(c, s, cap, top + j * lead,
+                                                                                       sc.get("drop", ""))
+            for j, s in enumerate(ls)]
     return out[:sc["items"]]
+
+
+def drop_cells(c, line, cap, top, chars):
+    """Zellen der Zeichen aus chars in der Zeile, gesetzt wie KE.word_mask (mittig, an der Tinte nachgesetzt): Zeile bis
+    einschliesslich Zeichen minus Zeile davor, beide an derselben Stelle. F18 (Vadim 9.10.: "Slash weg, 14.10. und
+    17 Uhr am gleichen Punkt"): der Rest bleibt, wo er stand."""
+    out = np.zeros((c.gh, c.gw), bool)
+    if not any(ch in chars for ch in line):
+        return out
+    cx, base = c.W / 2, round((top + cap) / c.px) * c.px
+    x = cx - S.width_per_cap(line) * cap / 2
+    m = S.line_mask(line, "clash", cap, base, x, c.px, (c.gh, c.gw))
+    xs = np.nonzero(m.any(0))[0]
+    if len(xs) and xs[0] > 0 and xs[-1] < c.gw - 1:
+        x += cx - (xs[0] + xs[-1] + 1) / 2 * c.px
+    for i, ch in enumerate(line):
+        if ch in chars:
+            out |= (S.line_mask(line[:i + 1], "clash", cap, base, x, c.px, (c.gh, c.gw))
+                    & ~S.line_mask(line[:i], "clash", cap, base, x, c.px, (c.gh, c.gw)))
+    return out
 
 
 def streak(c, src, centre, glow):
@@ -564,12 +631,16 @@ def song_pad(f):
     return path
 
 
+def preview_path(f):
+    return os.path.join(out_dir(f), "preview.mp4" if f["master"] else "preview_draft.mp4")
+
+
 def video(cfg, f):
-    path = os.path.join(out_dir(f), "preview_draft.mp4")
+    path = preview_path(f)
     if os.path.exists(path):                       # Hardlink loesen: ffmpeg -y schreibt sonst in Vorschau/<alte Version>
         os.remove(path)
     W, H = S.SIZES[FMT][:2]
-    enc = V.ffmpeg_writer(path, (W, H), FPS, audio=song_pad(f), enc=V.PREVIEW_ENCODER)
+    enc = V.ffmpeg_writer(path, (W, H), FPS, audio=song_pad(f), enc=V.MASTER_ENCODER if f["master"] else V.PREVIEW_ENCODER)
     for n, img in frames(cfg, f, range(n_end(f))):
         enc.stdin.write(img.tobytes())
     enc.stdin.close()
@@ -664,7 +735,8 @@ def report(cfg, f, path):
     drop = max(p - q for p, q in zip(halo, halo[1:]))
     tail = float(sil[round(t_beat(f, f["steps"][-1] + f["fade_hold_beats"] + f["fade_beats"]) * FPS) + 1:].mean())
     lines = [f"{f['code']}, {path}",
-             f"Maske ab Bild {n0} (echter dunkler Spark, MC3 auf Zweiern): Paare gleich {pairs}/{len(probe)}, ausserhalb "
+             f"Maske ab Bild {n0} (echter dunkler Spark, Basis auf {'Einern' if base_step(cfg) == 1 else 'Zweiern'}, Paare gleich nur bei Zweiern): "
+             f"Paare gleich {pairs}/{len(probe)}, ausserhalb "
              f"= MC3 (Abweichung max {max(d_out):.3f}, muss < {SAME_MC3}), in der Maske Woerter (min {min(d_in):.3f}, "
              f"muss > 0.05); Loop in den Buchstaben ab Bild {switch_frame(cfg, f)} Phase {inner(cfg, f)[1]:.2f}, "
              f"{inner(cfg, f)[2]:.3f} Plakate/Bild",
@@ -681,16 +753,16 @@ def report(cfg, f, path):
              f"Schnitte auf dem Beat (> {EVENT_RATIO:g}x Vorlauf, Helligkeit oder Silhouette):"]
     lines += [f"  {'ok ' if ok else 'NEIN'} {name:<12} Bild {n} = {n / FPS:.3f} s  x{r}" for name, n, ok, r in rows]
     lines.append(f"Gegenprobe +{OLD_SHIFT} Bilder: {sum(ok for *_, ok, _ in old)}/{len(old)} ok (muss weniger sein)")
-    open(os.path.join(out_dir(f), "report_draft.txt"), "w").write("\n".join(lines) + "\n")
+    open(os.path.join(out_dir(f), "report.txt" if f["master"] else "report_draft.txt"), "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
-    return (all(r[2] for r in rows) and sum(r[2] for r in old) < len(old) and pairs == len(probe)
+    return (all(r[2] for r in rows) and sum(r[2] for r in old) < len(old) and (pairs == len(probe) or base_step(cfg) == 1)
             and max(d_out) < SAME_MC3 and min(d_in) > 0.05 and stray < 0.005 and outside < 0.005 and gap < 0.005
             and tail < 0.001 and drop < NEVER_LESS and all(p < INTRO_RATIO * q for *_, p, q in intro)
             and all(q > p for *_, p, q in grow))
 
 
 def test(cfg, f):
-    ok = report(cfg, f, os.path.join(out_dir(f), "preview_draft.mp4"))
+    ok = report(cfg, f, preview_path(f))
     print(f"{f['code']}: {'OK' if ok else 'FEHLER'}")
     return ok
 
@@ -720,14 +792,16 @@ def sheet(cfg, f):
 
 
 def main():
-    cmd, path = sys.argv[1], sys.argv[2]
-    cfg, f = load(path)
+    master = "--master" in sys.argv
+    args = [a for a in sys.argv[1:] if a != "--master"]
+    cmd, path = args[0], args[1]
+    cfg, f = load(path, master)
     if cmd == "video":
         print(video(cfg, f))
     elif cmd == "sheet":
         print(sheet(cfg, f))
     elif cmd == "still":
-        ns = sorted({min(frame_at(f, float(b)), n_end(f) - 1) for b in sys.argv[3:]})
+        ns = sorted({min(frame_at(f, float(b)), n_end(f) - 1) for b in args[2:]})
         for n, img in frames(cfg, f, ns):
             out = os.path.join(out_dir(f), f"still_{n:03d}.png")
             Image.fromarray(img).save(out)

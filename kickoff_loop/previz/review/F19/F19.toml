@@ -1,0 +1,52 @@
+# F16 = Vadim 8.10. zu F15: Maske = der echte dunkle Spark (Pixel des MC3-Bilds, auf dessen Zweiern, mit seiner
+# Rasterung), Loop in den Buchstaben setzt am dunklen Spark an (deckungsgleich) und laeuft synchron weiter; Vorhang im
+# Tempo und in der Richtung der Loop-Sparks hinter den Woertern; Halos werden nur noch groesser.
+# F19 = F18a + Vadim 9.10.: ROBOTICS statt ROBOTS, Glühen um den MC3-Titel in der Maske (Ghost-Halo weg), buntere Wand-Colorways (vor allem HACKATHONS, "trist"), Endszene 1 s laenger.
+# F18a = F18 mit Zeilenabstand 1.3 (F17 1.06), volle Breite.
+# F18 = F17 + Vadim 9.10.: Slash im Endbild weg (14.10. und 17:00 bleiben stehen), Wortwand mit mehr Abstand
+# (Varianten a-d), Loop in den Buchstaben ruhiger (S2 auf linearem Grund, auf Zweiern, dunkle Stufen angehoben),
+# HARDWARE laenger (bis Beat 5.5 statt 5.0).
+# F17 = F16 + Vadim 8.10. ("fast fertig, morgen posten"): Fotos ohne Zoom/Wackeln innerhalb eines Fotos + Welten
+# getauscht (Basis F17B), Wortwand je Begriff in einer festen hellen Colorway (wall_colorways), Vorhang-Loch springt mit
+# dem Loop und traegt dessen Spark (deckungsgleich, Drehung wie der Loop), Halos minimal frueher + schneller, Nachhall.
+[f16]
+base_toml = "kickoff_loop/previz/review/F17B/F17B.toml"
+base_video = "Vorschau/F17B_draft.mp4"        # im Hauptcheckout (gitignored), Digitalteil auf Zweiern
+wall_colorways = [56, "~11", "loop:D81E3CFF3B5CFF7A5CC8FF00E4FF6BF4FFD0"]  # F19: Eisblau, Creme/Orange (umgedreht 11, Navy-Grund war grau), eigene: Grund Rot-Pink, Stern Limette-Creme (Riesenstern auf F1 fuellt die letzte Wand, war Graublau) (F18 26 Bernstein, 24 Weiss/Rot/Blau: trist). F18: heller Grund (Eisblau, Bernstein,
+                               # Weiss/Rot/Blau), Befund: dunkle Gruende machten die Buchstaben dunkel auf dem schwarzen Spark
+step_lead_beats = 0.1          # Tonleiter (Zeilen + Halos) setzt so viel vor dem gemessenen Bass-Einsatz an (~2 Bilder)
+tail_rt60_s = 3.0              # Nachhall des Songs: Abfall auf -60 dB in so vielen Sekunden ...
+tail_wet_db = -12              # ... so leise unter den Song gemischt (ganz subtil) ...
+tail_lowpass_hz = 3500         # ... und gedaempft (warm, kein Zischeln)
+song = "kickoff_loop/resolve/schnitt/M4a.wav"  # im Hauptcheckout (gitignored), beginnt auf Timeline-Bild 0, endet 13.03 s
+song_start_s = 18.143417
+grid = "kickoff_loop/ref/audio/igor_beats.json"
+end_s = 15.0                                   # 360 Bilder (F19: +1 s Endszene, F18 14.0); hinter dem Song Stille (song_pad.wav im Ordner)
+# Beats ab Taktstrich 1 der Timeline (4.292 s, Beat 0.7352 s)
+mask_beat = 3.45               # ab hier ist der dunkle Spark des MC3-Videos die Maske (Bild 163: dort ist er zuerst dunkel)
+mask_title_glow_cells = 20     # F19: Titel + so viele Zellen Gluehen drumherum (im Sternkoerper) gehoeren zur Maske
+mask_dark_luma = 0.12          # Maske = Zellen in seinem Sternkoerper, die im MC3-Bild dunkler sind (Befund: 80-90 % < 0.08,
+                               # Titel ~0.97, hellere gerasterte Baender 0.2-0.5 bleiben stehen); den Titel schneidet sie mit
+words = ["HARDWARE", "ROBOTICS", "HACKATHONS"]   # PLATZHALTER: der erste steht ab mask_beat ...
+words_change = [5.5, 6.5]     # ... die naechsten ab diesen Beats
+pull_beat = 7.1                # Vorhang: Loch = Plakat-Spark auf F1 zieht im Tempo der Loop-Bahn an F1 geradeaus weg
+                               # (load prueft, dass er vor der ersten Stufe draussen ist, und nennt sonst den Beat)
+sil_reach = 1.3                # Vorhang-Silhouette: Auslaeufer des Plakat-Stils (Spritzer, Scherben) bis so viel x Radius
+sil_rim = 0.12                 # posterisierter Rand des Vorhang-Lochs (F14): Bayer-Band ausserhalb des Koerpers
+steps = [8.5, 9.5, 10.25]      # Tonleiter: gemessene Bass-Einsaetze C2 / D2 / D#2 in M4a (Stille ab ~10.8)
+step_items = [2, 3, 4]         # sichtbare Kartenteile je Stufe: 1 SPARK, 2 + KICK-OFF, 3 + Datum, 4 + Ort
+intro_beats = 0.4              # neue Zeile leuchtet ein: von intro_level (Rampe 0.3 = glimmend rot) bis Weiss ...
+intro_level = 0.3
+glow_start_frac = 0.15         # ... Halo startet bei so viel seiner Laenge und waechst in glow_grow_beats (ease-in-out) ...
+glow_grow_beats = 0.75         # F16 0.9 (Vadim 8.10.: "ganz bisschen schneller")
+glow_bump_frac = 0.15          # ... jede neue Stufe laesst alle aelteren Halos um so viel mitwachsen ...
+glow_creep_per_beat = 0.05     # ... und alle wachsen stetig weiter (nie kleiner bis zum Ausklingen)
+fade_hold_beats = 2.86         # nach der letzten Stufe so lange stehen (F13 0.15), dann ...
+fade_beats = 0.45              # ... schrumpft + dunkelt alles Licht und nimmt die Schrift mit (schwarz ~13.3 s)
+wall_margin_cells = 19         # Rand oben/unten der Wortwand
+wall_lead_frac = 1.3           # Zeilenabstand / Versalhoehe (F17 1.06: "so dicht ineinander")
+wall_width_frac = 1.0         # Zeile so breit wie dieser Anteil der Satzbreite (kleiner = kleinere Schrift, mehr Luft)
+wall_style = "S2"             # ein schlichter Stil fuer den Loop in den Buchstaben, Grund linear ohne Tropfen
+wall_hold_frames = 2          # Loop in den Buchstaben steht je so viele Bilder (Zweier: "mehr posterised")
+wall_lift_frac = 0.35         # dunkle Stufen der Wand-Palette so weit zum hellsten Ton (Lesbarkeit auf Schwarz)
+card_drop_chars = "/"         # Zeichen, die im Endbild wegfallen; der Rest bleibt an seiner Stelle
