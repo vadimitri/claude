@@ -1,0 +1,30 @@
+# F13 = Vadim 8.10. zu F12: Masken-Spark aus der Mitte des dunklen Sparks auf der Loop-Bahn, Wortwand ueber den ganzen
+# Bildschirm, Spark zieht die Wand nach links weg, Tonleiter mit Begriff + Halo je Stufe, Halo nimmt die Schrift mit.
+[f13]
+base_toml = "kickoff_loop/previz/review/MC3/MC3.toml"
+base_video = "Vorschau/MC3_draft.mp4"         # im Hauptcheckout (gitignored)
+song = "kickoff_loop/resolve/schnitt/M4a.wav"  # im Hauptcheckout (gitignored), beginnt auf Timeline-Bild 0
+song_start_s = 18.143417
+grid = "kickoff_loop/ref/audio/igor_beats.json"
+end_s = 13.042                                 # 313 Bilder
+# Beats ab Taktstrich 1 der Timeline (4.292 s, Beat 0.7352 s)
+birth_beat = 4                                 # Masken-Spark kommt aus dem dunklen (7.23 s) ...
+birth_scale = 0.06                             # ... startet bei 6 % des Loop-Sterns, waechst auf ihn (F1 = Mitte, riesig)
+words_beat = 5                                 # ... deckt das Bild, auf dem Beat steht die erste Wand (7.97 s)
+words = ["HARDWARE", "ROBOTS", "HACKATHONS"]   # PLATZHALTER, je Beat eine Wand
+pull_beat = 8                                  # Eins Takt 3: Spark fliegt mit der Wand nach links raus ...
+pull_end = 8.38                                # ... ist bei 8.38 raus (3 Bilder Schwarz vor dem ersten Ton) ...
+pull_to = [-1.0, 0.38]                         # ... bis hier (Bildanteile, Mitte) ...
+pull_r = 0.55                                  # ... und schrumpft auf so viel ...
+pull_pow = 1.2                                 # ... zieht an (u^1.2) ...
+pull_spin_deg = 25.0                           # ... dreht dabei weiter
+steps = [8.5, 9.5, 10.25]                      # Tonleiter: gemessene Bass-Einsaetze C2 / D2 / D#2 in M4a (Stille ab ~10.8)
+step_items = [2, 3, 4]                         # sichtbare Kartenteile je Stufe: 1 SPARK, 2 + KICK-OFF, 3 + Datum, 4 + Ort
+step_glow = 3.0                                # Halo leuchtet je Stufe x3 auf ...
+step_decay_beats = 0.25                        # ... und klingt so schnell ab
+fade_hold_beats = 0.15                         # nach der letzten Stufe kurz stehen, dann ...
+fade_beats = 0.45                              # ... schrumpft + dunkelt das Halo und nimmt die Schrift mit (schwarz ~10.85)
+world_start = 0                                # erstes Plakat in den Buchstaben, dann eins je world_step_frames Bilder
+world_step_frames = 2
+wall_margin_cells = 19                         # Rand oben/unten der Wortwand
+wall_lead_frac = 1.06                          # Zeilenabstand / Versalhoehe

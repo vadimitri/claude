@@ -38,43 +38,36 @@ In dieser Reihenfolge:
 4. **Musik schneidet Vadim selbst** in Resolve: `uv run src/kickoff_loop_resolve.py schnitt` (~3 min, Timeline „Schnitt“,
    IGOR, 9 Marker) nach dem finalen Render neu laufen lassen. Nur IGOR, kein Maker-Night-Material.
 5. **Campus-Fotos: 64/64**, Vorschau F5. Stand, Verworfenes, Offenes: **`HANDOFF_FOTOS.md`**.
-10. **F12 (8.10. nachts)**: F11b + MC3 gewählt; neue Geburt aus dem schwarzen Spark + 7 Enden F12a–g, Abschnitt „F12“.
+10. **F13 (8.10. nachts)**: MC3 fest; Wortwand im Masken-Spark auf der Loop-Bahn, Wegziehen, Tonleiter-Ende, Abschnitt „F13“.
 8. **F10 (8.10. nachts)**: Blau → Rot über die Ripple-Welle, 9 Varianten gestapelt in Resolve, Abschnitt „F10“.
 7. **F9 (7.10. nachts)**: blauer Spark + Slogan vor dem roten Ende, Abschnitt „F9“ hierunter. Musik schieben: Resolve
    `kickoff_loop_resolve.py song <variante.toml>` (Timeline „<Version> + Song“).
 6. **F8 (7.10. nachts)**: Übergang Papier → digital neu (Weiß wächst über die Wand, Digital-Loop läuft im Plakatrahmen
    weiter und wächst raus), Abschnitt „F8“ hierunter. Spark hinter dem Slash wie F7.
 
-## F12 (8.10. nachts) · **wartet auf Vadims Code** · ansehen: `Vorschau/F12a_draft.mp4` … `F12g_draft.mp4`, `Vorschau/F12_alle_abcdefg.mp4` (nebeneinander, a links), Bogen `Vorschau/F12_sheet.png`
+## F13 (8.10. nachts) · **wartet auf Vadim** · ansehen: `Vorschau/F13_draft.mp4`, Bogen `Vorschau/F13_sheet.png`
 
-Vadim 8.10.: „MC3 nehmen wir, die bleibt so, fertig“ + „F11b, aber zwei Übergänge besser“, Rest scrappen.
-1. **Geburt** (für alle F12 gleich): „den schwarzen Spark haben, und da wächst ein neuer Spark vom Loop versetzt in klein
-   raus, der füllt, und ab dem Moment ist die Maske da, auch wenn es länger dauert und wir ein Wort weniger haben“.
-   Ab Beat 4 (7.23 s) läuft das MC3-Video weiter (dunkler Spark wächst über das letzte Plakat), darin wächst ab
-   `birth_xy` ein neuer Spark, um 30° versetzt (Zacken zwischen denen des dunklen), als Fenster in den weiterlaufenden
-   Loop (Plakat je 2 Bilder), konstante Zoomrate, Mitte wandert zur Bildmitte. Letztes Bild vor Beat 5 deckt er das Bild
-   (`cover_r`, Stern ist sternförmig: der Rand reicht), auf Beat 5 (7.97 s) steht die Maske HARDWARE. Ab Bild
-   `base_until` (181, dort zeigt MC3 den alten blauen Slogan) ist außerhalb Schwarz + weißes SPARK. 3 Begriffe statt 4.
-2. **Ende** (Takt 3 Eins 10.17 s, „soll kicken, auflösen, dann kommt nochmal ein Spark“). Gemeinsam: Zündung = roter
-   Spark mit Kick-Licht (Schweif ×`kick_glow` 3, klingt in 0.35 Beat ab) + Welle in 1 Beat, schnell raus (F11b: 2 Beats,
-   gleichmäßig); Stopp 12.38 s Licht aus wie F11b.
-| Code | Ende |
-|---|---|
-| F12a | **Sog**: letzte ½ Beat schneidet ein schrumpfender Spark das Wort zusammen (zieht an), auf der Eins Zündung aus dem Punkt |
-| F12b | **Implosion**: die Zeilen werden in ½ Beat in den Spark gezogen (Maske schrumpft um den Slash), Zündung |
-| F12c | **Noch ein Spark**: auf der Eins bleibt die Welt im Wort stehen, aus dem Slash wächst wie bei der Geburt ein Spark mit dem roten Ende darin, deckt nach 1 Beat |
-| F12d | **Zerfall**: rotes Ende mit Kick sofort, das Wort liegt darüber und zerfällt in 16teln (transponierte Bayer-Folge, 1 Beat) |
-| F12e | **Loch**: der rote Spark schlägt ein Loch in die Wörter (Welle ¾ Beat, sehr schnell raus), draußen läuft das Wort weiter |
-| F12f | **Schwarzer Spark**: der Anfang umgekehrt, ein schwarzer Spark wächst in ½ Beat über die Wörter, deckt auf der Eins, darin zündet der rote |
-| F12g | = F11b-Ende mit Kick: SPARK wird Fenster, Zündung, Welle 1 Beat statt 2 (Kontrolle zum alten Ende) |
-Code `src/kickoff_loop_f12.py` (Nachfolger von `kickoff_loop_f11.py`, F11a/c–g gelöscht, Stand 70d8f09), Stellschrauben
-`previz/review/F12/F12.toml` + je `F12x/F12x.toml` (`end` + Abweichungen). Befehle (Pack-Root): `uv run src/kickoff_loop_f12.py
-video|sheet|test <F12x.toml> [...]`, `still <toml> <beat> [...]`. Basis = `Vorschau/MC3_draft.mp4` (Entwurf auf Zweiern);
-für `--master` muss F12 wie F11 ins richtige Ende (`kickoff_loop_end`/`preview`), nicht als Nachbearbeitung.
-**Selbsttest** `test` am fertigen Video: jeder Schnitt (Maske nach der Geburt, Begriffe, Takt 3 außer F12c, Stopp) setzt auf
-seinem Beat-Bild ein, Gegenprobe +3 Bilder schlägt an, Geburt deckt das Bild vor der Maske (< 0.5 % Schwarz).
-Stand 8.10.: 7/7 OK (Takt 3 x2.6–16.9, Gegenprobe je 1/5); Deckung gegengeprüft: 1 Bild früher 9 % Schwarz.
-**Offen:** Vadims Code; Begriffe (Platzhalter `words`); danach ins richtige Ende überführen.
+Vadim zu F12 (Geburt + 7 Enden, alle verworfen, F12 nur noch im Git c115a16): „Masken-Spark aus der Mitte des dunklen
+Sparks, in Loop-Richtung weiter, Größe wie der Loop-Stern, smooth und Teil davon; kein gefüllter Spark, die Begriffe
+füllen den ganzen Bildschirm; danach zieht der Spark als Maske mit den Begriffen alles nach links weg; dahinter je
+Tonleiter-Stufe ein Begriff, Spark kommt mit Halo zurück, das je Stufe aufleuchtet; nach der letzten nicht in einem
+Bild weg, sondern Halo kleiner/dunkler und die Schrift mit, zack, alles schwarz“. Ein Ablauf (`src/kickoff_loop_f13.py`,
+Stellschrauben `previz/review/F13/F13.toml`, Basis bis Bild 172 = `Vorschau/MC3_draft.mp4`):
+1. **Geburt** Beat 4 → 5: Bahnphase läuft im Karussell-Tempo (12 Plakate/Beat) auf F1 zu, Mitte + Drehung gehen per
+   smoothstep von der Mitte des dunklen Sparks (`KE.orbit_state`, anfangs rechts außerhalb) in die Loop-Bahn
+   (`KL.orbit`, umgerechnet wie `KE.poster_digital`) über, Radius 6 % → Loop-Stern; F1 deckt 9:16 nicht ganz → auf
+   `cover_r` gestreckt. Im Spark nur die Wortwand (Loop läuft in den Buchstaben), sonst Schwarz bzw. MC3 bis Bild 180.
+2. **Wände** Beat 5/6/7 (HARDWARE ROBOTS HACKATHONS = Platzhalter), ganzer Bildschirm, kein SPARK-Titel.
+3. **Wegziehen** Beat 8 → 8.38: Spark fliegt von F1 nach links raus (`pull_*`), die Wand hängt an ihm (verschoben +
+   skaliert), sichtbar Bild 244–247, dann 4 Bilder Schwarz.
+4. **Tonleiter** = gemessene Bass-Einsätze in M4a (Bassband 45–110 Hz je Bild + Grundton): **8.5 C2 / 9.5 D2 /
+   10.25 D#2**, Stille ab ~10.8. Je Stufe ein Kartenteil (SPARK + KICK-OFF, Datum, D-SCHOOL; `step_items`), roter Spark
+   hinter dem Slash, Halo ×3 je Stufe, klingt in ¼ Beat ab. Nach Stufe 3 + 0.15 Beat schrumpft + dunkelt das Halo in
+   0.45 Beat, die Schrift zerfällt mit (transponierte Bayer-Folge) → ab ~10.9 schwarz bis 13.04 s.
+**Selbsttest** `test`: Spark deckt geometrisch genau ab dem letzten Bild vor Beat 5 (davor 5.4 % ungedeckt), Bild vor
+Stufe 1 schwarz, nach dem Ausklingen schwarz, Wände 2/3 und Stufen 1–3 setzen auf ihrem Beat-Bild ein, Gegenprobe +3
+Bilder 2/5. Alles OK. Befehle: `uv run src/kickoff_loop_f13.py video|sheet|test kickoff_loop/previz/review/F13/F13.toml`.
+**Offen:** Vadims Urteil, Begriffe; danach ins richtige Ende (`--master`) überführen.
 
 ## F11 + Match Cuts (8.10. abends) · **entschieden: F11b + MC3**, Rest gelöscht
 

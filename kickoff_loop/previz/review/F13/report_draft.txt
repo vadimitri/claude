@@ -1,0 +1,11 @@
+F13, /Users/vadim/Developer/spark/motion-pack/.claude/worktrees/f11/kickoff_loop/previz/review/F13/preview_draft.mp4
+Geburt: ungedeckt im letzten Bild vor Beat 5 0.00 % (muss 0), ein Bild davor 5.4 % (muss > 0)
+Weggezogen: Helles im Bild vor Stufe 1 0.0 % (muss ~0)
+Schluss: Helles nach dem Ausklingen 0.00 % (muss ~0)
+Schnitte auf dem Beat (> 2x Vorlauf, Helligkeit oder Silhouette):
+  ok  ROBOTS       Bild 208 = 8.667 s  x34.4
+  ok  HACKATHONS   Bild 226 = 9.417 s  x8.1
+  ok  Stufe 1      Bild 252 = 10.500 s  x4.5
+  ok  Stufe 2      Bild 270 = 11.250 s  x54.7
+  ok  Stufe 3      Bild 283 = 11.792 s  x48.1
+Gegenprobe +3 Bilder: 2/5 ok (muss weniger sein)
