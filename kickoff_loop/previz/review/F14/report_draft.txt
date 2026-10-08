@@ -1,0 +1,13 @@
+F14, /Users/vadim/Developer/spark/motion-pack/.claude/worktrees/f11/kickoff_loop/previz/review/F14/preview_draft.mp4
+Geburt: ungedeckt im letzten Bild vor Beat 5 0.00 % (muss 0), ein Bild davor 0.8 % (muss > 0); Plakat-Spark = Loch in Bild 173-186, danach geloest
+Vorhang: Helles ausserhalb der stehenden Wand max 0.00 % (muss < 0.5; F13 zog die Wand mit)
+Weggezogen: Helles im Bild vor Stufe 1 0.0 % (muss ~0)
+Schluss: Helles nach dem Ausklingen 0.00 % (muss ~0)
+Halo waechst (Lichtflaeche auf der Stufe → +0.6 Beat): Bild 252 13.8 % → 263 32.1 %, Bild 270 35.7 % → 281 37.7 %, Bild 283 41.1 % → 294 45.5 % (muss steigen)
+Schnitte auf dem Beat (> 2x Vorlauf, Helligkeit oder Silhouette):
+  ok  ROBOTS       Bild 208 = 8.667 s  x2.9
+  ok  HACKATHONS   Bild 226 = 9.417 s  x25.0
+  ok  Stufe 1      Bild 252 = 10.500 s  x2.4
+  ok  Stufe 2      Bild 270 = 11.250 s  x42.5
+  ok  Stufe 3      Bild 283 = 11.792 s  x31.6
+Gegenprobe +3 Bilder: 1/5 ok (muss weniger sein)
