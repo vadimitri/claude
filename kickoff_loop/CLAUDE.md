@@ -8,6 +8,7 @@ Pack-Regeln: `../CLAUDE.md`. Vor Vorschlägen: `docs/ENTSCHEIDUNGEN.md` + `docs/
 | Pfad | Inhalt | Git |
 |---|---|---|
 | `final/` | **Lieferung**: `SPARK_Kickoff_F19_master.mp4`, Druck-PDFs (Hardlinks, kein Extra-Platz) | nein |
+| `final/` (Social, 9.10.) | `…F19S_social` (Rickroll-QR + HPI), `…F19_rickroll` (Rickroll-QR, Rest F19: verlustfreier Schnitt bei Bild 217 = Keyframe, 0–216 aus F19S), je `_share` = x264 veryslow CRF 18 (37 MB, SSIM 0.993) | nein |
 | `loop.toml` | alle Stellschrauben (Plakat-Abschnitte `[type]`, `[color]`, `[styles]`, `[spark]` = Druckstand, nicht ändern) | ja |
 | `previz/review/F19/` | Endfassung: `F19.toml` (Basis `F17B/F17B.toml`) + Video + Report | toml, report |
 | `previz/archiv/` | alle älteren Varianten (`review/F1…F18d, MC3, O17, alt/, geparkt/`), `versionen/v001…v022`, Musik | toml, report |
@@ -22,6 +23,12 @@ Pack-Regeln: `../CLAUDE.md`. Vor Vorschlägen: `docs/ENTSCHEIDUNGEN.md` + `docs/
 Code: `../src/kickoff_loop*.py` (`kickoff_loop.py` Plakat/Satz/Selbsttest, `_video` Timeline/Kamera/Ende,
 `_f16` Wortwand + Masken-Spark (F16–F19), `_photos` Campus-Fotos, `_end` Ausstiege, `_marks` Druckmarken,
 `_music`, `_resolve`, `_digital`). Befehle + Cache-Logik: `docs/VERLAUF.md` Abschnitt „Befehle“.
+
+## Social-Fassung (F19S, 9.10.)
+
+QR → Rickroll (`youtu.be`, gleiche QR-Version), Endbild HPI: Schalter `SPARK_SOCIAL=1` (`styles.py`), nur mit
+`F17BS`/`F19S` (load prueft `[video].social`). Fotos: `uv run src/kickoff_loop_social.py` → `photos/aligned_social/`
+(Befund `previz/review/F17BS/social_qr.txt`, 64/64 lesbar), dann `F17BS` preview `--master`, dann `F19S` video `--master`.
 
 ## Neu rendern (F19)
 
