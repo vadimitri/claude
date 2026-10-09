@@ -463,6 +463,8 @@ def item_masks(c, sc):
     hinter dem Slash), jede Zeile an ihrer Stelle im ganzen Block."""
     out = [np.logical_or.reduce(KL.line_masks(c, KL.text_lines(c)["title"], centered=True))]
     ls = list(c.L["sub"])
+    if S.SOCIAL:                                   # Social-Fassung: Ort im Endbild HPI (die Fotos zeigen D-SCHOOL)
+        ls[-1] = S.SOCIAL_END_WHERE
     cap, lead = KE.date_cap(c, sc["scale"], ls)
     top = c.H / 2 - (cap + (len(ls) - 1) * lead) / 2
     out += [KE.word_mask(c, [s], cap, lead, c.W / 2, top + j * lead)[0] & ~drop_cells(c, s, cap, top + j * lead,

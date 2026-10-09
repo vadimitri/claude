@@ -213,6 +213,7 @@ label_gap_cells = 4        # Luft zwischen JOIN US und Plattenkante (Zellen)
 
 [video]
 size_px = [1080, 1920]     # Ausgabe Breite x Hoehe (9:16 fuer Reel/Story)
+social = false            # Social-Fassung (Rickroll-QR, HPI im Endbild): nur F17BS/F19S, nur mit SPARK_SOCIAL=1 (load prueft)
 timeline_fps = 24          # Resolve-Timeline
 start_poster_frac = 0.38   # Plakathoehe / Bildhoehe am Anfang: Umgebung (Campus) gut sichtbar
 surround_luma = 0.22       # Grading: Umgebung jedes Fotos auf diese mittlere Helligkeit (0..1) ziehen. Sonst blitzt bei

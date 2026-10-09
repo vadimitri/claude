@@ -379,7 +379,7 @@ def coarse(photo):
         for k in QR_SCALES:
             small = cv2.resize(grey, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
             txt, pts, _ = det.detectAndDecode(small)
-            if txt == KL.K.COPY["qr_url"] and pts is not None:
+            if txt == KL.S.PRINT_QR_URL and pts is not None:   # Fotos zeigen den Druck, auch in der Social-Fassung
                 found = [pts.reshape(4, 2) / k]
                 break
             ok, pts = det.detect(small)

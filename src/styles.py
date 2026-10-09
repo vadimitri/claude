@@ -36,7 +36,14 @@ FONTS = os.path.expanduser("~/Library/Fonts/")
 # ponytail: A3 = 3504x4956 (300 dpi, 1-2 px kuerzer als 3508x4961), damit beide Seiten durch R*u teilbar sind.
 SIZES = {"16x9": (1920, 1080, 1), "9x16": (1080, 1920, 1), "a3": (3504, 4956, 3)}
 # QR = Telegram-Gruppe fuer Updates, bewusst ohne Beschriftung (man muss scannen, um es zu verstehen)
-COPY = {"title": ("MAKER", "NIGHT"), "date": "20–21 NOV", "org": "SPARK", "qr_url": "https://t.me/+TnDm1terktk1ZTNi"}
+PRINT_QR_URL = "https://t.me/+TnDm1terktk1ZTNi"   # steht so auf allen gedruckten Plakaten (Fotoerkennung sucht danach)
+# Social-Fassung (SPARK_SOCIAL=1, Vadim 9.10.): QR fuehrt zum Rickroll, Ort im Endbild HPI statt D-SCHOOL. youtu.be statt
+# youtube.com/watch: gleiche QR-Version 3 (29 x 29 Module) wie der Druck, der Satz bleibt pixelgleich (watch-URL: Version 4).
+SOCIAL = os.environ.get("SPARK_SOCIAL") == "1"
+SOCIAL_QR_URL = "https://youtu.be/dQw4w9WgXcQ"
+SOCIAL_END_WHERE = "HPI"
+COPY = {"title": ("MAKER", "NIGHT"), "date": "20–21 NOV", "org": "SPARK",
+        "qr_url": SOCIAL_QR_URL if SOCIAL else PRINT_QR_URL}
 
 # K = Komposition: wo der Stern sitzt (cx, cy relativ zu W/H, R relativ zur kurzen Seite), hoch / quer.
 # Alle Schrift kippt dort in die Grundfarbe, wo sie ueber leuchtendem Stern liegt (XOR, haelt sie lesbar).

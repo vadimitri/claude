@@ -101,6 +101,9 @@ def load(path=CONFIG, music=None):
     if music:
         cfg["music"].update(file=f"ref/audio/mashup_{music}.wav", grid=f"ref/audio/mashup_{music}.json")
     cfg["_src"] = os.path.abspath(path)                    # preview kopiert genau diese Datei in den Ausgabeordner
+    assert cfg["video"]["social"] == S.SOCIAL, (f"{os.path.basename(path)}: [video].social = {cfg['video']['social']}, aber "
+                                                f"SPARK_SOCIAL={'1' if S.SOCIAL else 'nicht gesetzt'} (Social nur ueber F17BS/F19S, "
+                                                "sonst ueberschreibt sie die Master-Ausgaben)")
     n, col = cfg["loop"]["frames"], cfg["color"]
     assert ("stations" in col) != ("worlds" in col), "[color]: entweder stations (eine Welt) oder worlds, nicht beides"
     if "stations" in col:                                  # eine Welt ueber den ganzen Loop (Stand bis 1.10.)
@@ -829,7 +832,8 @@ def cache_key(st, fmt):
     """Alles, was das Bild bestimmt: das ganze Stil-Dict (auch fx_behind_title, dolls, Hooks), Palette, Format und die
     Quelltexte, die dabei laufen (Plakat oder Digitalteil). Gleicher Schluessel = gleiches Bild."""
     files = DIGITAL_SOURCES if (st.get("loop") or {}).get("digital") else POSTER_SOURCES
-    key = json.dumps([fmt, S.PALS[st["P"]], st, _source_hash(files)], sort_keys=True, default=_key_default)
+    social = [S.SOCIAL_QR_URL, S.SOCIAL_END_WHERE] if S.SOCIAL else []    # Social-Fassung: anderes Bild, eigener Schluessel
+    key = json.dumps([fmt, S.PALS[st["P"]], st, _source_hash(files)] + social, sort_keys=True, default=_key_default)
     return hashlib.sha1(key.encode()).hexdigest()[:12]
 
 
