@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["numpy", "pillow", "scipy", "scikit-image"]
+# dependencies = ["numpy", "pillow", "scipy", "scikit-image", "qrcode", "opencv-python-headless"]
 # ///
 """Spark Kit: Bausteine fuer den Schnitt in DaVinci Resolve (Vadim 10.10.: "Claude Bausteine, ich Schnitt").
 
@@ -13,6 +13,9 @@ ein neuer Render, und Text+ aus Resolve wird durch die Lens automatisch Pixel-Sc
   uv run src/kit.py elements    Spark-Loops S2/S7, Spark-Blende, Flow-Gruende, Wortmarke, Logo (grau, Alpha) -> kit/out/elements/
   uv run src/kit.py sound       Hits, Riser, Whoosh, Klicks, Chiptune, MN-Bett -> kit/out/sound/
   uv run src/kit.py brand       Colorway-Bogen + Testbild fuer die Lens -> kit/out/brand/
+  uv run src/kit.py qr [URL]     gluehender QR (Telegram) als Grau-Element, Lesbarkeit nach Lens in allen Colorways geprueft
+  uv run src/kit.py wall WORT    Wortwand (Begriff in Zeilen, Clash-Bit) je Format
+  uv run src/kit.py sheet [P]    Standbilder aller Elemente durch die Lens (~10 s, vor dem Rendern ansehen)
   uv run src/kit.py look IMG P11  ein Bild durch die Lens (numpy-Referenz) -> kit/out/look_<name>_<P>.png
   uv run src/kit.py all         lens + brand + sound + elements
   uv run src/kit.py test        Selbsttest (Lens = styles.dither, Kanten-Schnapp, Loops nahtlos, Sound ohne Klick)
@@ -91,9 +94,18 @@ DEFINE_UI_PARAMS(transp, Transparent ground, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_PARAMS(ditherTo, Photo fade dither up to, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 1.0, 0.01)
 DEFINE_UI_PARAMS(fadeLen, Photo fade length, DCTLUI_SLIDER_FLOAT, 0.35, 0.01, 1.0, 0.01)
 DEFINE_UI_PARAMS(fadeAng, Photo fade angle, DCTLUI_SLIDER_FLOAT, 0.0, -180.0, 180.0, 15.0)
+DEFINE_UI_PARAMS(journey, Journey frames per colorway, DCTLUI_SLIDER_INT, 0, 0, 24, 1)
+DEFINE_UI_PARAMS(jset, Journey set, DCTLUI_COMBO_BOX, 0, {{ J_ALL, J_MN, J_KICK }}, {{ All colorways, Maker Night purple, Kick-off no purple }})
+DEFINE_UI_PARAMS(boil, Boil frames, DCTLUI_SLIDER_INT, 0, 0, 12, 1)
 DEFINE_DCTL_ALPHA_MODE_STRAIGHT
 
 __CONSTANT__ float PAL[{npal}] = {{ {pal} }};
+// Journey (Kick-off: jedes Bild eine andere Welt): Colorway-Index-Listen je Set, Start = gewaehlte Colorway
+__CONSTANT__ int SETS[{nsets}] = {{ {sets} }};
+__CONSTANT__ int SET_OFF[3] = {{ {set_off} }};
+__CONSTANT__ int SET_LEN[3] = {{ {set_len} }};
+// Boil (Korn kocht wie der 15-fps-Boil des MN-Teasers): Bayer-Muster je Schritt um (x, y) Zellen verschoben
+__CONSTANT__ int SHIFT[8] = {{ {shift} }};
 __CONSTANT__ float BAYER[16] = {{ 0.0f, 8.0f, 2.0f, 10.0f, 12.0f, 4.0f, 14.0f, 6.0f, 3.0f, 11.0f, 1.0f, 9.0f, 15.0f, 7.0f, 13.0f, 5.0f }};
 
 __DEVICE__ float bayer4(int x, int y)
@@ -131,6 +143,24 @@ __DEVICE__ float4 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
     if (keep < bayer4(cy, cx)) {{
         return make_float4(_tex2D(p_TexR, p_X, p_Y), _tex2D(p_TexG, p_X, p_Y), _tex2D(p_TexB, p_X, p_Y), _tex2D(p_TexA, p_X, p_Y));
     }}
+    // Journey + Boil haengen am Timeline-Bild (nur im ResolveFX-Plugin; als LUT ist TIMELINE_FRAME_INDEX = 1, Regler 0)
+    const int fr = TIMELINE_FRAME_INDEX;
+    int sxo = 0;
+    int syo = 0;
+    if (boil > 0) {{
+        const int k = (fr / boil) % 4;
+        sxo = SHIFT[2 * k];
+        syo = SHIFT[2 * k + 1];
+    }}
+    int p = (int)pal;
+    if (journey > 0) {{
+        const int s = (int)jset;
+        int start = 0;
+        for (int i = 0; i < SET_LEN[s]; i++) {{
+            if (SETS[SET_OFF[s] + i] == p) start = i;
+        }}
+        p = SETS[SET_OFF[s] + (start + fr / journey) % SET_LEN[s]];
+    }}
     // Abtastung in der Zellmitte, wie styles.py Felder an Zellmitten auswertet
     const float sx = (float)(cx * cell + cell / 2);
     const float sy = (float)(cy * cell + cell / 2);
@@ -150,26 +180,69 @@ __DEVICE__ float4 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
     // styles.dither: x = v*5 + 1e-4, idx = floor(x) + (frac > bayer)
     const float x = v * 5.0f + 0.0001f;
     const float lo = _floorf(x);
-    const int idx = (int)_fminf(lo + (x - lo > bayer4(cx, cy) ? 1.0f : 0.0f), 5.0f);
+    const int idx = (int)_fminf(lo + (x - lo > bayer4(cx + 4 - sxo, cy + 4 - syo) ? 1.0f : 0.0f), 5.0f);
     if (transp != 0 && idx == 0) {{
         return make_float4(0.0f, 0.0f, 0.0f, 0.0f);
     }}
-    const int o = ((int)pal * 6 + idx) * 3;
+    const int o = (p * 6 + idx) * 3;
     return make_float4(PAL[o], PAL[o + 1], PAL[o + 2], 1.0f);
 }}
 """
 
 
-def dctl(cfg, default=0):
+def dctl(cfg, default=0, alpha=True):
+    """alpha=False: LUT-Fassung fuer Nodes/Timeline-Grade. Befund 10.10.: als Node-LUT reicht Resolve eine float4-DCTL
+    (Alpha) stumm durch (Testbild kam grau zurueck), Alpha-DCTLs laufen nur im ResolveFX-DCTL-Plugin (README Abschnitt 7)."""
     order = cfg["lens"]["order"]
     vals = [f"{c / 255:.6f}f" for p in order for c in pal6(p).ravel()]
-    return DCTL.format(default=default, enums=", ".join(f"CW_{p}" for p in order),
-                       labels=", ".join(name(p) for p in order), cell=cfg["lens"]["cell_px"], npal=len(vals),
-                       pal=", ".join(vals), snap=SNAP_PX)
+    sets = journey_sets(order)
+    off = [0, len(sets[0]), len(sets[0]) + len(sets[1])]
+    src = DCTL.format(default=default, enums=", ".join(f"CW_{p}" for p in order),
+                      labels=", ".join(name(p) for p in order), cell=cfg["lens"]["cell_px"], npal=len(vals),
+                      pal=", ".join(vals), snap=SNAP_PX, nsets=sum(map(len, sets)),
+                      sets=", ".join(str(i) for s in sets for i in s), set_off=", ".join(map(str, off)),
+                      set_len=", ".join(str(len(s)) for s in sets), shift=", ".join(str(v) for xy in BOIL for v in xy))
+    if alpha:
+        return src
+    tex = "_tex2D(p_TexR, p_X, p_Y), _tex2D(p_TexG, p_X, p_Y), _tex2D(p_TexB, p_X, p_Y)"
+    for a, b in [("DEFINE_DCTL_ALPHA_MODE_STRAIGHT\n", ""),
+                 ("DEFINE_UI_PARAMS(transp, Transparent ground, DCTLUI_CHECK_BOX, 0)\n", ""),
+                 (", __TEXTURE__ b, __TEXTURE__ a)", ", __TEXTURE__ b)"), ("l * _tex2D(a, xi, yi)", "l"),
+                 (", p_TexB, p_TexA)", ", p_TexB)"), ("__TEXTURE__ p_TexB, __TEXTURE__ p_TexA)", "__TEXTURE__ p_TexB)"),
+                 ("__DEVICE__ float4 transform", "__DEVICE__ float3 transform"),
+                 (f"make_float4({tex}, _tex2D(p_TexA, p_X, p_Y))", f"make_float3({tex})"),
+                 ("    if (transp != 0 && idx == 0) {\n        return make_float4(0.0f, 0.0f, 0.0f, 0.0f);\n    }\n", ""),
+                 ("make_float4(PAL[o], PAL[o + 1], PAL[o + 2], 1.0f)", "make_float3(PAL[o], PAL[o + 1], PAL[o + 2])"),
+                 ("// Effekt:", "// LUT-Fassung ohne Alpha (Node-LUTs reichen Alpha-DCTLs durch). Effekt mit Alpha:")]:
+        assert a in src, f"DCTL-Vorlage geaendert, LUT-Fassung passt nicht mehr: {a!r}"
+        src = src.replace(a, b)
+    assert "p_TexA" not in src and "float4" not in src
+    return src
 
 
-def lens(rgb, code, cell=4, alpha=None, transparent=False, snap=True):
-    """numpy-Referenz der DCTL (ohne Foto-Fade): HxWx3 float 0..1 -> HxWx4 uint8. Fuer Selbsttest und `look`."""
+BOIL = [(0, 0), (2, 1), (1, 3), (3, 2)]                   # Boil-Verschiebungen (x, y) in Zellen: jede Phase eine andere Lage
+
+
+def journey_sets(order):
+    """Indizes in order: alle, Maker Night (lila), Kick-off (ohne Lila), wie "Lila gehoert der Maker Night"."""
+    return [list(range(len(order))), [i for i, p in enumerate(order) if S.lila(P_KEY[p])],
+            [i for i, p in enumerate(order) if not S.lila(P_KEY[p])]]
+
+
+def lens_at(cfg, code, frame, journey=0, jset=0, boil=0):
+    """(Colorway, Bayer-Verschiebung y/x) der DCTL in Timeline-Bild `frame`: Referenz fuer Journey und Boil."""
+    order = cfg["lens"]["order"]
+    if journey:
+        s = journey_sets(order)[jset]
+        start = s.index(order.index(code)) if order.index(code) in s else 0
+        code = order[s[(start + frame // journey) % len(s)]]
+    sx, sy = BOIL[(frame // boil) % 4] if boil else (0, 0)
+    return code, (sy, sx)
+
+
+def lens(rgb, code, cell=4, alpha=None, transparent=False, snap=True, shift=(0, 0)):
+    """numpy-Referenz der DCTL (ohne Foto-Fade): HxWx3 float 0..1 -> HxWx4 uint8. Fuer Selbsttest und `look`.
+    shift = Bayer-Verschiebung (y, x) in Zellen (Boil, siehe lens_at)."""
     h, w = rgb.shape[:2]
     lum = np.clip((rgb @ LUMA) * (1 if alpha is None else alpha), 0, 1)
     sy = np.arange(h // cell) * cell + cell // 2
@@ -182,12 +255,102 @@ def lens(rgb, code, cell=4, alpha=None, transparent=False, snap=True):
         off = lambda a: np.abs(a * 5 - np.round(a * 5))
         hit = (off(mn) < 0.2) & (off(mx) < 0.2) & (mx - mn > 0.1)
         v = np.where(hit, np.round(np.where(v > 0.5 * (mn + mx), mx, mn) * 5) / 5, v)
-    idx = S.dither(v, STEPS - 1, "bayer4", cell)
+    idx = S.dither(v, STEPS - 1, "bayer4", cell, shift=shift)
     out = np.zeros((h, w, 4), np.uint8)
     ch, cw = idx.shape
     out[:ch, :cw, :3] = pal6(code)[idx]
     out[:ch, :cw, 3] = np.where(transparent & (idx == 0), 0, 255)
     return out
+
+
+GLOW_SAMPLES = 16                       # wie kickoff_loop_end.GLOW_SAMPLES: so viele vergroesserte Kopien je Schweif
+
+GLOW = """// Spark Glow - generiert von src/kit.py. Nicht von Hand aendern: neu erzeugen.
+// Lichtschweif wie im Kick-off (kickoff_loop_end.glow_layer / flare_layer, Halos F16-F19): das Bild {n}-mal um die Mitte
+// vergroessert (bis exp(Length)), Gewicht faellt linear nach aussen, Maximum. Gerechnet an Zellmitten (Raster der Lens).
+// Wirkt im Grauraum UNTER der Lens (die rastert und faerbt es). Length keyframen = Halo waechst (Vadim: nur wachsen lassen).
+DEFINE_UI_PARAMS(gx, Centre X, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.001)
+DEFINE_UI_PARAMS(gy, Centre Y, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.001)
+DEFINE_UI_PARAMS(glen, Length, DCTLUI_SLIDER_FLOAT, 0.6, 0.0, 3.0, 0.01)
+DEFINE_UI_PARAMS(peak, Peak, DCTLUI_SLIDER_FLOAT, 0.8, 0.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(cell, Cell size px, DCTLUI_SLIDER_INT, {cell}, 1, 24, 1)
+{alpha_mode}
+// Licht einer Stelle: Luma (Rec.709) x Alpha; ausserhalb des Bildes kein Licht
+__DEVICE__ float lum(int w, int h, float x, float y, __TEXTURE__ r, __TEXTURE__ g, __TEXTURE__ b{a_param})
+{{
+    if (x < 0.0f || y < 0.0f || x >= (float)w || y >= (float)h) return 0.0f;
+    const int xi = (int)x;
+    const int yi = (int)y;
+    return _saturatef((0.2126f * _tex2D(r, xi, yi) + 0.7152f * _tex2D(g, xi, yi) + 0.0722f * _tex2D(b, xi, yi)){a_mul});
+}}
+
+__DEVICE__ {ret} transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTURE__ p_TexR, __TEXTURE__ p_TexG, __TEXTURE__ p_TexB{a_tex})
+{{
+    const float px = (float)((p_X / cell) * cell + cell / 2);
+    const float py = (float)((p_Y / cell) * cell + cell / 2);
+    const float mx = gx * (float)p_Width;
+    const float my = gy * (float)p_Height;
+    float gl = 0.0f;
+    for (int j = 1; j <= {n}; j++) {{
+        const float s = _expf(glen * (float)j / {n}.0f);
+        gl = _fmaxf(gl, lum(p_Width, p_Height, mx + (px - mx) / s, my + (py - my) / s, p_TexR, p_TexG, p_TexB{a_call})
+                        * (1.0f - (float)j / {n1}.0f));
+    }}
+    gl *= peak;
+    const float r = _tex2D(p_TexR, p_X, p_Y);
+    const float g = _tex2D(p_TexG, p_X, p_Y);
+    const float b = _tex2D(p_TexB, p_X, p_Y);
+{tail}
+}}
+"""
+GLOW_TAIL_ALPHA = """    const float a = _tex2D(p_TexA, p_X, p_Y);
+    const float own = _saturatef((0.2126f * r + 0.7152f * g + 0.0722f * b) * a);
+    if (gl <= own) return make_float4(r, g, b, a);
+    if (a > 0.999f) return make_float4(gl, gl, gl, 1.0f);
+    return make_float4(1.0f, 1.0f, 1.0f, gl);              // Licht ueber Transparenz: weiss mit Deckkraft = Helligkeit"""
+GLOW_TAIL_LUT = """    const float own = _saturatef(0.2126f * r + 0.7152f * g + 0.0722f * b);
+    if (gl <= own) return make_float3(r, g, b);
+    return make_float3(gl, gl, gl);"""
+
+
+def glow_dctl(cfg, alpha=True):
+    """Effekt (alpha=True, ResolveFX) bzw. LUT-Fassung ohne Alpha (fuer den Render-Vergleich gegen glow())."""
+    a = alpha
+    return GLOW.format(n=GLOW_SAMPLES, n1=GLOW_SAMPLES + 1, cell=cfg["lens"]["cell_px"],
+                       alpha_mode="DEFINE_DCTL_ALPHA_MODE_STRAIGHT\n" if a else "",
+                       a_param=", __TEXTURE__ a" if a else "", a_mul=" * _tex2D(a, xi, yi)" if a else "",
+                       ret="float4" if a else "float3", a_tex=", __TEXTURE__ p_TexA" if a else "",
+                       a_call=", p_TexA" if a else "", tail=GLOW_TAIL_ALPHA if a else GLOW_TAIL_LUT)
+
+
+def glow(lum, gx=0.5, gy=0.5, glen=0.6, peak=0.8, cell=4):
+    """numpy-Referenz der Glow-DCTL (LUT-Fassung): Graubild HxW 0..1 -> Graubild mit Lichtschweif."""
+    h, w = lum.shape
+    yy, xx = np.mgrid[0:h, 0:w]
+    py = ((yy // cell) * cell + cell // 2).astype(np.float32)
+    px = ((xx // cell) * cell + cell // 2).astype(np.float32)
+    my, mx = np.float32(gy * h), np.float32(gx * w)
+    gl = np.zeros((h, w), np.float32)
+    for j in range(1, GLOW_SAMPLES + 1):
+        s = np.float32(math.exp(glen * j / GLOW_SAMPLES))
+        qx, qy = mx + (px - mx) / s, my + (py - my) / s
+        ok = (qx >= 0) & (qy >= 0) & (qx < w) & (qy < h)
+        v = np.where(ok, lum[np.clip(qy, 0, h - 1).astype(int), np.clip(qx, 0, w - 1).astype(int)], 0)
+        gl = np.maximum(gl, v * np.float32(1 - j / (GLOW_SAMPLES + 1)))
+    return np.maximum(lum, gl * np.float32(peak))
+
+
+def glow_testchart(w=1080, h=1920):
+    """Wortmarke + Logo auf Schwarz: Quelle fuer den Lichtschweif (Render-Vergleich Resolve gegen glow())."""
+    img = np.zeros((h, w), np.float32)
+    wm = wordmark(round(0.66 * w)).astype(np.float32)[..., 3] / 255
+    y0, x0 = h // 2 - wm.shape[0] // 2, (w - wm.shape[1]) // 2
+    img[y0:y0 + wm.shape[0], x0:x0 + wm.shape[1]] = wm
+    s = round(0.37 * w)
+    lg = logo(s).astype(np.float32)[..., 3] / 255
+    y1, x1 = round(0.1 * h), (w - s) // 2
+    img[y1:y1 + s, x1:x1 + s] = np.maximum(img[y1:y1 + s, x1:x1 + s], lg)
+    return img
 
 
 def cmd_lens(cfg):
@@ -196,8 +359,11 @@ def cmd_lens(cfg):
     shutil.rmtree(out, ignore_errors=True)
     (out / "Colorways").mkdir(parents=True)
     (out / "Spark Lens.dctl").write_text(dctl(cfg))
+    (out / "Spark Glow.dctl").write_text(glow_dctl(cfg))
+    (OUT / "lens_test").mkdir(parents=True, exist_ok=True)                 # LUT-Fassung nur fuer den Render-Vergleich
+    (OUT / "lens_test" / "Spark Glow LUT.dctl").write_text(glow_dctl(cfg, alpha=False))
     for i, p in enumerate(cfg["lens"]["order"]):
-        (out / "Colorways" / f"{name(p)}.dctl").write_text(dctl(cfg, i))
+        (out / "Colorways" / f"{name(p)}.dctl").write_text(dctl(cfg, i, alpha=False))
     dst = Path(cfg["lens"]["resolve_dir"])
     if dst.parent.is_dir():
         shutil.rmtree(dst, ignore_errors=True)
@@ -364,6 +530,105 @@ def cmd_elements(cfg):
     print(f"Elemente -> {out}")
 
 
+def paper(code):
+    """Papier-Colorway: Stufe 0 (Grund) heller als Stufe 5 (Tinte), Wert 1 = dunkel."""
+    p = pal6(code).astype(np.float32) @ LUMA
+    return p[0] > p[-1]
+
+
+def qr_element(q, url, on_paper=False):
+    """Gluehender QR im Grauraum: helle Module light_value, dunkle 0, Platte mit Ruhezone, aussen Lichtabfall
+    exponentiell vom Plattenrand (rund um die Ecken), als Licht: weiss mit Deckkraft = Helligkeit (wie Spark Glow).
+    on_paper: fuer Papier-Colorways (Wert 1 = dunkel) gespiegelt, dunkle Module = Tinte auf heller Platte, kein Gluehen
+    (Befund 10.10.: ohne Spiegelung las der QR in P8 P16 P21-P24 nicht, er stand invertiert)."""
+    import qrcode
+    from scipy.ndimage import distance_transform_edt
+    qq = qrcode.QRCode(border=0, error_correction=qrcode.constants.ERROR_CORRECT_M)
+    qq.add_data(url)
+    qq.make(fit=True)
+    m = np.array(qq.get_matrix(), bool)
+    mod, quiet = q["module_px"], q["quiet_modules"]
+    cell = mod // 2
+    plate = np.pad(~m, quiet, constant_values=True).astype(np.float32) * q["light_value"]
+    if on_paper:
+        plate = 1 - plate
+    plate = np.repeat(np.repeat(plate, mod, 0), mod, 1)
+    pad = 0 if on_paper else q["glow_cells"] * cell
+    if not pad:
+        v = np.round(plate * 255).astype(np.uint8)
+        return np.dstack([v, v, v, np.full_like(v, 255)])
+    n = plate.shape[0] + 2 * pad
+    inside = np.zeros((n, n), bool)
+    inside[pad:-pad, pad:-pad] = True
+    d = distance_transform_edt(~inside) / cell                              # Zellen bis zur Platte
+    g = np.where(inside, 0, q["light_value"] * np.exp(-d / q["glow_decay_cells"]) * (d <= q["glow_cells"]))
+    out = np.zeros((n, n, 4), np.uint8)
+    out[..., :3] = 255
+    out[..., 3] = np.round(g * 255)
+    v = np.round(plate * 255).astype(np.uint8)
+    out[pad:-pad, pad:-pad] = np.dstack([v, v, v, np.full_like(v, 255)])
+    return out
+
+
+def qr_reads(img, url):
+    """Dekodiert wie kickoff.check_qr: 4 Modulgroessen, mindestens 2 muessen lesen (OpenCV ist launisch)."""
+    import cv2
+    h, w = img.shape[:2]
+    hits = 0
+    for k in (0.5, 0.625, 1.0, 2.0):                                         # 4/5/8/16 px je Modul bei 8-px-Modulen
+        small = cv2.resize(np.ascontiguousarray(img[..., 2::-1]), (round(w * k), round(h * k)), interpolation=cv2.INTER_AREA)
+        hits += cv2.QRCodeDetector().detectAndDecode(small)[0] == url
+    return hits
+
+
+def cmd_qr(cfg, url=None):
+    q, out = cfg["qr"], OUT / "elements"
+    url = url or q["url"]
+    out.mkdir(parents=True, exist_ok=True)
+    slug = "telegram" if url == q["url"] else "".join(ch for ch in url.split("//")[-1] if ch.isalnum())[:24]
+    bad = []
+    for on_paper, suffix in ((False, ""), (True, "_paper")):
+        el = qr_element(q, url, on_paper)
+        Image.fromarray(el).save(out / f"qr_{slug}{suffix}.png")
+        a = el.astype(np.float32) / 255
+        pad = np.zeros((el.shape[0] + 64, el.shape[1] + 64, 3), np.float32)
+        pad[32:-32, 32:-32] = a[..., :3] * a[..., 3:]                            # ueber Grund (Wert 0) komponiert
+        group = [p for p in cfg["lens"]["order"] if paper(p) == on_paper]
+        miss = [p for p in group if qr_reads(lens(pad, p, cfg["lens"]["cell_px"])[..., :3], url) < 2]
+        bad += miss
+        print(f"QR{suffix or ' dunkel'} {url}: {el.shape[1]} px, liest nach Lens in {len(group) - len(miss)}/{len(group)}"
+              f" Colorways ({' '.join(group)})" + (f", NICHT: {miss}" if miss else ""))
+    return not bad
+
+
+def wall_element(word, w, h, lead_frac, margin):
+    """Wortwand: Begriff in Zeilen auf voller Satzbreite, weiss auf Schwarz (deckend). In Resolve ueber einer Spark-Blende
+    mit Composite Mode Multiply = Wortwand im Stern (Kick-off-Ende)."""
+    f = S.font("ClashDisplay-Variable.ttf", 400, "Bold")
+    word = word.upper().replace(" ", "  ")                                   # T2: Wortabstand doppelt
+    cap0 = f.getbbox("H")[3] - f.getbbox("H")[1]
+    size = 400 * (w - 2 * margin) / f.getlength(word)
+    f = S.font("ClashDisplay-Variable.ttf", int(size), "Bold")
+    cap = cap0 * size / 400
+    lead = cap * lead_frac
+    rows = max(1, int((h - 2 * margin - cap) // lead) + 1)
+    y0 = (h - (cap + (rows - 1) * lead)) / 2 + cap
+    im = Image.new("L", (w, h), 0)
+    dr = ImageDraw.Draw(im)
+    for r in range(rows):
+        dr.text((w / 2, y0 + r * lead), word, 255, font=f, anchor="ms")
+    return np.array(im)
+
+
+def cmd_wall(cfg, word):
+    out = OUT / "elements"
+    out.mkdir(parents=True, exist_ok=True)
+    for fmt, (w, h) in cfg["elements"]["formats"].items():
+        a = wall_element(word, w, h, cfg["wall"]["lead_frac"], cfg["wall"]["margin_px"])
+        Image.fromarray(a).save(out / f"wall_{word.lower().replace(' ', '_')}_{fmt}.png")
+    print(f"Wortwand '{word}' -> {out}/wall_*")
+
+
 # ---------------------------------------------------------------- Brand: Colorway-Bogen, Lens-Testbild
 
 def testchart(w=1080, h=1920):
@@ -395,6 +660,8 @@ def cmd_brand(cfg):
     Image.fromarray(np.round(t * 255).astype(np.uint8)).save(out / "lens_testchart.png")
     p = cfg["resolve"]["default_colorway"]
     Image.fromarray(lens(np.repeat(t[..., None], 3, 2), p, cfg["lens"]["cell_px"])).save(out / f"lens_testchart_ref_{p}.png")
+    gt = glow_testchart()
+    Image.fromarray(np.round(gt * 255).astype(np.uint8)).save(out / "glow_testchart.png")
     print(f"Brand -> {out}")
 
 
@@ -413,6 +680,13 @@ def cmd_sheet(cfg, code=None):
              *[(f"flow {s}", rgba(flow.field(w, h, 0, e["flow_loop_s"], -60.0, cell=1, **fst[s]), np.ones((h, w))))
                for s in e["flow_styles"]],
              ("wordmark", wordmark(1080)), ("logo", logo(1080))]
+    # Kick-off-Effekte: Glow (Schweif um die Bildmitte), gluehender QR, Wortwand im Stern (Multiply ueber der Blende)
+    g = glow(glow_testchart(w, h), 0.5, 0.42, 0.9, 0.85, cell)
+    tiles.append(("glow", rgba(g, np.ones((h, w)))))
+    qe = qr_element(cfg["qr"], cfg["qr"]["url"]).astype(np.float32) / 255
+    tiles.append(("qr glow", rgba(qe[..., 0] * qe[..., 3], np.ones(qe.shape[:2]))))
+    wall = wall_element("MAKER NIGHT", w, h, cfg["wall"]["lead_frac"], cfg["wall"]["margin_px"]) / 255
+    tiles.append(("wall x cover", rgba(wall * (cov[2 * len(cov) // 3][..., 3] / 255), np.ones((h, w)))))
     H = 480
     row = []
     for label, im in tiles:
@@ -572,6 +846,21 @@ def test(cfg):
     body = src.split(f"PAL[{n}] = {{")[1].split("}")[0] if f"PAL[{n}]" in src else ""
     ok &= body.count("f") == n and src.count("CW_") == len(cfg["lens"]["order"])
     print(f"  DCTL: {len(cfg['lens']['order'])} Colorways, PAL[{n}]")
+    # 3b. Journey/Boil: Maker-Night-Set ab P1 alle 2 Bilder weiter (Gegenprobe: Set "alle" gaebe P1 P1 P5 P5 P8 P8 P12 ...
+    #     erst ab Bild 6 anders; daher Kick-off-Set ab P11 pruefen, das P1 nie enthalten darf)
+    mn = [lens_at(cfg, "P1", f, journey=2, jset=1)[0] for f in range(10)]
+    ko = {lens_at(cfg, "P11", f, journey=1, jset=2)[0] for f in range(40)}
+    bo = [lens_at(cfg, "P1", f, boil=3)[1] for f in range(12)]
+    jb = mn == ["P1", "P1", "P5", "P5", "P8", "P8", "P12", "P12", "P1", "P1"] and not ko & {"P1", "P5", "P8", "P12"} \
+        and len(set(bo)) == 4 and bo[0] == bo[2] != bo[3]
+    print(f"  Journey/Boil: MN {mn[:8]}, Kick-off ohne Lila {not ko & {'P1', 'P5', 'P8', 'P12'}}, Boil {bo[::3]}")
+    ok &= jb
+    # 3c. Glow: nie dunkler als die Quelle, Schweif zeigt von der Mitte weg (Licht aussen neben dem Logo, innen nicht)
+    gt = glow_testchart(270, 480)
+    g = glow(gt, 0.5, 0.5, 0.6, 0.8, cell)
+    away, toward = g[40:44, 135].max(), g[160:164, 135].max()            # ueber dem Logo (aussen) / zwischen Logo und Mitte
+    print(f"  Glow: >= Quelle {bool((g >= gt - 1e-6).all())}, Schweif aussen {away:.2f} / innen {toward:.2f}")
+    ok &= bool((g >= gt - 1e-6).all()) and away > 0.1
     # 4. Loops nahtlos: Spin nach 60 Grad deckungsgleich, Nest nach 2 Schritten gleich und nach 1 invertiert
     e = dict(cfg["elements"], spin_px=216)
     a0, a60 = (star_d(216, 216, 108, 108, e["spin_radius_frac"] * 216, r) < 1 for r in (0, 60))
@@ -602,6 +891,10 @@ def main():
         cmd_sound(cfg)
     elif cmd == "brand":
         cmd_brand(cfg)
+    elif cmd == "qr":
+        sys.exit(0 if cmd_qr(cfg, sys.argv[2] if len(sys.argv) > 2 else None) else 1)
+    elif cmd == "wall":
+        cmd_wall(cfg, " ".join(sys.argv[2:]) or "MAKER NIGHT")
     elif cmd == "sheet":
         cmd_sheet(cfg, sys.argv[2] if len(sys.argv) > 2 else None)
     elif cmd == "look":

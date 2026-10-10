@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parent.parent
 CFG = tomllib.loads((ROOT / "kit" / "kit.toml").read_text())
 NEVER_CLOSE = {"TRMNL"}                       # Vadims Live-Schnitt: nie schliessen, nie anfassen
 BINS = {"01 Spark": ["elements/spark_spin_S2.mov", "elements/spark_nest_S7.mov", "elements/spark_cover_{fmt}.mov",
-                     "elements/wordmark_SPARK.png", "elements/logo_spark.png"],
+                     "elements/wordmark_SPARK.png", "elements/logo_spark.png", "elements/qr_*.png",
+                     "elements/wall_*_{fmt}.png"],
         "02 Gruende": ["elements/flow_drift_{fmt}.mp4", "elements/flow_tide_{fmt}.mp4", "elements/nest_tunnel_{fmt}.mp4"],
         "03 Zumo": ["zumo/scenes/*/*_value.mov", "zumo/emoji/*.gif"],
         "04 Sound": ["sound/*.wav"],
@@ -64,8 +65,15 @@ def build(resolve, colorway=None):
     mp.SetCurrentFolder(have.get("06 Footage") or mp.AddSubFolder(root, "06 Footage"))
     mp.SetCurrentFolder(root)
 
-    lut = f"Spark/Colorways/{colorway or r['default_colorway']} {dict(_codenames())[colorway or r['default_colorway']]}.dctl"
+    code = colorway or r["default_colorway"]
+    lut = f"Spark/Colorways/{code} {dict(_codenames())[code]}.dctl"
     tls = {proj.GetTimelineByIndex(i + 1).GetName() for i in range(proj.GetTimelineCount())}
+    if "00 Lens-Test" not in tls and items.get("lens_testchart.png"):
+        # Testbild mit der Lens als Clip-LUT: Render dieses Bildes = numpy-Referenz (kit.lens), Befund 10.10.: 99.999 %
+        tl = mp.CreateEmptyTimeline("00 Lens-Test")
+        got = mp.AppendToTimeline([{"mediaPoolItem": items["lens_testchart.png"], "trackIndex": 1,
+                                    "recordFrame": tl.GetStartFrame()}]) or []
+        rep.append(f"00 Lens-Test: LUT {'ok' if got and got[0].GetNodeGraph().SetLUT(1, lut) else 'FEHLER'}")
     for tl_name, fmt in r["timelines"].items():
         if tl_name in tls:
             rep.append(f"Timeline {tl_name}: existiert, unveraendert (Vadims Arbeit)")
@@ -74,10 +82,10 @@ def build(resolve, colorway=None):
         proj.SetCurrentTimeline(tl)
         w, h = fmts[fmt]
         tl.SetSettings({"useCustomSettings": "1", "timelineResolutionWidth": str(w), "timelineResolutionHeight": str(h)})
-        for _ in range(3):
+        for _ in range(4):
             tl.AddTrack("video")
         tl.AddTrack("audio", "stereo")
-        for i, n in enumerate(["Grund", "Spark", "Titel", "Zumo"], 1):
+        for i, n in enumerate(["Grund", "Spark", "Titel", "Zumo", "Lens"], 1):
             tl.SetTrackName("video", i, n)
         for i, n in enumerate(["Musik", "SFX"], 1):
             tl.SetTrackName("audio", i, n)
@@ -110,10 +118,32 @@ def build(resolve, colorway=None):
         got = mp.AppendToTimeline(place) or []
         for b in range(r["marker_bars"]):
             tl.AddMarker(b * bar, "Lavender" if b % 4 else "Purple", f"Takt {b + 1}", "", 1)
-        g = tl.GetNodeGraph()
-        lut_ok = bool(g and g.SetLUT(1, lut))
-        rep.append(f"Timeline {tl_name} {w}x{h}: {len(got)}/{len(place)} Clips, Marker, Lens {lut} {'ok' if lut_ok else 'FEHLER'}")
+        # Lens: Spur "Lens" bleibt leer. Befund 10.10.: die API kann weder einen Adjustment Clip einfuegen
+        # (InsertGenerator/InsertFusionGenerator "Adjustment Clip" -> None) noch die Timeline-Grade fuellen (0 Nodes,
+        # SetLUT und ApplyGradeFromDRX wirkungslos). Einmal von Hand: Adjustment Clip auf "Lens", LUT setzt lens_on().
+        rep.append(f"Timeline {tl_name} {w}x{h}: {len(got)}/{len(place)} Clips, {r['marker_bars']} Taktmarker")
+    rep += lens_on(proj, lut)
     pm.SaveProject()
+    return rep
+
+
+def lens_on(proj, lut):
+    """Setzt die Lens-LUT auf jeden Adjustment Clip jeder Timeline (egal auf welcher Spur) und meldet, wenn darueber
+    noch Spuren liegen: was ueber der Lens liegt, bleibt ungerastert (Titel, Zumo muessen darunter)."""
+    rep = []
+    for i in range(proj.GetTimelineCount()):
+        tl = proj.GetTimelineByIndex(i + 1)
+        n = tl.GetTrackCount("video")
+        adj = [(k, it) for k in range(1, n + 1) for it in (tl.GetItemListInTrack("video", k) or [])
+               if it.GetName() == "Adjustment Clip"]
+        if not adj:
+            if not tl.GetName().startswith("00"):
+                rep.append(f"Lens {tl.GetName()}: kein Adjustment Clip -> Effects > Adjustment Clip auf die oberste Spur")
+            continue
+        ok = sum(bool(it.GetNodeGraph() and it.GetNodeGraph().SetLUT(1, lut)) for _, it in adj)
+        top = max(k for k, _ in adj)
+        warn = f", ACHTUNG liegt auf V{top}, nicht ganz oben (V{n}): auf die oberste Spur ziehen" if top < n else ""
+        rep.append(f"Lens {tl.GetName()}: {ok}/{len(adj)} Adjustment Clips mit {lut}{warn}")
     return rep
 
 
