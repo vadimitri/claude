@@ -1,0 +1,233 @@
+# Zumo-Szenen, Maskottchen, Emoji: alle Gestaltungswerte. Logik: src/zumo_scenes.py, Handbuch: zumo_sprites/CLAUDE.md.
+# Sprites kommen aus zumo_sprites.toml (Varianten Z4/Z7, Animationen). Gerechnet wird im Wertraum (Index 0 frei,
+# 1..6 = Stufe 0..5, 10.. LED-Akzente, 20.. Teamfarben), Farbe erst ueber die Palette.
+# Echte Pixel-Art (Vadim 7.10. zur ersten Demo: "zu High Fidelity", "zu fake"): flache Flaechen in Palettenstufen,
+# ganze Pixel, alles auf 12-fps-Ticks, Keys linear, Funken und Sterne als Stempel. Loops nahtlos: der Zustand nach dem
+# letzten Tick ist der erste (Selbsttest rechnet Tick `ticks` und vergleicht mit Tick 0).
+# Positionen: logische Pixel (x nach rechts, y nach unten).
+
+[output]
+tick_fps = 12
+video_fps = 24                # jeder Tick 2 Videoframes
+video_px = 4                  # Szene 270 x 270 -> 1080 x 1080 (ganzzahlig, nearest)
+tall_px = [270, 480]          # 9:16-Fassung (x video_px = 1080 x 1920): Szene mittig auf Grund
+gif_px = 2                    # GIF 540 x 540 (Slack, Web, Slides); 4 = 1080
+palette = "P1"                # Maker-Night-Lila fuer GIF und MP4
+extra_gif_palettes = ["natural"]   # zusaetzliche GIFs <name>_natural*.gif (Echtfarben, Teamfarbe in Farbe)
+alpha_palette = "value"       # ProRes 4444 mit Alpha in exakten Graustufen k/5: in Resolve faerbt die Spark Lens
+ground_value = 0              # Stufe des Grunds (GIF auf Grund, MP4)
+mp4_loops = 3                 # MP4 wiederholt den Loop (Story-Laenge); GIF und ProRes enthalten genau einen Loop
+
+# Teamfarben (Area Capture). step = Stufe in Paletten ohne eigene Teamfarbe (P-Codes, value); natural = eigene Farbe.
+[[teams]]
+name = "magenta"
+land = {step = 3, natural = "#8A2D8F"}  # Stufe 3: auf der Plane (Stufe 1) deutlich, Z7-Kontur (4) bleibt lesbar
+trail = {step = 4, natural = "#FF4FD8"}
+
+# Stempel: Zeilen gleicher Laenge, mittig gesetzt. '0'..'5' = Stufe, '#' = Stufe 5, Buchstabe = LED-Akzent
+# (r g b y m c w; in P-Paletten hellste Stufe), '.' = frei. Mehrere Bilder = Animation (ein Bild pro Tick).
+# Der Aufprall-Funke kommt aus [demo].spark der zumo_sprites.toml (abgenommen, Demo v3).
+# Kontur '0' um Stern, Herz, Z: liest sich auf hellem Slack; auf dunklem Grund verschwindet sie im Grund.
+[stamps]
+star = [["...000...", "...0y0...", "0000y0000", "0yyyyyyy0", "00yyyyy00", ".00yyy00.", ".0yy0yy0.", ".0y000y0.",
+         ".000.000."]]
+heart = [[".00.00.", "0mm0mm0", "0mmmmm0", ".0mmm0.", "..0m0..", "...0..."]]
+z = [["000000", "055550", "000500", "005000", "055550", "000000"]]
+poof = [   # Wolke gross, groesser, zerfaellt (aus Kreisen gepixelt, Unterkante Stufe 3)
+  [".......5555.......", ".....55555555.....", ".....55555555.....", "...555555555555...", "..55555555555555..",
+   ".5555555555555555.", ".5555555555555555.", ".3555555555555553.", "..35553555535553..", "...333.3333.333..."],
+  ["........555555555555........", ".......55555555555555.......", "......5555555555555555......",
+   "......5555555555555555......", "....55555555555555555555....", "..555555555555555555555555..",
+   "..555555555555555555555555..", ".55555555555555555555555555.", ".55555555555555555555555555.",
+   ".55555555555555555555555555.", ".35555555555555555555555553.", "..555555555555555555555555..",
+   "..335555333555555333555533..", "....3333...333333...3333...."],
+  [".............55..............", "............5555.............", ".5555.......5555.......5555..",
+   ".5555.......5555.......5555..", ".5555........55........5555..", ".5555..................5555..",
+   ".............................", ".............................", ".............................",
+   ".............................", "5555....................5555.", "5555....................5555.",
+   "5555....................5555.", "5555....55........55....5555.", ".......5555......5555........",
+   ".......5555......5555........", "........55........55........."],
+]
+dust = [[".4.", "444"], ["4.4", "..."]]
+flag = [   # Zielflagge: Stange Stufe 4, Tuch 2-px-Schachbrett; Bild 2 = rechte Haelfte eine Zeile tiefer (weht)
+  ["4551155115511.", "4551155115511.", "4115511551155.", "4115511551155.", "4551155115511.", "4551155115511.",
+   "4115511551155.", "4115511551155.", "4.............", "4.............", "4.............", "4.............",
+   "4.............", "4.............", "4.............", "4.............", "4.............", "4.............",
+   "4.............", "4............."],
+  ["4551155.......", "4551155115511.", "4115511115511.", "4115511551155.", "4551155551155.", "4551155115511.",
+   "4115511115511.", "4115511551155.", "4......551155.", "4.............", "4.............", "4.............",
+   "4.............", "4.............", "4.............", "4.............", "4.............", "4.............",
+   "4.............", "4............."],
+]
+
+# ---------------------------------------------------------------- Spumo (Sumo, Iso wie die Demo v3)
+# Zwei Zumos im Dohyo: A rammt B an der Flanke und schiebt ihn ueber die vordere Kante (Choreografie der Demo v3,
+# abgenommen 8.10.), KO-Sterne, dann Reset: B verpufft, faellt am Start vom Himmel, A faehrt rueckwaerts zurueck.
+# Bewegung in Iso-Diagonalen (2 px x, 1 px y), Positionen relativ zur Ringmitte.
+[spumo]
+variant = "Z7"                # Sticker-Kontur: liest sich auf dunklen Maker-Night-Gruenden
+size_px = [270, 270]
+ticks = 48                    # 4 s; Vielfaches der 8 Sprite-Frames, sonst springt der Loop
+ring_center_px = [126, 142]
+ring_rx_px = 92
+ring_ry_frac = 0.5            # Iso 2:1
+ring_h_px = 8                 # Plattformkante
+border_px = [8, 4]            # weisser Rand seitlich, oben/unten
+ring_values = [1, 5, 5]       # Ringflaeche, Plattformkante, Rand. Offen: MakerNight-Arena evtl. invers (weiss, schwarzer
+                              # Rand, Skill zumo-2040); hier wie die abgenommene Demo
+lip_value = 4
+ring_outline = 0
+shadow_px = [16, 6]           # flacher Schatten auf dem Ring, Stufe 0 (auch unter B, waehrend er vom Himmel faellt)
+dir_a = 315
+dir_b = 225
+keys_a = [[0, -30, -27], [4, -30, -27], [7, -6, -15], [9, -6, -15], [15, 58, 17], [25, 58, 17], [36, -30, -27]]
+keys_b = [[0, 20, -2], [9, 20, -2], [15, 84, 30], [17, 98, 37], [36, 98, 37], [37, 20, -2]]
+fall_b = [[0, 0], [15, 0], [16, 4], [17, 9], [18, 7], [19, 8], [36, 8], [37, -64], [41, 0], [42, -3], [43, 0]]
+show_b = [[0, true], [30, false], [37, true]]   # B weg nach dem Verpuffen, zurueck beim Fall vom Himmel
+anims_a = [[0, "idle"], [4, "drive"], [7, "push"], [17, "win"], [25, "reverse"], [36, "idle"]]   # zurueck (4 Iso-Schritte/Tick), bevor B landet
+anims_b = [[0, "idle"], [7, "ko"], [37, "idle"]]
+impact_tick = 7
+shake_px = [[2, 1], [-1, 0]]  # Bildversatz ab dem Aufprall, ein Eintrag pro Tick
+jitter = [7, 9]               # Gerangel von bis (Tick)
+spark_y_px = -15              # Funke ueber dem Bodenpunkt
+stars = {from = 19, to = 30, n = 3, rx_px = 13, ry_px = 4, y_px = -32, period = 8}   # KO-Sterne kreisen ueber B
+poof = {tick = 30, y_px = -10}            # B verpufft (Stempel poof, ein Bild pro Tick)
+dust = {tick = 41, dx_px = 22, y_px = 2}  # Staub links und rechts, wenn B landet
+sheet_ticks = [2, 8, 22, 39]
+
+# ---------------------------------------------------------------- Spormula E (Linienrennen, Draufsicht)
+# Kamera faehrt mit dem Feld (zwei Zumos auf Spur B stehen im Bild), der dritte Zumo kommt auf Spur A (zweiter Pfad)
+# von hinten, ueberholt beide und ist vor dem Fuehrenden im Ziel. Die Welt (Ziellinie, Codes) wiederholt sich alle
+# ticks * scroll_px: der Loop ist nahtlos, weil der Ueberholer am Anfang und Ende ausserhalb des Bildes ist.
+[spormula]
+variant = "Z7"
+size_px = [270, 270]
+ticks = 48
+scroll_px = 6                 # Kamera pro Tick (Welt wiederholt sich alle 288 px)
+board_y_px = [84, 192]        # Fahrflaeche (weiss), oben/unten Kante und Kontur
+board_value = 5
+edge_value = 4
+outline_value = 0
+lanes_y_px = [110, 166]       # Spur A (Ueberholweg), Spur B (Feld); Abstand > Zumo-Breite (40 px)
+line_px = 7                   # 19-mm-Klebeband bei 2.6 mm/px
+line_value = 0
+pack = [[70, "drive"], [170, "drive"]]   # Feld auf Spur B: Bild-x, Animation
+overtaker_keys = [[0, -42], [48, 294]]   # Ueberholer auf Spur A, Bild-x (7 px/Tick relativ zur Kamera)
+overtaker_anim = "push"       # boeser Blick, volle Kraft
+finish_x_px = 400             # Ziellinie (Welt-x bei Tick 0)
+checker_px = 6                # Schachbrett der Ziellinie
+checker_cols = 2
+codes = [[340, 2]]            # Bodencodes vor dem Ziel: Welt-x, Zahl der Querbalken (Skill: Balken zaehlen)
+bar_px = [8, 28]              # Querbalken: Breite (2 cm), Laenge (ueber alle 5 Sensoren)
+bar_gap_px = 8
+flag = {dx_px = 7, dy_px = -10, ticks = 3}   # Zielflagge: Stange auf der Ziellinie, steht auf der oberen Kante, weht alle 3 Ticks
+burst = [["star", 7, -24, -4, -3], ["star", 7, -24, 4, -3], ["star", 7, -26, 0, -4]]   # Sterne aus der Flagge, wenn der Ueberholer als Erster kreuzt: [Stempel, x, y, dx/Tick, dy/Tick] ab Stange/Oberkante
+burst_ticks = 5               # (der Funke der Demo waere weiss auf weisser Flaeche)
+sheet_ticks = [4, 18, 30, 36]
+
+# ---------------------------------------------------------------- Area Capture (Draufsicht)
+# Ein Zumo faehrt eine Rechteckschleife aus seinem Land (Spur in Teamfarbe), kommt zurueck, die umfahrene Flaeche fuellt
+# sich Zeile fuer Zeile, Freudensprung, dann faehrt er an die neue Landkante und die Kamera faehrt mit (wie
+# tracking/zumo_schleife.py: geradeaus, 90 Grad auf der Stelle). Das Land ist ein Streifen, der nach links weiterlaeuft.
+[capture]
+variant = "Z7"
+size_px = [270, 270]
+ticks = 48
+team = 0                      # Index in [[teams]]
+field_y_px = [74, 196]        # Spielfeld (Plane), oben/unten Kante und Kontur
+field_value = 1
+edge_value = 3
+outline_value = 0
+grid_px = 16                  # Punktraster auf der Plane (Teiler der Schleifenbreite, sonst springt der Loop)
+grid_value = 2
+start_px = [87, 111]          # Landkante und obere Spurzeile bei Tick 0
+band_h_px = 48                # Land = Streifen zwischen oberer und unterer Spurzeile
+trail_px = 3
+# Abschnitte: ["drive", dx, dy, ticks] | ["turn", Grad (+ = links), ticks] | ["win", ticks]. Position zu Beginn jedes Ticks.
+legs = [["drive", 96, 0, 8], ["turn", -90, 2], ["drive", 0, 48, 4], ["turn", -90, 2], ["drive", -96, 0, 8],
+        ["win", 8], ["turn", -90, 2], ["drive", 0, -48, 4], ["turn", -90, 2], ["drive", 96, 0, 8]]
+follow_leg = 9                # in diesem Abschnitt faehrt die Kamera mit (Zumo steht im Bild, Land rueckt nach)
+fill_ticks = 4                # Flaeche fuellt sich in so vielen Ticks (Zeilenbaender von oben)
+sheet_ticks = [4, 18, 26, 44]
+
+# ---------------------------------------------------------------- Maskottchen (T-Shirt)
+[mascot]
+variant = "Z4"
+view = "tq"
+dir_deg = 315                 # 3/4 nach vorne rechts: Ketten, Ritzel, Gesicht (wie A, der Sieger der Sumo-Szene)
+anim = "love"
+frame = 2                     # Hopser oben, Herzaugen, LEDs magenta
+stamps = [["heart", 12, -29]] # Stempel relativ zum Drehpunkt (Bodenpunkt unter der Robotermitte): Herz ueber dem Kopf
+width_cm = 25.0
+dpi = 300
+palettes = ["P1", "natural"]  # Vollton: je Stufe eine Volltonfarbe
+ink_values = [0]              # Siebdruck 1c: diese Stufen werden Farbe (Kontur, Innenlinien, OLED); Augen bleiben frei
+ink_color = "#000000"
+
+# ---------------------------------------------------------------- Emoji (Slack 128 px, Telegram 512 px)
+# Ein Massstab fuer das ganze Set (groesster Zumo passt), mittig. Sticker-Ring Stufe 5 um den Zumo: dunkle Kontur fuer
+# helles Slack, weisser Ring fuer dunkles. Partikel: [Stempel, x, y, dx/Frame, dy/Frame, Start-Frame, Lebensdauer]
+# relativ zum Drehpunkt; der Loop laeuft ueber `frames` (Vielfaches der 8 Sprite-Frames).
+[emoji]
+variant = "Z4"
+size_px = 128
+pad_px = 2
+max_kb = 128
+sticker_value = 5
+telegram_px = 512
+palettes = ["natural", "P1"]  # natural -> emoji/, weitere -> emoji/<palette>/
+[emoji.items.idle]
+view = "tq"
+dir_deg = 270
+anim = "idle"
+frames = 8
+still = 0
+[emoji.items.love]
+view = "tq"
+dir_deg = 270
+anim = "love"
+frames = 16
+still = 2
+particles = [["heart", -9, -27, 0, -1, 0, 12], ["heart", 10, -27, 0, -1, 8, 12]]
+[emoji.items.win]
+view = "tq"
+dir_deg = 270
+anim = "win"
+frames = 8
+still = 3
+[emoji.items.ko]
+view = "tq"
+dir_deg = 270
+anim = "ko"
+frames = 8
+still = 0
+orbit = {stamp = "star", n = 3, rx_px = 12, ry_px = 3, y_px = -27, period = 8}
+[emoji.items.sleep]
+view = "tq"
+dir_deg = 270
+anim = "sleep"
+frames = 16
+still = 0
+particles = [["z", 8, -26, 1, -1, 0, 12], ["z", 8, -26, 1, -1, 8, 12]]
+[emoji.items.drive]
+view = "tq"
+dir_deg = 315
+anim = "drive"
+frames = 8
+still = 0
+[emoji.items.push]
+view = "tq"
+dir_deg = 315
+anim = "push"
+frames = 8
+still = 2
+[emoji.items.spin]            # dreht auf der Stelle durch alle 8 Richtungen (Ketten gegenlaeufig)
+view = "tq"
+dir_deg = [270, 315, 0, 45, 90, 135, 180, 225]
+anim = "turn_left"
+frames = 8
+still = 1
+
+[sheet]
+zoom = 2                      # Szenen im Kontaktbogen (270 -> 540)
+palettes = ["P1", "natural"]

@@ -818,6 +818,11 @@ def cmd_publish(cfg):
     for sub in ("lens", "elements", "sound", "brand"):
         if (OUT / sub).is_dir():
             shutil.copytree(OUT / sub, dst / sub, dirs_exist_ok=True)
+    zp = ROOT / "zumo_sprites" / "previz"                                   # Zumo: Szenen, Emoji, Maskottchen (ohne Cache)
+    for sub in ("scenes", "emoji", "mascot"):
+        if (zp / sub).is_dir():
+            shutil.copytree(zp / sub, dst / "zumo" / sub, dirs_exist_ok=True,
+                            ignore=shutil.ignore_patterns("_cache", "report.txt", "sheet.png"))
     print(f"publish -> {dst}")
 
 

@@ -12,7 +12,8 @@ uv run src/zumo_sprites.py look Z4           eine Variante gross, 8 Ansichten, E
 uv run src/zumo_sprites.py eyes Z4           Augenbogen E1..E6 (3/4 + Heck, idle + win) -> previz/now/eyes_Z4.png (~30 s)
 uv run src/zumo_sprites.py sheet [Z4]        alle Richtungen x Paletten + 4 GIFs -> previz/now/
 uv run src/zumo_sprites.py test [Z4]         Selbsttest am fertigen Sprite (Loop, Ketten, Augen, Durchsicht, Leinwand)
-uv run src/zumo_sprites.py export Z4         alles -> ~/vault/Files/03 Work/Spark/Assets/Zumo Sprites/Z4/ (~5 min)
+uv run src/zumo_sprites.py export Z4         alles -> ~/Nextcloud/Sporga/assets/motion/zumo/sprites/Z4/ (~5 min; bis 8.10.
+                                             lagen Exporte in ~/vault/Notes/03 Work/Spark/Assets/Zumo Sprites/)
 uv run src/zumo_sprites_demo.py              Sumo-Demo (Iso, P1, Z7) -> previz/now/demo_sumo.{gif,mp4} + demo_sumo_alpha.mov,
                                              Kopie nach <export>/demo/ (GIF + ProRes 4444 transparent, MP4 auf Nacht-Grund)
 uv run --with trimesh --with networkx src/zumo_sprites.py mesh    nur wenn sich das glb aendert -> ref/zumo_mesh.npz
@@ -31,7 +32,8 @@ Gerechnet wird im Wertraum 0..5 (Index 1..6, 0 = frei, ab 10 LED-Akzente); Farbe
 - `sheets/<palette>/<ansicht>_<anim>.png` (+ `@4x`): P-Mode-PNG, Zeile = Richtung (Reihenfolge `dirs_deg`), Spalte = Frame.
   Umfaerben = Palette tauschen (Aseprite, Python). Paletten: `natural` (Echtfarben), `value` (exakte Graustufen k/5 fuer
   die Spark Lens in Figma), `P1`.
-- `seq/natural/<ansicht>_<richtung>/<anim>/0000.png`: @4x RGBA-Sequenzen fuer Resolve/AE (4 px = Raster R3 bei 1080p).
+- `seq/<natural|value>/<ansicht>_<richtung>/<anim>/0000.png`: @4x RGBA-Sequenzen fuer Resolve/AE (4 px = Raster R3 bei 1080p;
+  `value` + Spark Lens in Resolve = jede Colorway).
 - `gif/`: alle Animationen @4x mit 1-Bit-Transparenz (Slack, Telegram, Web). `index.html` = Galerie mit Grundwahl.
 - `atlas.json`: Rahmengroesse, Drehpunkt (Bodenpunkt unter der Robotermitte, in allen Frames gleich), Richtungen, fps.
 
@@ -91,6 +93,75 @@ Z5 Mini 3.2 mm/px · Z6 Gross 1.5 mm/px · Z7 = Z4 mit Sticker-Kontur · Z8 = Z4
 Z10 = Z6 ohne Augen (Detail-Grossaufnahmen). Vadim 8.10.: Z4 mit Augen ist der Look, Z8 (ohne Augen) und Z7 (Sticker)
 bleiben parallel, Z10 fuer Detail-Shots. Augenregel: E1 Stand 8.10. · E2 Hinterkopf · E3 + nach vorne ·
 E4 + 3/4-Gesicht (fernes Auge schmal) · **E5 + Bildschirmebene (Standard)** · E6 = E4 + Bildschirmebene.
+
+## Szenen, Maskottchen, Emoji (10.10.)
+
+Logik `src/zumo_scenes.py`, alle Werte `zumo_sprites/scenes.toml`, Ausgaben in `previz/` (gitignored, reproduzierbar).
+Sprites kommen unveraendert aus `zumo_sprites.py` (Z7 in den Szenen, Z4 fuer Maskottchen und Emoji).
+
+```
+uv run src/zumo_scenes.py sheet       Kontaktbogen: je Szene 4 Keyframes (P1 + natural), Maskottchen, Emoji
+                                      -> previz/scenes/sheet.png (~1 s mit Sprite-Cache, ~5 s kalt)
+uv run src/zumo_scenes.py scenes [spumo|spormula|capture]   -> previz/scenes/<name>/
+                                      <name>.gif (P1, transparent, 540 px) + _ground.gif + _natural(_ground).gif,
+                                      _1080x1080.mp4 + _1080x1920.mp4 (P1 auf Grund, Loop 3x), _alpha_value.mov
+                                      (ProRes 4444, exakte Grautoene k/5: in Resolve faerbt die Spark Lens)
+uv run src/zumo_scenes.py mascot      -> previz/mascot/mascot_{P1,natural,1c}.{svg,png} (PNG 300 dpi, 25.1 cm breit)
+uv run src/zumo_scenes.py emoji       -> previz/emoji/zumo-<name>.gif (Slack 128 px, natural), emoji/P1/,
+                                      emoji/telegram/zumo-<name>.png (512 px, statisch)
+uv run src/zumo_scenes.py test        Selbsttest an den fertigen Dateien -> previz/scenes/report.txt
+uv run src/zumo_scenes.py all         scenes + mascot + emoji + sheet + test (~2 min, Rechner unter Last)
+```
+
+Szenen (je 48 Ticks = 4 s bei 12 fps, nahtlos):
+- **spumo** (Iso): Choreografie der Demo v3 (A rammt B an der Flanke, schiebt ihn ueber die Kante), dann KO-Sterne ueber
+  B, B verpufft, A faehrt rueckwaerts zurueck, B faellt am Start vom Himmel (Schatten vorab, Staub beim Landen).
+- **spormula** (Draufsicht): Kamera faehrt mit dem Feld (zwei Zumos auf Spur B), der dritte kommt auf dem zweiten Pfad
+  (Spur A), ueberholt beide und kreuzt die Ziellinie als Erster; Sterne aus der Zielflagge. Bodencodes (2 Querbalken)
+  vor dem Ziel.
+- **capture** (Draufsicht): Rechteckschleife wie `tracking/zumo_schleife.py` (geradeaus, 90 Grad auf der Stelle), Spur
+  in Teamfarbe, zurueck im Land fuellt sich die Flaeche in 4 Zeilenbaendern, Freudensprung, dann an die neue Kante.
+- Emoji: idle, love (Herzen steigen), win, ko (Sterne kreisen), sleep (Z steigen), drive, push, spin (8 Richtungen).
+
+Entscheidungen (mit Befund):
+- **Szene = reine Funktion Tick -> Index-Bild**, Loop nahtlos am Zustand statt modulo: der Test rechnet Tick 48 weiter
+  und vergleicht mit Tick 0 (alle drei 0 px). Gegenprobe Tick 40 (1892 / 3348 / 4528 px). Von Hand eingebaut 10.10.:
+  Endkey von A 2 px daneben -> "weicht in 855 px ab", Test rot.
+- **Lineare Keys gemessen**: Schrittweite pro Tick schwankt je Abschnitt hoechstens 1 px (Iso: 1 Schritt). Smoothstep
+  eingebaut -> 6 Abschnitte rot. Iso-Diagonalen laufen in ganzen Schritten (2 px x, 1 px y); getrennt gerundet faellt die
+  Treppe um 1 px aus der Diagonale.
+- **Ganze Pixel und nur Palettenfarben** an jedem GIF-Tick und PNG (k x k-Bloecke einfarbig). Weiche Skalierung
+  (bilinear + quantize) eingebaut -> rot. ProRes value gemessen: Abweichung von k/5 hoechstens 1/255, keine Buntheit,
+  Alpha 1 Bit.
+- **GIF-Dauer 8/9/8 Hundertstel** = genau 12 fps: 1000/12 ms gibt es im GIF nicht (die Demo speichert 80 ms = 12.5 fps).
+- **Spumo-Reset**: A faehrt mit 4 Iso-Schritten/Tick zurueck und steht, bevor B landet. Befund: mit 2 Schritten/Tick
+  landete B bei Tick 41 genau im Kontaktabstand neben A, die Sprites ueberlappten.
+- **Spormula ohne Weiche pro Weltperiode**: gerechnet, das Ueberholen braucht ~20 Ticks bei 6 px/Tick Kamera, die Weiche
+  waere laenger als die Periode (288 px). Deshalb zwei durchgehende Pfade; nahtlos, weil der Ueberholer bei Tick 0 und
+  48 ausserhalb des Bildes ist (Gate). Gate: Ueberholer im Ziel bei Tick 34, Fuehrender bei 39. Funke der Demo (Stufe 5)
+  waere auf der weissen Flaeche unsichtbar -> Sterne ueber der Flagge.
+- **Capture**: Kamera faehrt nur im letzten Abschnitt mit (Land rueckt um die Schleifenbreite 96 px nach), sonst steht
+  das Bild und die Schleife ist lesbar. Land Stufe 3: Stufe 2 auf der Plane (1) war im Kontaktbogen kaum zu sehen.
+- **Teamfarben** = Index 20+ mit eigener Farbe je Palette (natural: Magenta) oder Stufe (P1, value). Schluessel `step`,
+  nicht `value`: eine Palette heisst `value` (Kollision, beim ersten Lauf gefunden).
+- **Maskottchen tq 315 love + Herz** (wie A, der Sieger): verglichen tq 270/225/315, front 270. Front und tq 270 sind ein
+  Kasten mit Gesicht, 3/4 zeigt Ketten und Ritzel. 1c = Stufe 0 (Kontur, Innenlinien, OLED), Augen bleiben Shirt;
+  tq 315 hat weniger Ritzel-Flecken als 225. SVG: Laeufe zu Rechtecken, gleiche Farben zu einem Pfad vereint (in P1
+  leuchten LEDs und Herz in Stufe 5: der Test fand SVG 14 px vs PNG 43 px, solange es zwei Pfade gleicher Farbe gab).
+- **Emoji**: ein Massstab fuers Set (x2 Slack, x8 Telegram), Sticker-Ring Stufe 5 um den Zumo (dunkle Kontur fuer
+  helles Slack, weisser Ring fuer dunkles), Partikel mit Kontur 0. 5-28 KB.
+- **Sprite-Cache nach Inhalt** (`previz/scenes/_cache/`, Hash aus zumo_sprites.toml + .py), unter 24 Sprites ohne Pool.
+  Gemessen bei Last 25 auf 12 Kernen: 80 Sprites im Pool 53 s, `sheet` braucht jetzt 25 Sprites (5 s kalt, 1 s warm).
+
+Offen:
+- Arena: Skill `zumo-2040` sagt, die MakerNight-Arena ist weiss mit schwarzem Rand (invers zum Dohyo); die Szene folgt
+  der abgenommenen Demo (dunkel, weisser Rand). Umstellen = `ring_values` in `[spumo]`.
+- Regeln: aktuell nur `archive/2026-09-27_vor_neustart/knowledgebase/disziplinen.md` + `tracking/README.md` (Nextcloud).
+  Spormula: Pfade, Codes, Runden ja; Zielflagge und das Ueberholen auf dem zweiten Pfad sind Darstellung, keine Regel.
+- 9:16 ist die Szene mittig auf Grund (viel Leerraum oben/unten); eigenes Hochformat-Layout, falls fuer Stories gebraucht.
+- Simulator (`tracking/sim`, HTML-Replays mit Kontur) nutzt die Sprites noch nicht; Quelle waeren die Draufsicht-Sheets +
+  `atlas.json` aus `export`.
+- Kopie in den Vault (`[export].dir`) wie bei der Demo: noch nicht.
 
 ## Stand 8.10. (Abend)
 

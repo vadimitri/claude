@@ -1,12 +1,29 @@
-# SPARK Motion Pack
+# SPARK Motion Generator
 
 Alles prozedural (Python + ffmpeg). Skripte in `src/`, jede Ausgabe in ihrem eigenen Ordner, jede Galerie als `index.html` darin. Arbeitsweise und Regeln: `CLAUDE.md`.
+**Neues Stück:** `docs/BRIEF.md` → `docs/PLAYBOOK.md` → Bausteine `src/kit.py` → Schnitt in Resolve (`docs/RESOLVE.md`, Projekt `SPARK_Template`).
+Fertige Team-Assets: `~/Nextcloud/Sporga/assets/motion/` (`uv run src/kit.py publish`).
+
+**Werkzeuge für Neues**
 
 | Ordner | Was | Erzeugt von |
 |---|---|---|
+| `kit/` | **Spark Kit** für Resolve: Lens/Glow-DCTLs, Grau-Elemente (Spark S2/S7, Blende, Tunnel, Flow, QR, Wortwand, Wortmarke), Sound-Stems + Chiptune | `uv run src/kit.py all` |
+| `zumo_sprites/` | **8-Bit-Zumo**: Sprites aller Richtungen, Challenge-Szenen, Maskottchen (SVG/Druck), Emoji | `uv run src/zumo_sprites.py`, `src/zumo_scenes.py` |
 | `editor/` | **Live-Editor** (Browser, GPU): alle Sterne als Shader, Vorlagen Kick-off/Maker Night/Event/Folie, Formate A3/9x16/16x9/1x1/4x5, Kampagne + Varianten + Balance | `cd editor && npm run dev -- --port 5199` |
-| `kickoff_loop/` | **Kick-off-Loop** (aktuell): 32-Frame-Loop, Stern als Bumerang-Ellipse, Farbreise über alle Colorways, Video getrennt von den Campus-Plakaten. Handbuch `kickoff_loop/CLAUDE.md`, Stellschrauben `kickoff_loop/loop.toml` | `uv run src/kickoff_loop.py preview` |
-| `kickoff/` | **Kick-off-Kampagne** 14.10.: bunte Unikat-Plakate ohne Lila, QR eingebettet, Hex-Easter-Egg | `src/kickoff.py` |
+| `flow/` | **Spark Flow**: das Figma-Graufeld als Video-Loop | `uv run src/flow.py` |
+
+**Projekte (abgeschlossen, Basis für Neues)**
+
+| Ordner | Was | Erzeugt von |
+|---|---|---|
+| `kickoff_loop/` | **Kick-off-Video** F19 (9.10.) + Campus-Plakate. Handbuch `kickoff_loop/CLAUDE.md`, Retro `kickoff_loop/docs/RETRO.md` | `uv run src/kickoff_loop.py` |
+| (`kickoff/`) | Kick-off-Kampagne 1. Runde, Ausgabe nicht mehr vorhanden (neu: `src/kickoff.py`) | `src/kickoff.py` |
+
+**System + Maker Night (Lila exklusiv)**
+
+| Ordner | Was | Erzeugt von |
+|---|---|---|
 | `styles/` | **Maker-Night-System**: freigegebene Bausteine (Codes D/P/S/F/R), Unikat-Plakate A3, Looks mit Figma-Ebenen, Bewegungstests | `src/styles.py` |
 | `makernight/sparks/` | „Sparks make the night“, v1 + **v2 (Pixelraster, Clash-Bit)** | `src/makernight_sparks.py` |
 | `makernight/teaser/` | 14,5-s-Teaser lila→lavendel + Sound | `src/makernight.py`, `src/makernight_audio.py` |

@@ -245,9 +245,10 @@ steps = ["#000000", "#333333", "#666666", "#999999", "#CCCCCC", "#FFFFFF"]
 accents = {r = "#FFFFFF", g = "#FFFFFF", b = "#FFFFFF", y = "#FFFFFF", m = "#FFFFFF", c = "#FFFFFF", w = "#FFFFFF"}
 
 [export]
-dir = "~/vault/Files/03 Work/Spark/Assets/Zumo Sprites"   # pro Variante ein Unterordner (Z4/ ...)
+dir = "~/Nextcloud/Sporga/assets/motion/zumo/sprites"   # Team-Ablage (Vadim 10.10.), pro Variante ein Unterordner (Z4/ ...)
+                                        # Alte Exporte bis 8.10.: ~/vault/Notes/03 Work/Spark/Assets/Zumo Sprites/
 palettes = ["natural", "value", "P1"]   # Sprite-Sheets in diesen Paletten (Namen aus [palettes] oder P-Codes)
-seq_palettes = ["natural"]              # zusaetzlich als PNG-Sequenzen (Resolve, After Effects; je Frame eine Datei)
+seq_palettes = ["natural", "value"]     # zusaetzlich als PNG-Sequenzen (Resolve: value + Spark Lens = jede Colorway)
 gif_palette = "natural"                 # GIFs fuer Galerie, Slack, Telegram
 scale = 4                   # Vergroesserung (nearest) der Sequenzen und @4x-Sheets: 4 px = Raster R3 bei 1080p
 fps = 12
