@@ -1,0 +1,41 @@
+# Spark Kit: alle Stellschrauben. Logik in src/kit.py, Anleitung docs/RESOLVE.md.
+# Grundidee: Python rendert GRAUWERTE (0 = Grund, 1 = Tinte), die Spark Lens in Resolve faerbt sie in jede Colorway.
+
+[lens]
+cell_px = 4                 # R3: 4 px Zellen bei 1080p (wie Deck und Plakate)
+# Reihenfolge im Colorway-Menue des Effekts; erste = Voreinstellung. Lila (P1 P5 P8 P12) nur fuer die Maker Night.
+order = ["P1", "P5", "P8", "P12", "P11", "P17", "P10", "P18", "P14", "P25", "P20", "P24", "P23", "P19", "P13", "P15",
+         "P16", "P21", "P22", "P9", "P6", "P26"]
+resolve_dir = "/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT/Spark"   # Resolve liest DCTLs dort
+
+[elements]
+fps = 24                    # Projekt-Bildrate; 12-fps-Sprites = 2 Bilder je Tick
+formats = { "9x16" = [1080, 1920], "4x5" = [1080, 1350], "16x9" = [1920, 1080] }
+spin_px = 1080              # Spark-Loops quadratisch, passen in jedes Format
+spin_loop_s = 2.5           # eine Umdrehung um 60 Grad (6 Zacken -> nahtlos)
+spin_radius_frac = 0.46     # Stern-Radius / Kantenlaenge: ganz im Bild (Vadim: Loop muss komplett sein)
+grad_low = 0.64             # S2-Verlauf: Rand (Stufe ~3) ...
+grad_high = 1.0             # ... bis Mitte (Tinte), wie styles.spark
+nest_ratio = 0.74           # S7: Groessenverhaeltnis der Puppen (styles.spark)
+nest_turn_deg = 30          # S7: Drehung je Puppe
+nest_loop_s = 4.0           # Tunnel (bildfuellend): 2 Puppen-Schritte = nahtlos (XOR kippt nach einem Schritt)
+cover_s = 0.5               # Spark-Blende: Stern waechst vom Punkt bis bildfuellend
+cover_turn_deg = 60         # Drehung waehrend der Blende
+flow_loop_s = 24            # Flow-Grund: eine nahtlose Schleife (Stile wie flow/flow.toml)
+flow_styles = ["drift", "tide"]
+wordmark_px = 2400          # Breite der Wortmarke SPARK (Clash Display Bold, P-A-Kern aus styles.KERN)
+logo_px = 2048              # Spark-Logo (Stern) quadratisch
+
+[sound]
+sr = 48000
+bpm = 120                   # Maker-Night-Raster (makernight_audio)
+peak_db = -1.0              # jedes Stem auf diesen Spitzenpegel (keine Lautheitsregelung: bleibt Stem)
+
+[resolve]
+project = "SPARK_Template"
+timelines = { "Story 9x16" = "9x16", "Post 4x5" = "4x5", "Wide 16x9" = "16x9" }
+default_colorway = "P1"     # Timeline-Grade (Lens) beim Anlegen
+marker_bars = 16            # Taktmarker (4/4 bei bpm) auf jeder Timeline
+
+[publish]
+dir = "~/Nextcloud/Sporga/assets/motion"   # Team-Ablage (Vadim 10.10.)
