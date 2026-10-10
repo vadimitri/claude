@@ -78,6 +78,9 @@ Render-Ausgaben gitignored (reproduzierbar), Configs/Reports/kleine Referenzen n
 
 - Vadim: Adjustment Clip in `Wide 16x9` auf V5 hochziehen (`kit_resolve.lens_on` warnt). Backups `Spark_Design` +
   `Spark Deck` per Figma *File > Save local copy* nach `~/vault/Notes/03 Work/Spark/Assets/Figma/`.
-- Zumo: Szenen/Maskottchen/Emoji abnehmen, dann `zumo_sprites.py export Z4` + `zumo_scenes.py all` → `publish` nach Sporga.
+- Zumo: Szenen/Maskottchen/Emoji abnehmen (Bogen `zumo_sprites/previz/scenes/sheet.png`); veröffentlicht sind sie schon
+  (`Sporga/assets/motion/zumo/`, Sprites Z4 inkl. `value`-Sequenzen unter `zumo/sprites/Z4/`). Offen dort: Arena weiß mit
+  schwarzem Rand laut Skill `zumo-2040` (Szene folgt der dunklen Demo), Simulator-Anbindung (Draufsicht-Sheets + `atlas.json`).
+- Figma: Maskottchen-SVGs + Emoji in Spark_Design aufnehmen (Session spark-design-guide hat Start here umgebaut, war beendet).
 - Spark Glow mit eigener Licht-Rampe (Kick-off: glimmend rot → weiß in OKLab) gibt es nur als „zweite Lens mit eigener
   Colorway“; eine echte Zweitpalette für Licht fehlt.
