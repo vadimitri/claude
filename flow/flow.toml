@@ -1,0 +1,46 @@
+# Spark Flow: Stellschrauben. Dieselben Regler wie der Figma-Shader "Spark Flow" (Fill) + Spark Lens darueber.
+# uv run src/flow.py sheet | render [name] | test
+
+# Stile = die Varianten der Figma-Komponente Gradient/Flow
+[style.drift]          # F1: Verlauf, der sanft schwenkt. Ruhig, fuer Inhalt
+glow = 0.0             # Anteil der drei Lichter (0 = nur Verlauf)
+flow = 0.6             # Verwirbelung
+size = 1.0             # Groesse der Formen (kleiner = mehr Struktur)
+
+[style.tide]           # F4: stark verwirbelt, organisch. Lebendiger, fuer Titel
+glow = 0.3
+flow = 1.0
+size = 0.7
+
+# Gilt fuer jeden [[render]], dort einzeln ueberschreibbar
+[defaults]
+width_px = 1920
+height_px = 1080
+cell_px = 4            # R3: 4 px Zellen bei 1080p (wie die Lens im Deck)
+fps = 30
+loop_s = 24            # eine nahtlose Schleife; das Video ist genau so lang
+angle_deg = -60        # Richtung des Verlaufs (schwenkt +-20 Grad mit)
+low = 0.0              # Wertbereich: welche Farbstufen vorkommen (0 = Grund, 1 = Tinte)
+high = 1.0
+seed = 0               # Variation: andere Bahnen, gleicher Charakter
+prores = true          # zusaetzlich ProRes 422 HQ .mov fuer Resolve
+
+[[render]]
+name = "drift_p11"
+style = "drift"
+palette = "P11"
+
+[[render]]
+name = "tide_p25"
+style = "tide"
+palette = "P25"
+
+[[render]]
+name = "drift_p1_bg"   # Deck-Hintergrund: nur die dunklen Stufen
+style = "drift"
+palette = "P1"
+high = 0.4
+
+[sheet]                # Kontaktbogen: Stile x Paletten, je 4 Zeitpunkte
+palettes = ["P11", "P17", "P1", "P25"]
+times_frac = [0.0, 0.25, 0.5, 0.75]
