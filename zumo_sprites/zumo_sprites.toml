@@ -20,24 +20,31 @@ margin_px = 3               # Rand um den Sprite (Kontur + Hopser bis 2 px)
 track_band_mm = 4.5         # Kette optisch so dick (echte Kette ~1 mm im CAD, mit Stollen ~4 mm): liest sich als Band
 hide = ["part", "screw"]    # Materialien, die nicht gerendert werden (SMD-Bauteile, Schrauben: nur Rauschen bei 2 mm/px)
 min_island_px = 3           # Material-Flecken kleiner als das gehen im Umfeld auf
+value_island_px = 3         # Wert-Inseln (Licht, Linie, Vertiefung) kleiner als das gehen im Umfeld auf (0 = aus)
 island_keep = ["screen", "lens", "cap", "bolt", "usb"]   # ... ausser diese (kleine Akzente sind gewollt)
 cavity_mm = 4.0             # Vertiefung: so viel tiefer als der naechste Punkt im Umkreis -> eine Stufe dunkler
 cavity_px = 2               # Umkreis dafuer (Radius in Pixeln)
 thin = {steel = 0.12}       # Mindestdeckung pro Material: 1 mm Schild von der Seite bleibt als 1-px-Linie stehen
 rim = true                  # Lichtkante: Pixel, deren Nachbar oben/links tiefer liegt oder frei ist, eine Stufe heller
 
+# tidy = Pixel-Art-Bereinigung (Vertiefung nur konkav, Wert-Inseln < value_island_px weg): Vadim 8.10. "manche 3/4 sehen
+# nur verpixelt aus". Nur 3/4; Draufsicht, Seite, Front bleiben wie abgenommen.
 # Ansichten: pitch = Blick von oben (0 = Seite, 90 = Draufsicht), dirs = Fahrtrichtung im Bild (0 = rechts, 90 = weg/oben,
 # 270 = zur Kamera). 3/4 mit pitch 30 und dirs in 45-Grad-Schritten ist zugleich echtes 2:1-Iso.
 [views.top]
+tidy = false
 pitch_deg = 90
 dirs_deg = [0, 22.5, 45, 67.5, 90, 112.5, 135, 157.5, 180, 202.5, 225, 247.5, 270, 292.5, 315, 337.5]
 [views.tq]
+tidy = true
 pitch_deg = 30
 dirs_deg = [0, 45, 90, 135, 180, 225, 270, 315]
 [views.side]
+tidy = false
 pitch_deg = 0
 dirs_deg = [0, 180]
 [views.front]
+tidy = false
 pitch_deg = 12
 dirs_deg = [270, 90]
 
@@ -100,6 +107,42 @@ spacing_frac = 0.42         # Augenabstand als Anteil der Bildschirmbreite
 min_rows_tall = 5           # so viele Bildschirmzeilen braucht die hohe Augenform, sonst flach
 min_gap_px = 2              # ausser Draufsicht: mindestens so viel Luft zwischen den Augen
 look_px = 1                 # ausser Draufsicht: Augen so weit in Fahrtrichtung verschoben (schaut, wohin er faehrt)
+style = "E5"                # Augenregel fuer 3/4, Seite, Front (Codes unten, Bogen: `eyes`); ueberschreibt die Werte hier
+diag_forward_frac = 0.0     # schraeg zur Kamera: Augen so weit nach vorne (Anteil der Bildschirmtiefe), schaut wohin er faehrt
+show_away = true            # Augen auch, wenn er vom Betrachter wegfaehrt (false = Hinterkopf, OLED bleibt schwarz)
+away_sin = 0.3              # ab diesem sin(Richtung) gilt "weg" (0.3: 45, 90, 135 Grad; 0 und 180 = Seite bleiben)
+away_views = ["tq"]         # nur hier gilt der Hinterkopf (Vadim 8.10.: Augen der Ansichten, die er gut fand, nicht aendern)
+plane = false               # Augenpaar folgt der Bildschirmebene (Iso-Treppe) statt auf einer Zeile zu stehen
+far_narrow_px = 0           # Schraeg zur Kamera: das ferne Auge (Fahrtseite) so viel schmaler (3/4-Gesicht)
+
+# Augenregeln (Vadim 8.10.: in 3/4 vorne/hinten "nicht so suess", von hinten wirkt er "andersrum"). Codes stabil.
+# Befund: das OLED steht physikalisch nach hinten (Pololu-Text ist von vorne kopfueber, Foto 0J12327), ein aufrechtes
+# Gesicht von hinten liest sich als Front.
+[eye_styles.E1]
+label = "Stand 8.10."
+[eye_styles.E2]
+label = "Hinterkopf"
+show_away = false
+[eye_styles.E3]
+label = "Hinterkopf + nach vorne"
+show_away = false
+diag_forward_frac = 0.2
+[eye_styles.E4]
+label = "E3 + 3/4-Gesicht"
+show_away = false
+diag_forward_frac = 0.2
+far_narrow_px = 1
+[eye_styles.E5]
+label = "E3 + Bildschirmebene"
+show_away = false
+diag_forward_frac = 0.2
+plane = true
+[eye_styles.E6]
+label = "E4 + Bildschirmebene"
+show_away = false
+diag_forward_frac = 0.2
+far_narrow_px = 1
+plane = true
 
 # Gesichter: Stempel fuer das linke Auge (rechtes = gespiegelt), '#' = an. tall bei grossem, flat bei flachem Bildschirm.
 [faces.neutral]
@@ -263,34 +306,48 @@ head_scale = 1.35
 head_lift_mm = 3.0
 outline_value = 4
 show = false
+[variants.Z10]
+label = "Z6 ohne Augen"     # Vadim 8.10.: fuer Detail-Grossaufnahmen
+mm_per_px = 1.5
+head_scale = 1.2
+head_lift_mm = 2.0
+show = false
 
 # Sumo-Demo (uv run src/zumo_sprites_demo.py): zwei Zumos im Ring, zeigt die Sprites in einer Challenge-Animation.
 # Echte Pixel-Art (Vadim 7.10.: "zu fake"): flacher Ring ohne Lichtkegel/Verlauf, alles laeuft auf 12-fps-Ticks und in
-# ganzen Pixeln, Werte linear zwischen Keys (gerundet), Funke handgepixelt. Zeiten in Ticks, Positionen = x des Drehpunkts
-# relativ zur Ringmitte in logischen Pixeln; Kontakt der Schilde bei +-19 px (2.6 mm/px).
+# ganzen Pixeln, Werte linear zwischen Keys (gerundet), Funke handgepixelt. Zeiten in Ticks, Positionen = [x, y] des
+# Drehpunkts relativ zur Ringmitte in logischen Pixeln.
+# v3 (Vadim 8.10.): schneller, A schiebt B von der Seite raus, dicker weisser Rand auch an der Kante, Grund transparent
+# (GIF/ProRes fuer Slides und Videos). Bewegung in Iso-Diagonalen: ein Schritt = 2 px x, 1 px y (Iso-Treppe 2:1).
 [demo]
-variant = "Z7"              # Sticker-Kontur: liest sich auf dem dunklen Maker-Night-Grund
+variant = "Z7"              # Sticker-Kontur: liest sich auf dunklen Maker-Night-Gruenden
 palette = "P1"              # Lila gehoert der Maker Night
 size_px = [480, 270]        # logisches Raster, x4 = 1920 x 1080 (R3)
 px = 4
 tick_fps = 12               # alles (Sprites, Positionen, Funke) wechselt nur auf Ticks; Video 24 fps haelt jeden Tick 2 Frames
 video_fps = 24
+gif_px = 4                  # GIF-Vergroesserung (4 = 1920 x 1080, passt 1:1 auf Slides und Videos)
+preview_ground = 0          # Stufe des Grunds nur im MP4 (Vorschau); GIF und ProRes sind transparent
 ring_center_px = [240, 140]
 ring_rx_px = 92             # stilisiert (massstaeblich waeren 148 px: Ring 77 cm, dann sind die Zumos zu klein)
 ring_ry_frac = 0.5          # Iso 2:1 (pitch 30)
 ring_h_px = 8               # Plattformkante (Mini-Sumo: 5 cm hoch)
-border_px = [2, 1]          # weisser Rand: 2 px seitlich, 1 px oben/unten (Iso-Linie, ueberall gleich dick)
-ring_values = [1, 2, 5]     # Stufen: Ringflaeche, Plattformkante, Rand
-shadow_px = [15, 4]         # flacher Schatten unter jedem Zumo (Radien), Stufe 0
-ticks = 66
-keys_a = [[0, -66], [8, -66], [20, -19], [34, -19], [48, 48], [66, 48]]
-keys_b = [[0, 66], [8, 66], [20, 19], [34, 19], [48, 86], [54, 104], [66, 104]]
-fall_b = [[0, 0], [50, 0], [51, 2], [52, 5], [53, 9], [54, 11], [55, 10], [56, 11], [66, 11]]   # Sturz, kleiner Hopser
-anims_a = [[0, "idle"], [8, "drive"], [20, "push"], [49, "win"]]
-anims_b = [[0, "idle"], [8, "drive"], [20, "push"], [51, "ko"]]
-impact_tick = 20
-shake_px = [[2, 0], [-1, 0]]  # Bildversatz ab dem Aufprall, ein Eintrag pro Tick
-jitter_px = 1               # Gerangel waehrend push: beide zusammen, Tick fuer Tick hin und her
+border_px = [8, 4]          # weisser Rand: seitlich, oben/unten (Iso: halb so hoch). Vadim 8.10.: "deutlich dicker"
+ring_values = [1, 5, 5]     # Stufen: Ringflaeche, Plattformkante, Rand (Vadim 8.10.: Rand auch an der Seite weiss)
+lip_value = 4               # 1-px-Lippe zwischen Rand und Kante (sonst verschmelzen beide zu einem weissen Band)
+ring_outline = 0            # 1-px-Kontur um den Ring (Stufe), damit er auf hellen und dunklen Gruenden steht
+shadow_px = [16, 6]         # flacher Schatten unter jedem Zumo auf dem Ring (Radien), Stufe 0
+ticks = 40
+dir_a = 315                 # A faehrt schraeg nach vorne rechts ...
+dir_b = 225                 # ... B faehrt schraeg nach vorne links: A trifft B an der Flanke
+keys_a = [[0, -30, -27], [4, -30, -27], [7, -6, -15], [9, -6, -15], [15, 58, 17], [40, 58, 17]]
+keys_b = [[0, 30, -7], [6, 20, -2], [9, 20, -2], [15, 84, 30], [17, 98, 37], [40, 98, 37]]
+fall_b = [[0, 0], [15, 0], [16, 4], [17, 9], [18, 7], [19, 8], [40, 8]]   # ueber die Kante, kleiner Hopser
+anims_a = [[0, "idle"], [4, "drive"], [7, "push"], [17, "win"]]
+anims_b = [[0, "drive"], [6, "idle"], [7, "ko"]]
+impact_tick = 7
+shake_px = [[2, 1], [-1, 0]]  # Bildversatz ab dem Aufprall, ein Eintrag pro Tick
+jitter = [7, 9]             # Gerangel von bis (Tick): beide zusammen, Tick fuer Tick 1 px hin und her
 spark_y_px = -15            # Funke ueber dem Bodenpunkt (Hoehe der Schildkanten)
 # Funke pro Tick ab dem Aufprall, '#' = Stufe 5
 spark = [
